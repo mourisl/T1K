@@ -467,6 +467,16 @@ public:
 	{
 		return hitLenRequired = l ;
 	}
+
+	char *GetSeqName( int seqIdx ) 
+	{
+		return seqs[ seqIdx ].name ;
+	}
+
+	char *GetSeqConsensus( int seqIdx )
+	{
+		return seqs[ seqIdx ].consensus ;
+	}
 	
 	// Input some baseline sequence to match against.
 	void InputRefFa( char *filename ) 
@@ -1445,7 +1455,7 @@ public:
 	}
 	
 	// Find the seq id this read belongs to.
-	int AssignReads( char *read, char *read2, int barcode, std::vector<struct _overlap> &assign )
+	int AssignRead( char *read, char *read2, int barcode, std::vector<struct _overlap> &assign )
 	{
 		assign.clear() ;
 		
@@ -1457,7 +1467,7 @@ public:
 		int overlapCnt2 = 0 ;
 		if (read2 != NULL)
 		{
-			overlapCnt2 = GetOverlapsFromRead(read, 0, barcode, overlaps2 ) ;
+			overlapCnt2 = GetOverlapsFromRead(read2, 0, barcode, overlaps2 ) ;
 		}
 		//printf( "%d %d\n", overlapCnt, mateOverlapCnt ) ;
 		//printf( "%d %s\n%d %s\n", overlaps[0].strand, reads[i].seq, mateOverlaps[0].strand, reads[i + 1].seq ) ;
@@ -1474,14 +1484,15 @@ public:
 		int len2 = 0 ;
 		char *rc = new char[len + 1] ;
 		char *rc2 = NULL ;
+
+		ReverseComplement( rc, read, len ) ;
+
 		if (read2)
 		{
 			len2 = strlen(read2) ;
 			rc2 = new char[len + 1] ;
+			ReverseComplement( rc2, read2, len2 ) ;
 		}
-
-		ReverseComplement( rc, read, len ) ;
-		ReverseComplement( rc2, read2, len ) ;
 
 		char *r = read ;
 		if ( overlaps[0].strand == -1 )
@@ -1498,18 +1509,25 @@ public:
 		{
 			//printf( "%d %d: %d-%d %d-%d %lf\n", i, overlaps[i].seqIdx, overlaps[i].readStart, overlaps[i].readEnd,
 			//		overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].similarity) ;
-			if ( ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, 
-						overlaps[i], eOverlap ) == 1 )
+			if ( overlaps[i].readEnd - overlaps[i].readStart > len / 2 
+					&& ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
 			{
 				extendedOverlaps.push_back(eOverlap) ;
 			}
 		}
 
-		for (i = 0 ; i < overlapCnt2 ; ++i)
+		if (read2 != NULL)
 		{
-			if ( ExtendOverlap(r, len, seqs[overlaps2[i].seqIdx], align, overlaps2[i], eOverlap) == 1)
+			r = read2 ;
+			if (overlaps2[0].strand == -1)
+				r = rc2 ;
+			for (i = 0 ; i < overlapCnt2 ; ++i)
 			{
-				extendedOverlaps2.push_back(eOverlap) ;
+				if ( overlaps2[i].readEnd - overlaps2[i].readStart > len2 / 2 
+						&& ExtendOverlap(r, len, seqs[overlaps2[i].seqIdx], align, overlaps2[i], eOverlap) == 1)
+				{
+					extendedOverlaps2.push_back(eOverlap) ;
+				}
 			}
 		}
 
@@ -1530,12 +1548,14 @@ public:
 		else
 		{
 			// TODO: improve the efficiency
+			//printf("%d %d\n", overlapCnt, overlapCnt2);
+			//printf("%d %d\n", extendedOverlaps[0].strand, extendedOverlaps2[0].strand);
 			for (i = 0 ; i < overlapCnt ; ++i)
 			{
 				for (j = 0 ; j < overlapCnt2 ; ++j)
 				{
 					// compatible mate pairs
-					if ( extendedOverlaps[i].strand != extendedOverlaps2[j].strand
+					if ( extendedOverlaps[i].strand == extendedOverlaps2[j].strand
 							|| extendedOverlaps[i].seqIdx != extendedOverlaps2[j].seqIdx)
 						continue ;
 					if ((extendedOverlaps[i].strand == 1 && extendedOverlaps[i].seqStart < extendedOverlaps2[j].seqStart)
@@ -1544,6 +1564,7 @@ public:
 						struct _pair nf ;
 						nf.a = i ;
 						nf.b = j ;
+						//printf("hi: %d %d\n", i, j);
 						fragments.PushBack(nf) ;
 					}
 				}
@@ -1584,6 +1605,21 @@ public:
 			}	
 		}
 
+		std::sort(assign.begin(), assign.end()) ;
+		int assignCnt = assign.size() ;
+		if (assignCnt > 0 && assign[0].similarity < refSeqSimilarity)
+		{
+			assign.clear() ;
+			assignCnt = 0 ;
+		}
+		for (i = 1 ; i < assignCnt ; ++i)
+		{
+			if (assign[i].matchCnt < assign[0].matchCnt) // TODO: maybe allow more difference
+			{
+				assign.resize( i ) ;
+				break ;
+			}	
+		}
 		delete[] rc ;
 		delete[] align ;
 		if (read2 != NULL)
