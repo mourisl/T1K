@@ -117,6 +117,29 @@ struct _overlap
 	}
 } ;
 
+struct _fragmentOverlap 
+{
+	int seqIdx ;
+	int seqStart, seqEnd ;
+
+	int matchCnt ;
+	double similarity ;
+
+	bool hasMatePair ;
+
+	struct _overlap overlap1 ; // for read 1
+	struct _overlap overlap2 ; // for read 2
+	
+	bool operator<( const struct _fragmentOverlap &b ) const
+	{
+		if ( matchCnt != b.matchCnt )
+			return matchCnt > b.matchCnt ;
+		else if ( similarity != b.similarity )
+			return similarity > b.similarity ; 
+		return overlap1 < b.overlap1 ;
+	}
+} ;
+
 // This order works better against reference set, because it seems works better for the 5' end site
 struct _sortOverlapOnRef
 {
@@ -693,10 +716,10 @@ public:
 							continue ;
 
 						hits.PushBack( nh ) ;
-						if ( seqs[indexHit[j].idx].name == NULL)
+						/*if ( seqs[indexHit[j].idx].name == NULL)
 						{
 							printf( "%d %d\n", indexHit[j].idx, indexHit[j].offset ) ;
-						}
+						}*/
 						assert( seqs[indexHit[j].idx].name != NULL ) ;
 					}
 				}
@@ -890,7 +913,6 @@ public:
 					s = e ;
 					continue ;
 				}
-
 				// Rebuild the hits.
 				int lisStart = 0 ;
 				int lisEnd = lisSize - 1 ;
@@ -1028,7 +1050,6 @@ public:
 		
 		GetHitsFromRead( read, rcRead, strand, barcode, false, hits, NULL ) ;
 		SortHits( hits, true ) ;
-
 		// Find the overlaps.
 		//if ( seqs.size() == 1 )
 		//	for ( struct _hit *it = hits.BeginAddress() ; it != hits.EndAddress() ; ++it )
@@ -1037,27 +1058,29 @@ public:
 		//	for ( struct _hit *it = hits.BeginAddress() ; it != hits.EndAddress() ; ++it )
 		//		printf( "- %d %s %d %d\n", it->readOffset, seqs[ it->indexHit.idx ].name, it->indexHit.offset, it->strand ) ;
 		overlapCnt = GetOverlapsFromHits( hits, hitLenRequired, 0, overlaps ) ;
-		
 		std::sort( overlaps.begin(), overlaps.end() ) ;
-		
+			
 		//for ( i = 0 ; i < overlapCnt ; ++i )
 		//	printf( "%d: %d %s %d. %d %d %d %d. %d\n", i, overlaps[i].seqIdx,seqs[ overlaps[i].seqIdx ].name, overlaps[i].strand, overlaps[i].readStart, overlaps[i].readEnd, overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].matchCnt ) ; 
-		k = 1 ;
-		for ( i = 1 ; i < overlapCnt ; ++i )
+		if ( overlapCnt > 0 )
 		{
-			if ( overlaps[i].strand != overlaps[0].strand )
+			k = 1 ;
+			for ( i = 1 ; i < overlapCnt ; ++i )
 			{
-				delete overlaps[i].hitCoords ;
-				overlaps[i].hitCoords = NULL ;
-				continue ;		
+				if ( overlaps[i].strand != overlaps[0].strand )
+				{
+					delete overlaps[i].hitCoords ;
+					overlaps[i].hitCoords = NULL ;
+					continue ;		
+				}
+				if ( i != k )
+					overlaps[k] = overlaps[i] ;
+				++k ;
 			}
-			if ( i != k )
-				overlaps[k] = overlaps[i] ;
-			++k ;
+
+			overlaps.resize( k ) ;
+			overlapCnt = k ;
 		}
-		
-		overlaps.resize( k ) ;
-		overlapCnt = k ;
 		/*for ( i = 1 ; i < overlapCnt ; ++i )
 		{
 			if ( overlaps[i].strand != overlaps[i - 1].strand )
@@ -1455,7 +1478,7 @@ public:
 	}
 	
 	// Find the seq id this read belongs to.
-	int AssignRead( char *read, char *read2, int barcode, std::vector<struct _overlap> &assign )
+	int AssignRead( char *read, char *read2, int barcode, std::vector<struct _fragmentOverlap> &assign )
 	{
 		assign.clear() ;
 		
@@ -1575,19 +1598,33 @@ public:
 		std::map<int, int> seqIdxToOverlapIdx ;
 		for (i = 0 ; i < fragmentCnt ; ++i)
 		{
-			struct _overlap fragmentOverlap ;
-			fragmentOverlap = extendedOverlaps[fragments[i].a] ;
+			struct _fragmentOverlap fragmentOverlap ;
+			struct _overlap &o = extendedOverlaps[fragments[i].a] ;
+
+			fragmentOverlap.matchCnt = o.matchCnt ;
+			fragmentOverlap.similarity = o.similarity ;
+			fragmentOverlap.seqIdx = o.seqIdx ;
+			fragmentOverlap.seqStart = o.seqStart ;
+			fragmentOverlap.seqEnd = o.seqEnd ;
+			fragmentOverlap.hasMatePair = false ;
+			fragmentOverlap.overlap1 = o ;
+			
 			if (fragments[i].b >= 0)
 			{
-				struct _overlap &o = extendedOverlaps2[fragments[i].b] ;
-				fragmentOverlap.matchCnt += o.matchCnt ;
-				if (fragmentOverlap.strand == 1)
-					fragmentOverlap.seqEnd = o.seqEnd ;
+				struct _overlap &o2 = extendedOverlaps2[fragments[i].b] ;
+				fragmentOverlap.matchCnt += o2.matchCnt ;
+				if (o.strand == 1)
+					fragmentOverlap.seqEnd = o2.seqEnd ;
 				else
-					fragmentOverlap.seqStart = o.seqStart ;
+					fragmentOverlap.seqStart = o2.seqStart ;
+
 				// TODO: there might be other better ways to combine the mate pairs.
-				fragmentOverlap.similarity = fragmentOverlap.matchCnt / 
-					(fragmentOverlap.readEnd - fragmentOverlap.readStart + 1 + o.readEnd - o.readStart + 1) ;
+				fragmentOverlap.similarity = (double)fragmentOverlap.matchCnt / 
+					(o.readEnd - o.readStart + 1 + o2.readEnd - o2.readStart + 1 + 
+					 o.seqEnd - o.seqStart + 1 + o2.seqEnd - o2.seqStart + 1 ) ;
+			
+				fragmentOverlap.hasMatePair = true ;
+				fragmentOverlap.overlap2 = o2 ;
 			}	
 			
 			if (seqIdxToOverlapIdx.find(fragmentOverlap.seqIdx) != seqIdxToOverlapIdx.end())
@@ -1616,7 +1653,7 @@ public:
 		{
 			if (assign[i].matchCnt < assign[0].matchCnt) // TODO: maybe allow more difference
 			{
-				assign.resize( i ) ;
+				assign.resize(i) ;
 				break ;
 			}	
 		}
@@ -1627,6 +1664,18 @@ public:
 			delete[] rc2 ;
 		}
 		return assign.size() ;
+	}
+
+	int GetSeqNameToIdxMap(std::map<std::string, int>& nameToIdx)
+	{
+		int seqCnt = seqs.size() ;
+		int i ;
+		for (i = 0 ; i < seqCnt ; ++i)
+		{
+			std::string s(seqs[i].name) ;
+			nameToIdx[s] = i ;
+		}
+		return seqCnt ;
 	}
 }	;
 
