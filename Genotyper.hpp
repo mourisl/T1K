@@ -25,7 +25,6 @@ private:
 			;
 		majorAllele[i + j] = '\0' ;
 	}
-
 	
 	static bool CompSortPairIntDoubleBDec( const struct _pairIntDouble &p1, const struct _pairIntDouble &p2 )
 	{
@@ -48,6 +47,7 @@ private:
 		return true ;
 	}
 
+	int readCnt ;
 	std::vector< std::vector<int> >	readsInAllele ;
 	std::vector< std::vector<int> > readAssignments ;
 	std::vector< std::vector<struct _pair> >	selectedAllele ; // a-allele name, b-which allele (0,1)
@@ -63,6 +63,7 @@ private:
 	SimpleVector<int> alleleToGene ;
 	SimpleVector<int> alleleToMajorAllele ;
 	std::vector<std::string> geneIdxToName ;
+	std::vector<std::string> majorAlleleIdxToName ;
 	int geneCnt ;
 	int majorAlleleCnt ;
 	int alleleCnt ;
@@ -78,7 +79,7 @@ public:
 	{
 		geneBuffer = new char[256] ;
 		majorAlleleBuffer = new char[256] ;
-		alleleCnt = majorAlleleCnt = geneCnt = 0 ;
+		alleleCnt = majorAlleleCnt = geneCnt = readCnt = 0 ;
 	}
 	~Genotyper() 
 	{
@@ -110,6 +111,7 @@ public:
 			if (majorAlleleNameToIdx.find(sMajorAllele) == majorAlleleNameToIdx.end())
 			{
 				majorAlleleNameToIdx[sMajorAllele] = majorAlleleCnt ;
+				majorAlleleIdxToName.push_back(sMajorAllele) ;
 				++majorAlleleCnt ;
 			}
 
@@ -147,13 +149,10 @@ public:
 				readsInAllele[readAssignments[i][j]].push_back(i + readIdOffset) ;
 			}
 		}
+		if (readIdOffset + size > readCnt)
+			readCnt = readIdOffset + size ;
 	}
 
-	void SetReadsInAllele(int readIdx, std::vector<int> assignment)
-	{
-		readsInAllele[readIdx] = assignment ;
-	}
-	
 	void InitAlleleAbundance(FILE *fp)
 	{
 		alleleAbundanceList.Reserve(alleleCnt) ;
@@ -175,7 +174,7 @@ public:
 			std::string s(buffer)	;
 			struct _pairIntDouble np ;
 			np.a = refNameToIdx[buffer] ;
-			np.b = abundance ;
+			np.b = count ;//abundance ;
 			alleleAbundanceList.PushBack(np) ;
 			alleleAbundance[np.a] = np.b ;
 		}
@@ -202,7 +201,7 @@ public:
 		}
 	}
 
-	void SelectAllelesForGenes(int readCnt)
+	void SelectAllelesForGenes()
 	{
 		int i, j, k ;
 
@@ -273,13 +272,64 @@ public:
 						np.b = selectedAllele[geneIdx][j].b ;
 						selectedAllele[geneIdx].push_back(np) ;
 					}
-				}
-			}
-		}
+				} // for selected alleles
+			} // else cover==0
+		} // for i - alleleCnt
 	}
 
-	void GetAlleleDescription()
+	int GetGeneCnt()
 	{
+		return geneCnt ;
+	}
+
+	const char *GetGeneName(int geneIdx)
+	{
+		return geneIdxToName[geneIdx].c_str() ;	
+	}
+
+	int GetAlleleDescription(int geneIdx, char *allele1, char *allele2)
+	{
+		int i, k ;
+		int type ;
+		SimpleVector<int> selectedMajorAlleles ;
+		SimpleVector<bool> used ;
+		selectedMajorAlleles.Reserve(majorAlleleCnt) ;
+		used.ExpandTo(majorAlleleCnt) ;
+		int ret = 0 ;
+
+		for (type = 0; type <= 1; ++type)	
+		{
+			double abundance = 0 ;
+			char *buffer = allele1 ;
+			if (type == 1)
+				buffer = allele2 ;
+			buffer[0] = '\0' ;
+
+			int size = selectedAllele[geneIdx].size() ;
+			selectedMajorAlleles.Clear() ;
+			used.SetZero(0, majorAlleleCnt);
+			for (i = 0; i < size; ++i)
+			{
+				k = selectedAllele[geneIdx][i].a ; 
+				if (selectedAllele[geneIdx][i].b != type)
+					continue ;
+				ret = type + 1 ;
+				abundance += alleleAbundance[k] ;
+				int majorAlleleIdx = alleleToMajorAllele[k] ;
+				if (!used[ majorAlleleIdx ] )
+				{
+					if (buffer[0])
+					{
+						sprintf(buffer + strlen(buffer), ",%s", majorAlleleIdxToName[majorAlleleIdx].c_str()) ;
+					}
+					else
+						strcpy(buffer, majorAlleleIdxToName[majorAlleleIdx].c_str()) ;
+					used[majorAlleleIdx] = 1 ;
+				}	
+			}
+			sprintf(buffer + strlen(buffer), "\t%lf", abundance) ;
+		}
+		return ret ;
 	}
 } ;
 
