@@ -28,7 +28,9 @@ private:
 	
 	static bool CompSortPairIntDoubleBDec( const struct _pairIntDouble &p1, const struct _pairIntDouble &p2 )
 	{
-		return p2.b < p1.b ;
+		if (p2.b != p1.b)
+			return p2.b < p1.b ;
+		return p1.a < p2.a ;
 	}
 	
 	bool IsAssignedReadTheSame(const std::vector<int> &l1, const std::vector<int> &l2)
@@ -240,8 +242,7 @@ public:
 			if ( max >= 2)
 				continue ;
 			if (selectedCnt > 0 && alleleAbundance[ selectedAllele[geneIdx][selectedCnt - 1].a ] > alleleAbundance[k] )
-				break ;//continue ;
-
+				continue ;
 			if (covered > 0) 
 			{
 				// check whether we need to
@@ -271,6 +272,7 @@ public:
 						np.a = k ;
 						np.b = selectedAllele[geneIdx][j].b ;
 						selectedAllele[geneIdx].push_back(np) ;
+						break ;
 					}
 				} // for selected alleles
 			} // else cover==0
