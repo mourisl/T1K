@@ -6,6 +6,19 @@
 #include "defs.h"
 #include "SimpleVector.hpp"
 
+struct _alleleInfo
+{
+	int majorAlleleIdx ; 
+	int geneIdx ; // which gene this allele belongs to
+
+	int	alleleRank ; // -1 not select, 0-first allele, 1-second alelle
+	int genotypeQuality ; // assignment quality.
+	double abundance ;
+
+	int equivalentClass ; // the class id for the alleles with the same set of read alignment
+	double ecAbundance ; // the sum of abundance from the equivalent class.
+} ;
+
 class Genotyper
 {
 private:
@@ -52,18 +65,15 @@ private:
 	int readCnt ;
 	std::vector< std::vector<int> >	readsInAllele ;
 	std::vector< std::vector<int> > readAssignments ;
-	std::vector< std::vector<struct _pair> >	selectedAllele ; // a-allele name, b-which allele (0,1)
+	std::vector< std::vector<struct _pair> >	selectedAlleles ; // a-allele name, b-which allele (0,1)
 
 	// variables for allele, majorAllele and genes	
 	char *geneBuffer ;
 	char *majorAlleleBuffer ;	
 
-	SimpleVector<struct _pairIntDouble> alleleAbundanceList ;
-	SimpleVector<double> alleleAbundance ;
+	SimpleVector<struct _alleleInfo> alleleInfo ;
 	std::map<std::string, int> majorAlleleNameToIdx ;
 	std::map<std::string, int> geneNameToIdx ;
-	SimpleVector<int> alleleToGene ;
-	SimpleVector<int> alleleToMajorAllele ;
 	std::vector<std::string> geneIdxToName ;
 	std::vector<std::string> majorAlleleIdxToName ;
 	int geneCnt ;
@@ -96,6 +106,7 @@ public:
 		refSet.InputRefFa(filename) ;
 
 		alleleCnt = refSet.Size() ;
+		alleleInfo.ExpandTo(alleleCnt) ;
 		
 		for ( i = 0 ; i < alleleCnt ; ++i )	
 		{
@@ -117,8 +128,13 @@ public:
 				++majorAlleleCnt ;
 			}
 
-			alleleToGene.PushBack(geneNameToIdx[sGene]) ;
-			alleleToMajorAllele.PushBack(majorAlleleNameToIdx[sMajorAllele]) ;
+			
+			alleleInfo[i].abundance = 0 ;
+			alleleInfo[i].geneIdx = geneNameToIdx[sGene] ;
+			alleleInfo[i].majorAlleleIdx = majorAlleleNameToIdx[sMajorAllele] ;
+			alleleInfo[i].alleleRank = -1 ;
+			alleleInfo[i].abundance = 0 ;
+			alleleInfo[i].genotypeQuality = -1 ;
 		}
 	}
 
@@ -157,8 +173,7 @@ public:
 
 	void InitAlleleAbundance(FILE *fp)
 	{
-		alleleAbundanceList.Reserve(alleleCnt) ;
-		alleleAbundance.ExpandTo(alleleCnt) ;
+		// TODO: calculate abundance with out own method
 	
 		int i ;	
 		char buffer[256] ;
@@ -177,12 +192,9 @@ public:
 			struct _pairIntDouble np ;
 			np.a = refNameToIdx[buffer] ;
 			np.b = count ;//abundance ;
-			alleleAbundanceList.PushBack(np) ;
-			alleleAbundance[np.a] = np.b ;
+			alleleInfo[np.a].abundance = np.b ;
 		}
 		fclose(fp) ;
-	
-		std::sort(alleleAbundanceList.BeginAddress(), alleleAbundanceList.EndAddress(), CompSortPairIntDoubleBDec) ;
 
 		// Init other useful abundance data
 		geneAbundance.ExpandTo(geneCnt) ;
@@ -193,17 +205,25 @@ public:
 		geneMaxAlleleAbundance.SetZero(0, geneCnt) ;
 		for (i = 0 ; i < alleleCnt ; ++i)
 		{
-			majorAlleleAbundance[ alleleToMajorAllele[i] ] += alleleAbundance[i] ;
-			geneAbundance[ alleleToGene[i] ] += alleleAbundance[i] ;
+			majorAlleleAbundance[ alleleInfo[i].majorAlleleIdx ] += alleleInfo[i].abundance ;
+			geneAbundance[ alleleInfo[i].geneIdx ] += alleleInfo[i].abundance ;
 
-			if (alleleAbundance[i] > geneMaxAlleleAbundance[ alleleToGene[i] ])
+			if (alleleInfo[i].abundance > geneMaxAlleleAbundance[ alleleInfo[i].geneIdx ])
 			{
-				geneMaxAlleleAbundance[ alleleToGene[i] ] = alleleAbundance[i] ;
+				geneMaxAlleleAbundance[ alleleInfo[i].geneIdx ] = alleleInfo[i].abundance ;
 			}
 		}
 	}
+	
+	int GetGeneAlleleTypes(int geneIdx)
+	{
+		if ( selectedAlleles[geneIdx].size() == 0 )
+			return  0 ;
+		else
+			return selectedAlleles[geneIdx].back().b + 1;
+	}
 
-	void SelectAllelesForGenes()
+	void SelectAllelesForGenes() // main function for genotyping
 	{
 		int i, j, k ;
 
@@ -211,72 +231,166 @@ public:
 		readCovered.ExpandTo(readCnt) ;
 		readCovered.SetZero(0, readCnt) ;
 
-		selectedAllele.resize(geneCnt) ;
-
+		selectedAlleles.resize(geneCnt) ;
+		
+		SimpleVector<struct _pairIntDouble> alleleAbundanceList ;
 		for (i = 0 ; i < alleleCnt ; ++i)
 		{
-			k = alleleAbundanceList[i].a ;
-			ParseAlleleName( refSet.GetSeqName(k), geneBuffer, majorAlleleBuffer) ;
-			if (alleleAbundanceList[i].b <= 0)	
+			struct _pairIntDouble np ;
+			np.a = i ;
+			np.b = alleleInfo[i].abundance ;//abundance ;
+			alleleAbundanceList.PushBack(np) ;
+		}
+		std::sort(alleleAbundanceList.BeginAddress(), alleleAbundanceList.EndAddress(), CompSortPairIntDoubleBDec) ;
+
+		// Build equivalent class: alleles covered by the same set of reads and have the same abundance.
+		int ecCnt = 0 ; // equivalent class count
+		std::vector< std::vector<int> > equivalentClassToAlleles ;
+		for (i = 0 ; i < alleleCnt ; )
+		{
+			for (j = i + 1; j < alleleCnt; ++j)
+				if (alleleAbundanceList[i].b != alleleAbundanceList[j].b)
+					break ;
+			
+			int alleleIdx = alleleAbundanceList[i].a ;
+			if (alleleInfo[alleleIdx].abundance <= 0)
 				break ;
-			const std::vector<int> &readList = readsInAllele[k] ;
-			int size = readList.size() ;
-			int covered = 0 ;
-			//printf("%d %d %d %d\n", i, k, ) ;
-			for (j = 0 ; j < size ; ++j)
-			{
-				if (!readCovered[ readList[j] ])
-					++covered ;
-			}
-			//printf("%s %lf\n", refSet.GetSeqName(k), alleleAbundance[k]);
 
-			int geneIdx = alleleToGene[k] ;
-			if (majorAlleleAbundance[ alleleToMajorAllele[k] ] < 0.1 * geneMaxAlleleAbundance[geneIdx]) // TODO: set a good cut off
-				continue ;
-
-			int selectedCnt = selectedAllele[geneIdx].size() ;
-			int max = -1 ;
-			for (j = 0 ; j < selectedCnt ; ++j)
-				if (selectedAllele[geneIdx][j].b > max)
-					max = selectedAllele[geneIdx][j].b ;
-			if ( max >= 2)
-				continue ;
-			if (selectedCnt > 0 && alleleAbundance[ selectedAllele[geneIdx][selectedCnt - 1].a ] > alleleAbundance[k] )
-				continue ;
-			if (covered > 0) 
+			alleleInfo[alleleIdx].equivalentClass = ecCnt ;
+			equivalentClassToAlleles.push_back(std::vector<int>()) ;
+			equivalentClassToAlleles.back().push_back(alleleIdx) ;
+			++ecCnt ;
+			for (k = i + 1; k < j ; ++k)
 			{
-				// check whether we need to
-				struct _pair np ;
-				np.a = k ;
-				np.b = max + 1 ;	
-				selectedAllele[geneIdx].push_back(np);
-				for (j = 0 ; j < size ; ++j)
+				int l ;
+				alleleIdx = alleleAbundanceList[k].a ;
+				for (l = k - 1 ; l >= i ; --l)
 				{
-					if (!readCovered[ readList[j] ])
+					int alleleIdx2 = alleleAbundanceList[l].a ;
+					if (IsAssignedReadTheSame(readsInAllele[alleleIdx], readsInAllele[alleleIdx2]))
 					{
-						readCovered[readList[j]] = true ;
+						int ec = alleleInfo[alleleIdx2].equivalentClass ;
+						equivalentClassToAlleles[ec].push_back(alleleIdx) ;
+						alleleInfo[alleleIdx].equivalentClass = ec ;
+						break ;
 					}
 				}
-			}
-			else
-			{
-				// Check whethere this is equivalent to some added alleles
-				for (j = selectedCnt - 1 ; j >= 0 ; --j)
+				if (l < i)
 				{
-					int sId = selectedAllele[geneIdx][j].a ; //selected id
-					if (alleleAbundance[sId] != alleleAbundance[k])
+					alleleInfo[alleleIdx].equivalentClass = ecCnt ;
+					equivalentClassToAlleles.push_back(std::vector<int>()) ;
+					equivalentClassToAlleles.back().push_back(alleleIdx) ;
+					++ecCnt ;
+				}
+			}
+
+			i = j ;
+		}
+		// Compute the abundance for equivalent class
+		SimpleVector<struct _pairIntDouble> ecAbundanceList ;
+		for (i = 0 ; i < ecCnt ; ++i)
+		{
+			int ecSize = equivalentClassToAlleles[i].size() ;
+			int ecAbundance = 0 ;
+			for (j = 0 ; j < ecSize ; ++j)
+			{
+				int alleleIdx = equivalentClassToAlleles[i][j] ;
+				ecAbundance += alleleInfo[alleleIdx].abundance ;
+			}
+			for (j = 0 ; j < ecSize ; ++j)
+			{
+				int alleleIdx = equivalentClassToAlleles[i][j] ;
+				alleleInfo[alleleIdx].ecAbundance = ecAbundance ; 
+			}
+			
+			struct _pairIntDouble np ;
+			np.a = i ;
+			np.b = ecAbundance ;//abundance ;
+			ecAbundanceList.PushBack(np) ;
+		}
+
+		std::sort(ecAbundanceList.BeginAddress(), ecAbundanceList.EndAddress(), CompSortPairIntDoubleBDec) ;
+
+
+		// equivalent classes are sorted by the abundance 
+		SimpleVector<int> genesToAdd ;
+		SimpleVector<int> allelesToAdd ;
+		for (i = 0 ; i < ecCnt ; ++i)
+		{
+			int ec = ecAbundanceList[i].a ;
+			int size = equivalentClassToAlleles[ec].size() ;
+			int alleleIdx = equivalentClassToAlleles[ec][0] ;
+
+			// Check whether there is uncovered reads.
+			int covered = 0;
+			const std::vector<int> &readList = readsInAllele[alleleIdx] ;
+			int readListSize = readList.size() ;
+			for (j = 0 ; j < readListSize ; ++j)
+			{
+				if (readCovered[readList[j]])
+					++covered ;
+			}
+			if (covered == readListSize) // no uncovered reads
+				continue ;
+			
+			// Add these alleles to the gene allele
+			genesToAdd.Clear() ;
+			allelesToAdd.Clear() ;
+			for (j = 0 ; j < size; ++j)	
+			{
+				alleleIdx = equivalentClassToAlleles[ec][j] ;
+				int geneIdx = alleleInfo[alleleIdx].geneIdx ;
+				
+				if (alleleInfo[alleleIdx].ecAbundance < 0.1 * geneMaxAlleleAbundance[geneIdx])				
+					continue ;
+				if (GetGeneAlleleTypes(geneIdx) >= 2)
+					continue ;
+
+				int tmp = genesToAdd.Size() ;
+				for (k = 0 ; k < tmp ; ++k)
+					if (genesToAdd[k] == geneIdx)
 						break ;
-					if (IsAssignedReadTheSame( readsInAllele[sId], readsInAllele[k]))
-					{
-						struct _pair np ;
-						np.a = k ;
-						np.b = selectedAllele[geneIdx][j].b ;
-						selectedAllele[geneIdx].push_back(np) ;
-						break ;
-					}
-				} // for selected alleles
-			} // else cover==0
-		} // for i - alleleCnt
+				if (k >= tmp)
+					genesToAdd.PushBack(geneIdx) ;
+				allelesToAdd.PushBack(alleleIdx) ;
+			}
+
+			int allelesToAddSize = allelesToAdd.Size() ;
+			int quality = 60 ;
+			if (genesToAdd.Size() > 1)
+			{
+				// quality set to 0
+				quality = 0 ;
+			}
+			
+			if (genesToAdd.Size() > 0)
+			{
+				for (j = 0 ; j < readListSize; ++j)
+					readCovered[readList[j]] = true ;
+			}
+			std::map<int ,int> geneAlleleTypes ;
+			for (j = 0 ; j < allelesToAddSize ; ++j)
+			{
+				alleleIdx = allelesToAdd[j] ;
+				int geneIdx = alleleInfo[alleleIdx].geneIdx ;
+				int alleleRank = 0 ;
+				if (geneAlleleTypes.find(geneIdx) != geneAlleleTypes.end()) 
+					alleleRank = geneAlleleTypes[geneIdx] ;
+				else
+				{
+					alleleRank = GetGeneAlleleTypes(geneIdx) ;
+					geneAlleleTypes[geneIdx] = alleleRank ;
+				}
+				alleleInfo[alleleIdx].genotypeQuality = quality ;
+				alleleInfo[alleleIdx].alleleRank = alleleRank ;
+				
+				struct _pair np ;
+				np.a = alleleIdx ;
+				np.b = alleleRank ;	
+				
+				selectedAlleles[geneIdx].push_back(np) ;
+			}
+		}
 	}
 
 	int GetGeneCnt()
@@ -307,17 +421,21 @@ public:
 				buffer = allele2 ;
 			buffer[0] = '\0' ;
 
-			int size = selectedAllele[geneIdx].size() ;
+			int size = selectedAlleles[geneIdx].size() ;
 			selectedMajorAlleles.Clear() ;
 			used.SetZero(0, majorAlleleCnt);
+
+			int quality = -1 ;
 			for (i = 0; i < size; ++i)
 			{
-				k = selectedAllele[geneIdx][i].a ; 
-				if (selectedAllele[geneIdx][i].b != type)
+				k = selectedAlleles[geneIdx][i].a ; 
+				if (selectedAlleles[geneIdx][i].b != type)
 					continue ;
+				quality = alleleInfo[k].genotypeQuality ;
+
 				ret = type + 1 ;
-				abundance += alleleAbundance[k] ;
-				int majorAlleleIdx = alleleToMajorAllele[k] ;
+				abundance = alleleInfo[k].ecAbundance ;
+				int majorAlleleIdx = alleleInfo[k].majorAlleleIdx ;
 				if (!used[ majorAlleleIdx ] )
 				{
 					if (buffer[0])
@@ -329,7 +447,8 @@ public:
 					used[majorAlleleIdx] = 1 ;
 				}	
 			}
-			sprintf(buffer + strlen(buffer), "\t%lf", abundance) ;
+			if (quality >= 0)
+				sprintf(buffer + strlen(buffer), "\t%lf\t%d", abundance, quality) ;
 		}
 		return ret ;
 	}
