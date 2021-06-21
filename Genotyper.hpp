@@ -16,7 +16,24 @@ struct _alleleInfo
 	double abundance ;
 
 	int equivalentClass ; // the class id for the alleles with the same set of read alignment
-	double ecAbundance ; // the sum of abundance from the equivalent class.
+	double ecAbundance ; // the abundance for the equivalent class.
+} ;
+
+struct _readGroupInfo
+{
+	int representative ;
+	int count ; // number of reads this group contains.
+} ;
+
+struct _readAssignment
+{
+	int alleleIdx ;
+	int start, end ;
+
+	bool operator<(const struct _readAssignment &b) const
+	{
+		return alleleIdx < b.alleleIdx ;
+	}
 } ;
 
 class Genotyper
@@ -39,6 +56,13 @@ private:
 		majorAllele[i + j] = '\0' ;
 	}
 	
+	static bool CompSortPairByBDec( const struct _pair &p1, const struct _pair &p2 )
+	{
+		if (p1.b != p2.b)
+			return p2.b < p1.b ;
+		return p1.a < p2.a ;
+	}
+
 	static bool CompSortPairIntDoubleBDec( const struct _pairIntDouble &p1, const struct _pairIntDouble &p2 )
 	{
 		if (p2.b != p1.b)
@@ -62,9 +86,26 @@ private:
 		return true ;
 	}
 
+	bool IsReadAssignmentTheSame(const std::vector<struct _readAssignment> &a1, const std::vector<struct _readAssignment> &a2)
+	{
+		int cnt1 = a1.size() ;
+		int cnt2 = a2.size() ;
+		int i ;
+		if (cnt1 != cnt2) 
+			return false ;
+		// The read id in each vector should be sorted
+		for (i = 0 ; i < cnt1 ; ++i)
+		{
+			if (a1[i].alleleIdx != a2[i].alleleIdx)
+				return false ;
+		}
+		return true ;
+	}
+
 	int readCnt ;
 	std::vector< std::vector<int> >	readsInAllele ;
-	std::vector< std::vector<int> > readAssignments ;
+	std::vector< std::vector<struct _readAssignment> > readAssignments ;
+	std::vector< std::vector<int> > equivalentClassToAlleles ;
 	std::vector< std::vector<struct _pair> >	selectedAlleles ; // a-allele name, b-which allele (0,1)
 
 	// variables for allele, majorAllele and genes	
@@ -142,6 +183,14 @@ public:
 	{
 		readAssignments.resize(readCnt) ;
 		readsInAllele.resize(alleleCnt) ;
+
+		int i ;
+		for (i = 0 ; i < readCnt ; ++i)
+			readAssignments[i].clear() ;
+		for (i = 0 ; i < alleleCnt ; ++i)
+			readsInAllele[i].clear() ;
+
+		this->readCnt = readCnt ;
 	}
 
 	void SetReadAssignments(int readId, const std::vector<struct _fragmentOverlap> &assignment)
@@ -151,30 +200,34 @@ public:
 		readAssignments[readId].clear() ;
 		for (i = 0; i < assignmentCnt; ++i)
 		{
-			readAssignments[readId].push_back(assignment[i].seqIdx) ;
+			struct _readAssignment na ;
+			na.alleleIdx = assignment[i].seqIdx ;
+			na.start = assignment[i].seqStart ;
+			na.end = assignment[i].seqEnd ;
+			readAssignments[readId].push_back(na) ;
 		}
 	}
-
-	void FlushReadAssignments(int readIdOffset)
+	
+	// Build the read in allele list
+	void FinalizeReadAssignments()
 	{
 		int i, j ;
-		int size = readAssignments.size() ;
-		for (i = 0 ; i < size ; ++i)
+		for (i = 0 ; i < readCnt ; ++i)
 		{
 			int assignmentCnt = readAssignments[i].size() ;
+			std::sort(readAssignments[i].begin(), readAssignments[i].end()) ;
 			for (j = 0; j < assignmentCnt; ++j)
 			{
-				readsInAllele[readAssignments[i][j]].push_back(i + readIdOffset) ;
+				readsInAllele[readAssignments[i][j].alleleIdx].push_back(i) ;
 			}
 		}
-		if (readIdOffset + size > readCnt)
-			readCnt = readIdOffset + size ;
+
+		BuildAlleleEquivalentClass() ;
 	}
 
 	void InitAlleleAbundance(FILE *fp)
 	{
 		// TODO: calculate abundance with out own method
-	
 		int i ;	
 		char buffer[256] ;
 		double abundance ;
@@ -223,6 +276,228 @@ public:
 			return selectedAlleles[geneIdx].back().b + 1;
 	}
 
+	// Return: the number of allele equivalent class
+	int BuildAlleleEquivalentClass()
+	{
+		SimpleVector<struct _pair> alleleFingerprint ; // a-alleleId, b-finger print from the read it covered
+		int i, j ;
+		const int FINGERPRINT_MAX = 1000003 ;
+		for (i = 0 ; i < alleleCnt ; ++i)
+		{
+			struct _pair np ;
+			np.a = i ;
+			np.b = -1 ;
+			int size = readsInAllele[i].size() ;
+			alleleInfo[i].equivalentClass = -1 ;
+			if (readsInAllele[i].size() > 0)
+			{
+				np.b = 0 ;
+				for ( j = 0 ; j < size ; ++j)
+				{
+					np.b = ((uint32_t)np.b * readCnt + readsInAllele[i][j]) % FINGERPRINT_MAX ;
+				}
+			}	
+			alleleFingerprint.PushBack(np) ;
+		}
+
+		std::sort(alleleFingerprint.BeginAddress(), alleleFingerprint.EndAddress(), CompSortPairByBDec ) ;
+		
+		int ecCnt = 0 ;
+		equivalentClassToAlleles.clear() ;
+
+		if (alleleCnt == 0 || alleleFingerprint[0].b == -1)
+			return 0 ;
+		for (i = 0 ; i < alleleCnt ; ++i)
+		{
+			bool newEc = true ;
+			if (alleleFingerprint[i].b == -1)
+				break ;
+
+			for (j = i - 1 ; j >= 0 ; --j)
+			{
+				if (alleleFingerprint[i].b != alleleFingerprint[j].b)
+					break ;
+				if (IsAssignedReadTheSame(readsInAllele[ alleleFingerprint[i].a ], 
+							readsInAllele[ alleleFingerprint[j].a]))
+				{
+					newEc = false ;
+					break ;
+				}
+			}
+			int alleleIdx = alleleFingerprint[i].a ;	
+			if (newEc)
+			{
+				equivalentClassToAlleles.push_back( std::vector<int>() ) ;	
+				equivalentClassToAlleles.back().push_back( alleleIdx ) ;
+				alleleInfo[ alleleIdx ].equivalentClass = ecCnt ;
+				++ecCnt ;
+			}
+			else
+			{
+				int ecIdx = alleleInfo[alleleFingerprint[j].a].equivalentClass ;
+				equivalentClassToAlleles[ecIdx].push_back(alleleIdx) ;
+				alleleInfo[alleleIdx].equivalentClass = ecIdx ;
+			}
+		}
+		return ecCnt ;
+	}
+
+	void QuantifyAlleleEquivalentClass()
+	{
+		int i, j, k ;
+		int t ; // iteration for EM algorithm.
+		int ecCnt = equivalentClassToAlleles.size() ;	
+		
+		
+		SimpleVector<struct _pair> readFingerprint ;
+		const int FINGERPRINT_MAX = 1000003 ;
+		
+		// First rebuild the read groups: the reads mapping to the same set of alleles
+		for (i = 0 ; i < readCnt ; ++i)
+		{
+			struct _pair np ;
+			np.a = i ;
+			np.b = -1 ;
+			readFingerprint.PushBack(np) ;
+		}
+
+		for (i = 0 ; i < readCnt ; ++i)	
+		{
+			int size = readAssignments[i].size() ;
+			if (size == 0)
+				continue ;
+			readFingerprint[i].b = 0 ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				k = readAssignments[i][j].alleleIdx ;
+				readFingerprint[i].b = (readFingerprint[i].b * (int64_t)readCnt + k) % FINGERPRINT_MAX ;
+			}
+		}
+	
+		SimpleVector<int> readToReadGroup ;
+		SimpleVector<struct _readGroupInfo> readGroupInfo ; // the read represent the read group, so we can easily obtain the assignment information.
+		
+		readToReadGroup.ExpandTo(readCnt) ;
+		std::sort(readFingerprint.BeginAddress(), readFingerprint.EndAddress(), CompSortPairByBDec) ;
+
+		int rgCnt = 0 ;
+		int effectiveReadCnt = 0 ; // the number of reads covering alleles
+		for (i = 0 ; i < readCnt ; ++i)
+		{
+			bool newRg = true ; // rg: read group
+			if (readFingerprint[i].b == -1)
+			{
+				readToReadGroup[ readFingerprint[i].a ] = -1 ;
+				continue ;
+			}
+			for (j = i - 1 ; j >= 0 ; --j)
+			{
+				if (readFingerprint[i].b != readFingerprint[j].b)
+					break ;
+				if (IsReadAssignmentTheSame(readAssignments[readFingerprint[i].a],
+							readAssignments[readFingerprint[j].a]))
+				{
+					newRg = false ;
+					break ;
+				}
+			}
+			
+			int readId = readFingerprint[i].a ;
+			if (newRg)
+			{
+				readToReadGroup[readId] = rgCnt ;
+				struct _readGroupInfo nrg ;
+				nrg.representative = readId ;
+				nrg.count = 1 ;
+				readGroupInfo.PushBack(nrg) ;
+				++rgCnt ;
+			}
+			else
+			{
+				readToReadGroup[readId] = readToReadGroup[ readFingerprint[j].a ] ;
+				++readGroupInfo[ readToReadGroup[readId] ].count ;
+			}
+			++effectiveReadCnt ;
+		}
+		
+		// Convert readgroup_to_allele to readgroup_to_alleleEquivalentClass
+		std::vector< std::vector<int> > readGroupToAlleleEc ;
+		readGroupToAlleleEc.resize(rgCnt) ;
+		std::map<int, bool> ecUsed ;
+		for (i = 0 ; i < rgCnt ; ++i)
+		{
+			int readId = readGroupInfo[i].representative ;
+			int size = readAssignments[readId].size() ;
+			ecUsed.clear() ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				int ecIdx = alleleInfo[readAssignments[readId][j].alleleIdx].equivalentClass ;
+				if (ecUsed.find(ecIdx) == ecUsed.end())
+				{
+					readGroupToAlleleEc[i].push_back(ecIdx) ;
+					ecUsed[ecIdx] = true ;
+				}
+			}
+		}
+
+		// Start the EM algorithm
+
+		const int maxEMIterations = 1000 ;
+		double *ecAbundance = new double[ecCnt] ;
+		double *ecReadCount = new double[ecCnt] ;
+		
+		double diffSum = 0 ;
+		for (i = 0 ; i < ecCnt ; ++i)
+			ecAbundance[i] = 1.0 / ecCnt ;
+		for (t = 0 ; t < maxEMIterations ; ++t)
+		{
+			// E-step: find the expected number of reads
+			memset(ecReadCount, 0, sizeof(double) * ecCnt) ;
+			for (i = 0 ; i < rgCnt ; ++i)
+			{
+				double psum	= 0 ;
+				int size = readGroupToAlleleEc[i].size() ;
+				for (j = 0 ; j < size ; ++j)
+					psum += ecAbundance[readGroupToAlleleEc[i][j]] ;
+				
+				for (j = 0 ; j < size ; ++j)
+				{
+					int ecIdx = readGroupToAlleleEc[i][j] ;
+					ecReadCount[ecIdx] += readGroupInfo[i].count * ecAbundance[ecIdx] / psum ;
+				}
+			}
+
+			// M-step: recompute the abundance
+			diffSum = 0 ;
+			for (i = 0 ; i < ecCnt ; ++i)
+			{
+				double tmp = ecReadCount[i] / effectiveReadCnt ;
+				//printf("%lf %lf %d. %lf\n", tmp, ecReadCount[i], effectiveReadCnt, ecAbundance[i]) ;
+				diffSum += ABS(tmp - ecAbundance[i]) ;
+				ecAbundance[i] = tmp ;
+			}
+			//printf("%lf\n", diffSum) ;
+			if (diffSum < 1e-3)
+				break ;
+		}
+
+		for (i = 0 ; i < alleleCnt ; ++i)
+			alleleInfo[i].abundance = alleleInfo[i].ecAbundance = 0 ;
+
+		for (i = 0 ; i < ecCnt ; ++i)
+		{
+			int size = equivalentClassToAlleles[i].size() ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				alleleInfo[i].abundance = ecAbundance[i] / size ;
+				alleleInfo[i].ecAbundance = ecAbundance[i] ;
+			}
+		}
+
+		delete[] ecAbundance ;
+		delete[] ecReadCount ;
+	}
+
 	void SelectAllelesForGenes() // main function for genotyping
 	{
 		int i, j, k ;
@@ -233,84 +508,19 @@ public:
 
 		selectedAlleles.resize(geneCnt) ;
 		
-		SimpleVector<struct _pairIntDouble> alleleAbundanceList ;
-		for (i = 0 ; i < alleleCnt ; ++i)
-		{
-			struct _pairIntDouble np ;
-			np.a = i ;
-			np.b = alleleInfo[i].abundance ;//abundance ;
-			alleleAbundanceList.PushBack(np) ;
-		}
-		std::sort(alleleAbundanceList.BeginAddress(), alleleAbundanceList.EndAddress(), CompSortPairIntDoubleBDec) ;
-
-		// Build equivalent class: alleles covered by the same set of reads and have the same abundance.
-		int ecCnt = 0 ; // equivalent class count
-		std::vector< std::vector<int> > equivalentClassToAlleles ;
-		for (i = 0 ; i < alleleCnt ; )
-		{
-			for (j = i + 1; j < alleleCnt; ++j)
-				if (alleleAbundanceList[i].b != alleleAbundanceList[j].b)
-					break ;
-			
-			int alleleIdx = alleleAbundanceList[i].a ;
-			if (alleleInfo[alleleIdx].abundance <= 0)
-				break ;
-
-			alleleInfo[alleleIdx].equivalentClass = ecCnt ;
-			equivalentClassToAlleles.push_back(std::vector<int>()) ;
-			equivalentClassToAlleles.back().push_back(alleleIdx) ;
-			++ecCnt ;
-			for (k = i + 1; k < j ; ++k)
-			{
-				int l ;
-				alleleIdx = alleleAbundanceList[k].a ;
-				for (l = k - 1 ; l >= i ; --l)
-				{
-					int alleleIdx2 = alleleAbundanceList[l].a ;
-					if (IsAssignedReadTheSame(readsInAllele[alleleIdx], readsInAllele[alleleIdx2]))
-					{
-						int ec = alleleInfo[alleleIdx2].equivalentClass ;
-						equivalentClassToAlleles[ec].push_back(alleleIdx) ;
-						alleleInfo[alleleIdx].equivalentClass = ec ;
-						break ;
-					}
-				}
-				if (l < i)
-				{
-					alleleInfo[alleleIdx].equivalentClass = ecCnt ;
-					equivalentClassToAlleles.push_back(std::vector<int>()) ;
-					equivalentClassToAlleles.back().push_back(alleleIdx) ;
-					++ecCnt ;
-				}
-			}
-
-			i = j ;
-		}
 		// Compute the abundance for equivalent class
 		SimpleVector<struct _pairIntDouble> ecAbundanceList ;
+		int ecCnt = equivalentClassToAlleles.size() ;
+		QuantifyAlleleEquivalentClass() ;
+		
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
-			int ecSize = equivalentClassToAlleles[i].size() ;
-			int ecAbundance = 0 ;
-			for (j = 0 ; j < ecSize ; ++j)
-			{
-				int alleleIdx = equivalentClassToAlleles[i][j] ;
-				ecAbundance += alleleInfo[alleleIdx].abundance ;
-			}
-			for (j = 0 ; j < ecSize ; ++j)
-			{
-				int alleleIdx = equivalentClassToAlleles[i][j] ;
-				alleleInfo[alleleIdx].ecAbundance = ecAbundance ; 
-			}
-			
 			struct _pairIntDouble np ;
 			np.a = i ;
-			np.b = ecAbundance ;//abundance ;
+			np.b = alleleInfo[equivalentClassToAlleles[i][0]].ecAbundance ;//abundance ;
 			ecAbundanceList.PushBack(np) ;
 		}
-
 		std::sort(ecAbundanceList.BeginAddress(), ecAbundanceList.EndAddress(), CompSortPairIntDoubleBDec) ;
-
 
 		// equivalent classes are sorted by the abundance 
 		SimpleVector<int> genesToAdd ;
