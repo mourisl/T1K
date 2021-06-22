@@ -1,6 +1,8 @@
 #ifndef _MOURISL_GENOTYPER
 #define _MOURISL_GENOTYPER
 
+#include <math.h>
+
 #include "SeqSet.hpp"
 
 #include "defs.h"
@@ -225,30 +227,9 @@ public:
 		BuildAlleleEquivalentClass() ;
 	}
 
-	void InitAlleleAbundance(FILE *fp)
+	void SetMajorAlleleAndGeneAbundance()
 	{
-		// TODO: calculate abundance with out own method
-		int i ;	
-		char buffer[256] ;
-		double abundance ;
-		double count ;
-		int tmp ;
-		
-		std::map<std::string, int> refNameToIdx ;
-		refSet.GetSeqNameToIdxMap(refNameToIdx) ;
-		
-		fscanf(fp, "%s %s %s %s %s", buffer, buffer, buffer, buffer, buffer) ; // header
-		
-		while (fscanf( fp, "%s %d %d %lf %lf", buffer, &tmp, &tmp, &count, &abundance) != EOF)
-		{
-			std::string s(buffer)	;
-			struct _pairIntDouble np ;
-			np.a = refNameToIdx[buffer] ;
-			np.b = count ;//abundance ;
-			alleleInfo[np.a].abundance = np.b ;
-		}
-		fclose(fp) ;
-
+		int i ;
 		// Init other useful abundance data
 		geneAbundance.ExpandTo(geneCnt) ;
 		geneAbundance.SetZero(0, geneCnt) ;
@@ -266,6 +247,34 @@ public:
 				geneMaxAlleleAbundance[ alleleInfo[i].geneIdx ] = alleleInfo[i].abundance ;
 			}
 		}
+
+	}
+
+	void InitAlleleAbundance(FILE *fp)
+	{
+		// TODO: calculate abundance with out own method
+		int i ;	
+		char buffer[256] ;
+		double abundance ;
+		double count ;
+		int tmp ;
+
+		std::map<std::string, int> refNameToIdx ;
+		refSet.GetSeqNameToIdxMap(refNameToIdx) ;
+
+		fscanf(fp, "%s %s %s %s %s", buffer, buffer, buffer, buffer, buffer) ; // header
+
+		while (fscanf( fp, "%s %d %d %lf %lf", buffer, &tmp, &tmp, &count, &abundance) != EOF)
+		{
+			std::string s(buffer)	;
+			struct _pairIntDouble np ;
+			np.a = refNameToIdx[buffer] ;
+			np.b = count ;//abundance ;
+			alleleInfo[np.a].abundance = np.b ;
+		}
+		fclose(fp) ;
+		
+		SetMajorAlleleAndGeneAbundance() ;
 	}
 	
 	int GetGeneAlleleTypes(int geneIdx)
@@ -441,14 +450,25 @@ public:
 		}
 
 		// Start the EM algorithm
-
 		const int maxEMIterations = 1000 ;
 		double *ecAbundance = new double[ecCnt] ;
 		double *ecReadCount = new double[ecCnt] ;
-		
+		double *ecLength = new double[ecCnt] ; // the sequence length for equivalent class.
+
 		double diffSum = 0 ;
 		for (i = 0 ; i < ecCnt ; ++i)
+		{
 			ecAbundance[i] = 1.0 / ecCnt ;
+			int size = equivalentClassToAlleles[i].size() ;
+			ecLength[i] = refSet.GetSeqConsensusLen(equivalentClassToAlleles[i][0]) ;
+			for (j = 1 ; j < size ; ++j)
+			{
+				int len = refSet.GetSeqConsensusLen(equivalentClassToAlleles[i][j]) ;
+				if (len < ecLength[i])
+					ecLength[i] = len ;
+			}
+		}
+
 		for (t = 0 ; t < maxEMIterations ; ++t)
 		{
 			// E-step: find the expected number of reads
@@ -469,16 +489,21 @@ public:
 
 			// M-step: recompute the abundance
 			diffSum = 0 ;
+			double normalization = 0 ;
+			for (i = 0 ; i < ecCnt ; ++i)
+				normalization += ecReadCount[i] / ecLength[i] ;
+
 			for (i = 0 ; i < ecCnt ; ++i)
 			{
 				double tmp = ecReadCount[i] / effectiveReadCnt ;
+				//double tmp = ecReadCount[i] / ecLength[i] / normalization ;
 				//printf("%lf %lf %d. %lf\n", tmp, ecReadCount[i], effectiveReadCnt, ecAbundance[i]) ;
 				diffSum += ABS(tmp - ecAbundance[i]) ;
 				ecAbundance[i] = tmp ;
 			}
 			//printf("%lf\n", diffSum) ;
-			if (diffSum < 1e-3)
-				break ;
+			if (diffSum < 1e-3 && t < maxEMIterations - 2)
+				t = maxEMIterations - 2 ; // Force one more iteration
 		}
 
 		for (i = 0 ; i < alleleCnt ; ++i)
@@ -489,13 +514,100 @@ public:
 			int size = equivalentClassToAlleles[i].size() ;
 			for (j = 0 ; j < size ; ++j)
 			{
-				alleleInfo[i].abundance = ecAbundance[i] / size ;
-				alleleInfo[i].ecAbundance = ecAbundance[i] ;
+				k = equivalentClassToAlleles[i][j] ;
+				//alleleInfo[k].abundance = ecAbundance[i] / size * effectiveReadCnt ;
+				//alleleInfo[k].ecAbundance = ecAbundance[i] * effectiveReadCnt ;
+				alleleInfo[k].abundance = ecReadCount[i] / size ;
+				alleleInfo[k].ecAbundance = ecReadCount[i] ;
+				//printf("%d %d %s %lf %d %d\n", i, k, refSet.GetSeqName(k), ecReadCount[i], refSet.GetSeqConsensusLen(k),readsInAllele[k].size()) ;
 			}
+			//printf("%lf %lf\n", ecAbundance[i], ecAbundance[i] * effectiveReadCnt) ;
 		}
-
+		SetMajorAlleleAndGeneAbundance() ;
+	
+		delete[] ecLength ;	
 		delete[] ecAbundance ;
 		delete[] ecReadCount ;
+	}
+
+	// Based on the read coverage, remove the ones that are not likely to be true
+	void RemoveLowLikelihoodAlleleInEquivalentClass()
+	{
+		int i, j, k ;
+		int ecCnt = equivalentClassToAlleles.size() ;
+		std::vector<int> keptAlleles ;
+		SimpleVector<int> minStarts ;
+		SimpleVector<int> maxEnds ;
+		SimpleVector<double> likelihoods ;
+		std::map<int, int> alleleIdxToIdx ;
+		for (i = 0 ; i < ecCnt ; ++i)
+		{
+			keptAlleles.clear() ; 
+			int size = equivalentClassToAlleles[i].size() ;
+			likelihoods.ExpandTo(size) ;
+			likelihoods.SetZero(0, size) ;
+			minStarts.ExpandTo(size) ;
+			maxEnds.ExpandTo(size) ;
+			alleleIdxToIdx.clear() ;
+			
+			for (j = 0 ; j < size ; ++j)
+			{
+				int alleleIdx = equivalentClassToAlleles[i][j] ;
+				minStarts[j] = refSet.GetSeqConsensusLen(alleleIdx) ;
+				maxEnds[j] = -1 ;
+				alleleIdxToIdx[alleleIdx] = j ;
+			}
+			
+			// Setting up the range of coverage for each allele
+			int representAlleleIdx = equivalentClassToAlleles[i][0] ;
+			int assignedReadCnt = readsInAllele[representAlleleIdx].size() ;
+			for (j = 0 ; j < assignedReadCnt ; ++j)
+			{
+				int readIdx = readsInAllele[representAlleleIdx][j] ;
+				int readToAllelesCnt = readAssignments[readIdx].size() ;
+				for (k = 0 ; k < readToAllelesCnt ; ++k)
+				{
+					struct _readAssignment &assign = readAssignments[readIdx][k] ;
+					int idx = alleleIdxToIdx[assign.alleleIdx] ;
+					if (assign.start < minStarts[idx])
+						minStarts[idx] = assign.start ;
+					if (assign.end > maxEnds[idx])
+						maxEnds[idx] = assign.end ;
+				}
+			}
+
+			// Compute the likelihood
+			double maxLikelihood = -1 ;
+			int maxTag = -1 ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				int alleleIdx = equivalentClassToAlleles[i][j] ;
+				int len = refSet.GetSeqConsensusLen(alleleIdx) ;
+				int effectiveLen = maxEnds[j] - minStarts[j] + 1 ;
+				double ll = pow(double(effectiveLen) / len, alleleInfo[alleleIdx].ecAbundance) ;
+				if (ll > maxLikelihood)
+				{
+					maxLikelihood = ll ;
+					maxTag = j ;
+				}
+				likelihoods[j] = ll ;
+			}
+			
+			// Store the kept alleles
+			double cutoff = 0.05 ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				if (likelihoods[j] / maxLikelihood >= cutoff)
+					keptAlleles.push_back(equivalentClassToAlleles[i][j]) ;
+				/*else
+				{
+					printf("Filtered: %d %d %s: %lf %lf\n", i, equivalentClassToAlleles[i][j],
+							refSet.GetSeqName(equivalentClassToAlleles[i][j]),
+							likelihoods[j], maxLikelihood);
+				}*/
+			}
+			equivalentClassToAlleles[i] = keptAlleles ;
+		}
 	}
 
 	void SelectAllelesForGenes() // main function for genotyping
@@ -511,7 +623,6 @@ public:
 		// Compute the abundance for equivalent class
 		SimpleVector<struct _pairIntDouble> ecAbundanceList ;
 		int ecCnt = equivalentClassToAlleles.size() ;
-		QuantifyAlleleEquivalentClass() ;
 		
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
@@ -593,7 +704,7 @@ public:
 				}
 				alleleInfo[alleleIdx].genotypeQuality = quality ;
 				alleleInfo[alleleIdx].alleleRank = alleleRank ;
-				
+				//printf("%s %lf %d\n", refSet.GetSeqName(alleleIdx), alleleRank, alleleInfo[alleleIdx].ecAbundance ) ;
 				struct _pair np ;
 				np.a = alleleIdx ;
 				np.b = alleleRank ;	
@@ -623,6 +734,7 @@ public:
 		used.ExpandTo(majorAlleleCnt) ;
 		int ret = 0 ;
 
+		used.SetZero(0, majorAlleleCnt);
 		for (type = 0; type <= 1; ++type)	
 		{
 			double abundance = 0 ;
@@ -633,7 +745,6 @@ public:
 
 			int size = selectedAlleles[geneIdx].size() ;
 			selectedMajorAlleles.Clear() ;
-			used.SetZero(0, majorAlleleCnt);
 
 			int quality = -1 ;
 			for (i = 0; i < size; ++i)

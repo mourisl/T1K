@@ -500,6 +500,11 @@ public:
 	{
 		return seqs[ seqIdx ].consensus ;
 	}
+
+	int GetSeqConsensusLen( int seqIdx )
+	{
+		return seqs[seqIdx].consensusLen ;
+	}
 	
 	// Input some baseline sequence to match against.
 	void InputRefFa( char *filename ) 
