@@ -109,11 +109,11 @@ if (!-d "$outputDirectory/bwa_idx")
 system_call("bwa index -p $outputDirectory/bwa_idx/bwa $kirSeqFile") ;
 
 # Build Kallisto index
-if (!-d "$outputDirectory/kallisto_idx")
-{
-	mkdir "$outputDirectory/kallisto_idx" ;
-}
-system_call("kallisto index -i $outputDirectory/kallisto_idx/kallisto $kirSeqFile") ;
+#if (!-d "$outputDirectory/kallisto_idx")
+#{
+#	mkdir "$outputDirectory/kallisto_idx" ;
+#}
+#system_call("kallisto index -i $outputDirectory/kallisto_idx/kallisto $kirSeqFile") ;
 
 # Add the genome coordinate to fasta file.
 if ($annotationFile ne "")

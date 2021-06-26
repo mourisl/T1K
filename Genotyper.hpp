@@ -252,8 +252,7 @@ public:
 
 	void InitAlleleAbundance(FILE *fp)
 	{
-		// TODO: calculate abundance with out own method
-		int i ;	
+		int i, j ;	
 		char buffer[256] ;
 		double abundance ;
 		double count ;
@@ -273,6 +272,17 @@ public:
 			alleleInfo[np.a].abundance = np.b ;
 		}
 		fclose(fp) ;
+		
+		int ecCnt = equivalentClassToAlleles.size() ;
+		for (i = 0 ; i < ecCnt ; ++i)
+		{
+			int size = equivalentClassToAlleles[i].size() ;
+			double total = 0 ;
+			for (j = 0 ; j < size ; ++j)
+				total += alleleInfo[equivalentClassToAlleles[i][j]].abundance ;
+			for (j = 0 ; j < size ; ++j)
+				alleleInfo[equivalentClassToAlleles[i][j]].ecAbundance = total ;
+		}
 		
 		SetMajorAlleleAndGeneAbundance() ;
 	}
@@ -496,7 +506,7 @@ public:
 			for (i = 0 ; i < ecCnt ; ++i)
 			{
 				double tmp = ecReadCount[i] / effectiveReadCnt ;
-				//double tmp = ecReadCount[i] / ecLength[i] / normalization ;
+				tmp = ecReadCount[i] / ecLength[i] / normalization ;
 				//printf("%lf %lf %d. %lf\n", tmp, ecReadCount[i], effectiveReadCnt, ecAbundance[i]) ;
 				diffSum += ABS(tmp - ecAbundance[i]) ;
 				ecAbundance[i] = tmp ;
@@ -735,6 +745,7 @@ public:
 		int ret = 0 ;
 
 		used.SetZero(0, majorAlleleCnt);
+		int qualities[2] = {-1, -1} ;
 		for (type = 0; type <= 1; ++type)	
 		{
 			double abundance = 0 ;
@@ -746,19 +757,21 @@ public:
 			int size = selectedAlleles[geneIdx].size() ;
 			selectedMajorAlleles.Clear() ;
 
-			int quality = -1 ;
+			qualities[type] = -1 ;
+			if (type == 1 && qualities[0] == 0)
+				used.SetZero(0, majorAlleleCnt) ;
 			for (i = 0; i < size; ++i)
 			{
 				k = selectedAlleles[geneIdx][i].a ; 
 				if (selectedAlleles[geneIdx][i].b != type)
 					continue ;
-				quality = alleleInfo[k].genotypeQuality ;
-
-				ret = type + 1 ;
-				abundance = alleleInfo[k].ecAbundance ;
 				int majorAlleleIdx = alleleInfo[k].majorAlleleIdx ;
-				if (!used[ majorAlleleIdx ] )
+				if (!used[ majorAlleleIdx ])
 				{
+					qualities[type] = alleleInfo[k].genotypeQuality ;
+
+					ret = type + 1 ;
+					abundance = alleleInfo[k].ecAbundance ;
 					if (buffer[0])
 					{
 						sprintf(buffer + strlen(buffer), ",%s", majorAlleleIdxToName[majorAlleleIdx].c_str()) ;
@@ -768,8 +781,8 @@ public:
 					used[majorAlleleIdx] = 1 ;
 				}	
 			}
-			if (quality >= 0)
-				sprintf(buffer + strlen(buffer), "\t%lf\t%d", abundance, quality) ;
+			if (qualities >= 0)
+				sprintf(buffer + strlen(buffer), "\t%lf\t%d", abundance, qualities[type]) ;
 		}
 		return ret ;
 	}

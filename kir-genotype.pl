@@ -335,7 +335,7 @@ if ( $stage <= 1 )
 }
 
 # Run kallisto
-if ( $stage <= 1 )
+if (0) #$stage <= 1 )
 {
 	my @cols = split / /, $bwaReadFiles ;
 	if (scalar(@cols) > 1)
@@ -352,5 +352,5 @@ if ( $stage <= 1 )
 if ( $stage <= 2 )
 {
 	#system_call("python3 $WD/KirGenotype.py -a ${prefix}_kallisto/abundance.tsv > ${prefix}_genotype.tsv") ;
-	system_call("$WD/genotyper -f $kirseqFasta -a ${prefix}_kallisto/abundance.tsv -1 $bwaRd1 -2 $bwaRd2 > ${prefix}_genotype.tsv") ;
+	system_call("$WD/genotyper -f $kirseqFasta -1 $bwaRd1 -2 $bwaRd2 > ${prefix}_genotype.tsv") ;
 }
