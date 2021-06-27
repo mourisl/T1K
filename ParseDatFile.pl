@@ -53,6 +53,16 @@ my $allele = "" ;
 my %partialAlleles ;
 my $hasIntron ;
 my %usedSeq ;
+my @alleleOrder ;
+my %alleleSeq ;
+my %gene5UTRPadding ;
+my %geneBestPossible5UTRPadding ;
+my %gene3UTRPadding ;
+my %geneBestPossible3UTRPadding ;
+my %allelePaddingLength ;
+
+my $utrLength = 50 ;
+
 while (<FP>)
 {
 	if (/^FT/)
@@ -106,9 +116,25 @@ while (<FP>)
 			{
 				my $outputSeq = "" ;
 				# UTR before
-				my $start = $exons[0] - 50 ;
+				my $start = $exons[0] - $utrLength ;
 				my $end = $exons[0] - 1 ;
-				$start = 0 if ($start < 0) ;
+				my $gene = (split /\*/, $allele)[0] ;
+				@{$allelePaddingLength{$allele}} = (0, 0) ;
+				if ($start < 0) 
+				{
+					$allelePaddingLength{$allele}[0] = -$start ;
+					if (!defined $geneBestPossible5UTRPadding{$gene} ||
+						$end > length($geneBestPossible5UTRPadding{$gene}))
+					{
+						$geneBestPossible5UTRPadding{$gene} = uc(substr($seq, 0, $end)) ;
+					}
+					$start = 0 ;
+				}
+				elsif (!defined $gene5UTRPadding{$gene})
+				{
+					$gene5UTRPadding{$gene} = uc(substr($seq, $start, $end - $start + 1)) ;
+				}
+
 				$outputSeq .= substr($seq, $start, $end - $start + 1) ;
 
 				for (my $i = 0 ; $i < scalar(@exons) ; $i += 2)
@@ -117,22 +143,79 @@ while (<FP>)
 				}
 				# UTR after
 				$start = $exons[scalar(@exons) - 1] + 1;
-				$end = $start + 49 ;
-				$end = length($seq) - 1 if ($end >= length($seq)) ;
+				$end = $start + $utrLength - 1 ;
+				if ($end >= length($seq)) 
+				{
+					$allelePaddingLength{$allele}[1] = $end - length($seq) + 1 ;
+					if (!defined $geneBestPossible3UTRPadding{$gene} ||
+						length($seq) - $start > length($geneBestPossible3UTRPadding{$gene}))
+					{
+						$geneBestPossible3UTRPadding{$gene} = uc(substr($seq, $start)) ;
+					}
+					$end = length($seq) - 1 ;
+				}
+				elsif (!defined $gene3UTRPadding{$gene})
+				{
+					$gene3UTRPadding{$gene} = uc(substr($seq, $start, $end - $start + 1)) ;
+				}
 				$outputSeq .= substr($seq, $start, $end - $start + 1) ;
 				
 				$outputSeq = uc($outputSeq) ;				
-				last if (defined $usedSeq{$outputSeq}) ;
-
-				$usedSeq{$outputSeq} = 1 ;
 				if (!defined $partialAlleles{$allele})
 				{
-					print(">$allele\n$outputSeq\n") ;
+					push @alleleOrder, $allele ;
+					$alleleSeq{$allele} = $outputSeq ;
+					#print(">$allele\n$outputSeq\n") ;
 				}
-
 				last ;
 			}
 		}
 	}
 }
 close FP ;
+
+srand(17) ;
+my @numToNuc = ("A", "C", "G", "T") ;
+for my $allele (@alleleOrder)
+{
+	my $gene = (split /\*/, $allele)[0] ;
+	if (!defined $gene5UTRPadding{$gene})
+	{
+		my $randomSeq = "" ;
+		for ($i = 0 ; $i < $utrLength ; ++$i)
+		{
+			$randomSeq .= $numToNuc[int(rand(4))] ;
+		}
+		my $len = length($geneBestPossible5UTRPadding{$gene}) ;
+		substr($randomSeq, -$len, $len, $geneBestPossible5UTRPadding{$gene}) ;
+		$gene5UTRPadding{$gene} = $randomSeq ;
+	}
+	if (!defined $gene3UTRPadding{$gene})
+	{
+		my $randomSeq = "" ;
+		for ($i = 0 ; $i < $utrLength ; ++$i)
+		{
+			$randomSeq .= $numToNuc[int(rand(4))] ;
+		}
+		my $len = length($geneBestPossible3UTRPadding{$gene}) ;
+		substr($randomSeq, 0, $len, $geneBestPossible3UTRPadding{$gene}) ;
+		$gene3UTRPadding{$gene} = $randomSeq ;
+	}
+}
+for my $allele (@alleleOrder)
+{
+	my $outputSeq = $alleleSeq{$allele} ;
+	my $gene = (split /\*/, $allele)[0] ;
+	if ($allelePaddingLength{$allele}[0] > 0)
+	{
+		$outputSeq = substr($gene5UTRPadding{$gene}, 0, $allelePaddingLength{$allele}[0]).$outputSeq ;
+	}
+	if ($allelePaddingLength{$allele}[1] > 0)
+	{
+		$outputSeq = $outputSeq.substr($gene3UTRPadding{$gene}, -$allelePaddingLength{$allele}[1]) ;
+	}
+
+	next if (defined $usedSeq{$outputSeq}) ;
+	$usedSeq{$outputSeq} = 1 ;
+	print(">$allele\n$outputSeq\n") ;
+}
