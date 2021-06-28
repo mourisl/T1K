@@ -338,6 +338,7 @@ public:
 					break ;
 				if (IsAssignedReadTheSame(readsInAllele[ alleleFingerprint[i].a ], 
 							readsInAllele[ alleleFingerprint[j].a]))
+						//&& refSet.GetSeqConsensusLen(alleleFingerprint[i].a) == refSet.GetSeqConsensusLen(alleleFingerprint[j].a))
 				{
 					newEc = false ;
 					break ;
@@ -651,6 +652,9 @@ public:
 			int ec = ecAbundanceList[i].a ;
 			int size = equivalentClassToAlleles[ec].size() ;
 			int alleleIdx = equivalentClassToAlleles[ec][0] ;
+			
+			if (ecAbundanceList[i].b <= 1e-6)
+				break ;
 
 			// Check whether there is uncovered reads.
 			int covered = 0;
@@ -661,9 +665,9 @@ public:
 				if (readCovered[readList[j]])
 					++covered ;
 			}
+			//printf("%d %s %lf %d %d\n", alleleIdx, refSet.GetSeqName(alleleIdx), alleleInfo[alleleIdx].ecAbundance, covered, readListSize ) ;
 			if (covered == readListSize) // no uncovered reads
 				continue ;
-			
 			// Add these alleles to the gene allele
 			genesToAdd.Clear() ;
 			allelesToAdd.Clear() ;
@@ -704,13 +708,27 @@ public:
 			{
 				alleleIdx = allelesToAdd[j] ;
 				int geneIdx = alleleInfo[alleleIdx].geneIdx ;
-				int alleleRank = 0 ;
-				if (geneAlleleTypes.find(geneIdx) != geneAlleleTypes.end()) 
-					alleleRank = geneAlleleTypes[geneIdx] ;
-				else
+				int majorAlleleIdx = alleleInfo[alleleIdx].majorAlleleIdx ;
+				int alleleRank = -1 ;
+
+				int selectedAlleleSize = selectedAlleles[geneIdx].size() ;
+				for (k = 0 ; k < selectedAlleleSize ; ++k)
 				{
-					alleleRank = GetGeneAlleleTypes(geneIdx) ;
-					geneAlleleTypes[geneIdx] = alleleRank ;
+					if (alleleInfo[selectedAlleles[geneIdx][k].a].majorAlleleIdx == majorAlleleIdx)
+					{
+						alleleRank = selectedAlleles[geneIdx][k].b ;
+						break ;
+					}
+				}
+				if (alleleRank == -1)
+				{
+					if (geneAlleleTypes.find(geneIdx) != geneAlleleTypes.end()) 
+						alleleRank = geneAlleleTypes[geneIdx] ;
+					else
+					{
+						alleleRank = GetGeneAlleleTypes(geneIdx) ;
+						geneAlleleTypes[geneIdx] = alleleRank ;
+					}
 				}
 				alleleInfo[alleleIdx].genotypeQuality = quality ;
 				alleleInfo[alleleIdx].alleleRank = alleleRank ;
@@ -766,12 +784,12 @@ public:
 				if (selectedAlleles[geneIdx][i].b != type)
 					continue ;
 				int majorAlleleIdx = alleleInfo[k].majorAlleleIdx ;
+				abundance += alleleInfo[k].ecAbundance ;
 				if (!used[ majorAlleleIdx ])
 				{
 					qualities[type] = alleleInfo[k].genotypeQuality ;
 
 					ret = type + 1 ;
-					abundance = alleleInfo[k].ecAbundance ;
 					if (buffer[0])
 					{
 						sprintf(buffer + strlen(buffer), ",%s", majorAlleleIdxToName[majorAlleleIdx].c_str()) ;
