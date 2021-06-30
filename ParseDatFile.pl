@@ -60,8 +60,10 @@ my %geneBestPossible5UTRPadding ;
 my %gene3UTRPadding ;
 my %geneBestPossible3UTRPadding ;
 my %allelePaddingLength ;
+my %alleleEffectiveLength ; # exon length + 2 * utrLength 
 
 my $utrLength = 50 ;
+my $intronPaddingLength = 200 ;
 
 while (<FP>)
 {
@@ -155,14 +157,23 @@ while (<FP>)
 
 						if ($i > 0)
 						{
-							$start = $exons[$i] - $utrLength ;
+							$start = $exons[$i] - $intronPaddingLength ;
 							$start = 0 if ($start < 0) ;
 						}
 
-						if ($i + 2 < scalar(@exons))
+						while ($i + 2 < scalar(@exons))
 						{
-							$end = $exons[$i + 1] + $utrLength ;
+							$end = $exons[$i + 1] + $intronPaddingLength ;
 							$end = length($seq) - 1 if ($end >= length($seq)) ;
+							if ($end >= $exons[$i + 2] - $intronPaddingLength)
+							{
+								# short intron.
+								$i += 2 ;
+							}
+							else
+							{
+								last ;
+							}
 						}
 						$outputSeq .= substr($seq, $start, $end - $start + 1) ;
 					}
@@ -197,6 +208,12 @@ while (<FP>)
 					push @alleleOrder, $allele ;
 					$alleleSeq{$allele} = $outputSeq ;
 					#print(">$allele\n$outputSeq\n") ;
+				}
+
+				$alleleEffectiveLength{$allele} = 2 * $utrLength ;
+				for (my $i = 0 ; $i < scalar(@exons) ; $i += 2)
+				{
+					$alleleEffectiveLength{$allele} += $exons[$i + 1] - $exons[$i] + 1 ;
 				}
 				last ;
 			}
@@ -248,5 +265,5 @@ for my $allele (@alleleOrder)
 
 	next if (defined $usedSeq{$outputSeq}) ;
 	$usedSeq{$outputSeq} = 1 ;
-	print(">$allele\n$outputSeq\n") ;
+	print(">$allele/".$alleleEffectiveLength{$allele}."\n$outputSeq\n") ;
 }

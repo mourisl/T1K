@@ -485,10 +485,10 @@ public:
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
 			int size = equivalentClassToAlleles[i].size() ;
-			ecLength[i] = refSet.GetSeqConsensusLen(equivalentClassToAlleles[i][0]) ;
+			ecLength[i] = refSet.GetSeqEffectiveLen(equivalentClassToAlleles[i][0]) ;
 			for (j = 1 ; j < size ; ++j)
 			{
-				int len = refSet.GetSeqConsensusLen(equivalentClassToAlleles[i][j]) ;
+				int len = refSet.GetSeqEffectiveLen(equivalentClassToAlleles[i][j]) ;
 				if (len < ecLength[i])
 					ecLength[i] = len ;
 			}
@@ -784,10 +784,10 @@ public:
 		{
 			ecUsed[i] = false ;
 			int size = equivalentClassToAlleles[i].size() ;
-			ecLength[i] = refSet.GetSeqConsensusLen(equivalentClassToAlleles[i][0]) ;
+			ecLength[i] = refSet.GetSeqEffectiveLen(equivalentClassToAlleles[i][0]) ;
 			for (j = 1 ; j < size ; ++j)
 			{
-				int len = refSet.GetSeqConsensusLen(equivalentClassToAlleles[i][j]) ;
+				int len = refSet.GetSeqEffectiveLen(equivalentClassToAlleles[i][j]) ;
 				if (len < ecLength[i])
 					ecLength[i] = len ;
 			}

@@ -20,6 +20,7 @@ struct _seqWrapper
 	char *name ;
 	char *consensus ; // This should be handled by malloc/free.
 	int consensusLen ;
+	int effectiveLen ; // the length that should be used for abundance estimation
 	SimpleVector<struct _posWeight> posWeight ;
 	bool isRef ; // this is from reference.
 
@@ -505,6 +506,11 @@ public:
 	{
 		return seqs[seqIdx].consensusLen ;
 	}
+
+	int GetSeqEffectiveLen( int seqIdx )
+	{
+		return seqs[seqIdx].effectiveLen ;
+	}
 	
 	// Input some baseline sequence to match against.
 	void InputRefFa( char *filename ) 
@@ -516,10 +522,31 @@ public:
 		KmerCode kmerCode( kmerLength ) ;
 		while ( fa.Next() )
 		{
+			// Process the effective length
+			int effectiveLen = 0;
+			int factor = 1 ;
+			int len = strlen(fa.id) ;
+			for (i = len - 1 ; i >= 0 ; --i)
+			{
+				if (fa.id[i] < '0' || fa.id[i] > '9')
+					break ;
+				effectiveLen += factor * (fa.id[i] - '0') ;
+				factor *= 10 ;
+			}
+
 			// Insert the kmers 
 			struct _seqWrapper ns ;
 
+			char tmp = fa.id[i] ;
+			if (tmp == '/')
+				fa.id[i] = '\0' ; 
+			else
+			{
+				fprintf(stderr, "Wrong annotation file header %s\n", fa.id) ;
+				exit(1) ;
+			}
 			ns.name = strdup( fa.id ) ;
+			fa.id[i] = tmp ;
 			ns.isRef = true ;
 
 			int id = seqs.size() ;
@@ -528,8 +555,8 @@ public:
 			struct _seqWrapper &sw = seqs[id] ;
 			int seqLen = strlen( fa.seq ) ;
 			sw.consensus = strdup( fa.seq ) ;	
-					
 			sw.consensusLen = strlen( sw.consensus );
+			sw.effectiveLen = effectiveLen ; 	
 			sw.barcode = -1 ;
 			seqIndex.BuildIndexFromRead( kmerCode, sw.consensus, sw.consensusLen, id ) ;
 		}
