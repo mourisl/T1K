@@ -19,6 +19,7 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "Optional:\n".
     "\t-o STRING: prefix of output files. (default: inferred from file prefix)\n".
     "\t--od STRING: the directory for output files. (default: ./)\n".
+		"\t--mode STRING: \"rna\"-based or \"dna\"-based (default: rna)\n".
     "\t-t INT: number of threads (default: 1)\n".
     "\t--barcode STRING: if -b, bam field for barcode; if -1 -2/-u, file containing barcodes (default: not used)\n".
     "\t--barcodeRange INT INT CHAR: start, end(-1 for length-1), strand in a barcode is the true barcode (default: 0 -1 +)\n".
@@ -67,6 +68,7 @@ my $noExtraction = 0 ;
 my $hasBarcode = 0 ;
 my $hasUmi = 0 ;
 my $outputDirectory = "" ;
+my $mode = "rna" ;
 
 print STDERR "[".localtime()."] $progName begins.\n" ;
 for ( $i = 0 ; $i < @ARGV ; ++$i )
@@ -179,6 +181,11 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		$bamExtractorArgs .= " --UMI ".$ARGV[$i + 1] ;
 		++$i ;
 	}
+	elsif ( $ARGV[$i] eq "--mode")
+	{
+		$mode = $ARGV[$i + 1] ;
+		++$i ;
+	}
 	elsif ( $ARGV[$i] eq "--stage" )
 	{
 		$stage = $ARGV[$i + 1] ;
@@ -205,10 +212,9 @@ if ( $refFolder eq "" )
 	die "Need to use -f to specify the folder for annotation/index files.\n" ;
 }
 
-my $kirCoordFasta = "$refFolder/kir_coord.fa" ;
-my $kirseqFasta = "$refFolder/kir_seq.fa" ;
-my $kallistoIdx = "$refFolder/kallisto_idx/kallisto" ;
-my $bwaIdx = "$refFolder/bwa_idx/bwa" ;
+my $kirCoordFasta = "$refFolder/kir_${mode}_coord.fa" ;
+my $kirseqFasta = "$refFolder/kir_${mode}_seq.fa" ;
+my $bwaIdx = "$refFolder/bwa_idx/bwa_${mode}" ;
 
 
 # Infer the output prefix.
@@ -334,23 +340,11 @@ if ( $stage <= 1 )
 	}
 }
 
-# Run kallisto
-if (0) #$stage <= 1 )
-{
-	my @cols = split / /, $bwaReadFiles ;
-	if (scalar(@cols) > 1)
-	{
-		system_call("kallisto quant -t $threadCnt -i $kallistoIdx -o ${prefix}_kallisto $bwaReadFiles") ;
-	}
-	else
-	{
-		system_call("kallisto quant -l 200 -s 20 --single -t $threadCnt -i $kallistoIdx -o ${prefix}_kallisto $bwaReadFiles") ;
-	}
-}
-
 # Obtain the genotype
 if ( $stage <= 2 )
 {
 	#system_call("python3 $WD/KirGenotype.py -a ${prefix}_kallisto/abundance.tsv > ${prefix}_genotype.tsv") ;
-	system_call("$WD/genotyper -f $kirseqFasta -1 $bwaRd1 -2 $bwaRd2 > ${prefix}_genotype.tsv") ;
+	system_call("$WD/genotyper -t $threadCnt -f $kirseqFasta -1 $bwaRd1 -2 $bwaRd2 > ${prefix}_genotype.tsv") ;
 }
+
+print STDERR "[".localtime()."] Finish.\n";

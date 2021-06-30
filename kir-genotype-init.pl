@@ -75,17 +75,19 @@ if ( !-d $outputDirectory)
 	mkdir $outputDirectory ;
 }
 
-my $kirSeqFile = "$outputDirectory/kir_seq.fa" ;
+my $kirRnaSeqFile = "$outputDirectory/kir_rna_seq.fa" ;
+my $kirDnaSeqFile = "$outputDirectory/kir_dna_seq.fa" ;
 
 # Reheader the IPD KIR gene sequence file
 if ($ipdkirDat ne "")
 {
-	system_call("perl $WD/ParseDatFile.pl $ipdkirDat > $kirSeqFile") ;
+	system_call("perl $WD/ParseDatFile.pl $ipdkirDat --mode dna > $kirDnaSeqFile") ;
+	system_call("perl $WD/ParseDatFile.pl $ipdkirDat --mode rna > $kirRnaSeqFile") ;
 }
 else
 {
 	open FP, $ipdkirFasta ;
-	open FPout, ">$kirSeqFile" ;
+	open FPout, ">$kirRnaSeqFile" ;
 	while (<FP>)
 	{
 		if (!/^>/) 
@@ -106,7 +108,8 @@ if (!-d "$outputDirectory/bwa_idx")
 {
 	mkdir "$outputDirectory/bwa_idx" ;
 }
-system_call("bwa index -p $outputDirectory/bwa_idx/bwa $kirSeqFile") ;
+system_call("bwa index -p $outputDirectory/bwa_idx/bwa_rna $kirRnaSeqFile") ;
+system_call("bwa index -p $outputDirectory/bwa_idx/bwa_dna $kirDnaSeqFile") ;
 
 # Build Kallisto index
 #if (!-d "$outputDirectory/kallisto_idx")
@@ -118,5 +121,6 @@ system_call("bwa index -p $outputDirectory/bwa_idx/bwa $kirSeqFile") ;
 # Add the genome coordinate to fasta file.
 if ($annotationFile ne "")
 {
-	system_call("perl $WD/AddKirCoord.pl $kirSeqFile $annotationFile > $outputDirectory/kir_coord.fa") ;
+	system_call("perl $WD/AddKirCoord.pl $kirRnaSeqFile $annotationFile > $outputDirectory/kir_rna_coord.fa") ;
+	system_call("perl $WD/AddKirCoord.pl $kirDnaSeqFile $annotationFile > $outputDirectory/kir_dna_coord.fa") ;
 }

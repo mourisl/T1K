@@ -71,6 +71,11 @@ private:
 			return p2.b < p1.b ;
 		return p1.a < p2.a ;
 	}
+
+	static bool CompSortDoubleDec(const double &a, const double &b)
+	{
+		return b < a ;
+	}
 	
 	bool IsAssignedReadTheSame(const std::vector<int> &l1, const std::vector<int> &l2)
 	{
@@ -554,6 +559,7 @@ public:
 				//printf("%d %d %s %lf %d %d\n", i, k, refSet.GetSeqName(k), emEcReadCount[j][i], refSet.GetSeqConsensusLen(k),readsInAllele[k].size()) ;
 				abund += emEcReadCount[j][i] ;
 			}
+			//printf("%lf\n", abund) ;
 			abund /= maxRandIterations ;
 			for (j = 0 ; j < size ; ++j)
 			{
@@ -615,6 +621,8 @@ public:
 				for (k = 0 ; k < readToAllelesCnt ; ++k)
 				{
 					struct _readAssignment &assign = readAssignments[readIdx][k] ;
+					if (alleleIdxToIdx.find(assign.alleleIdx) == alleleIdxToIdx.end())
+						continue ;
 					int idx = alleleIdxToIdx[assign.alleleIdx] ;
 					if (assign.start < minStarts[idx])
 						minStarts[idx] = assign.start ;
@@ -631,6 +639,11 @@ public:
 				int alleleIdx = equivalentClassToAlleles[i][j] ;
 				int len = refSet.GetSeqConsensusLen(alleleIdx) ;
 				int effectiveLen = maxEnds[j] - minStarts[j] + 1 ;
+				if (effectiveLen > len)
+				{
+					//printf("Wrong: %d %d %d %lf\n", minStarts[j], maxEnds[j], len, alleleInfo[alleleIdx].ecAbundance) ;
+					effectiveLen = len ;
+				}
 				double ll = pow(double(effectiveLen) / len, alleleInfo[alleleIdx].ecAbundance) ;
 				if (ll > maxLikelihood)
 				{
@@ -644,8 +657,13 @@ public:
 			double cutoff = 0.05 ;
 			for (j = 0 ; j < size ; ++j)
 			{
-				if (likelihoods[j] / maxLikelihood >= cutoff)
+				if (likelihoods[j] / maxLikelihood >= cutoff || likelihoods[j] == maxLikelihood)
+				{
 					keptAlleles.push_back(equivalentClassToAlleles[i][j]) ;
+					/*printf("Kept: %d %d %s: %lf %lf\n", i, equivalentClassToAlleles[i][j],
+							refSet.GetSeqName(equivalentClassToAlleles[i][j]),
+							likelihoods[j], maxLikelihood);*/
+				}
 				/*else
 				{
 					printf("Filtered: %d %d %s: %lf %lf\n", i, equivalentClassToAlleles[i][j],
@@ -1118,6 +1136,33 @@ public:
 				}
 			} // for j-selected allele
 		} // for i-geneCnt
+
+		// Set the genes with too few abundance to quality 0.
+		double *geneAbundances = new double[geneCnt] ;
+		for (i = 0 ; i < geneCnt ; ++i)
+		{
+			int size = selectedAlleles[i].size() ;
+			geneAbundances[i] = 0 ;
+			for (j = 0 ; j < size ; ++j)
+				geneAbundances[i] += alleleInfo[selectedAlleles[i][j].a].abundance ;
+		}
+		std::sort(geneAbundances, geneAbundances + geneCnt, CompSortDoubleDec) ;
+		double geneAbundanceCutoff = geneAbundances[2] / 10.0 ;
+
+		for (i = 0 ; i < geneCnt ; ++i)
+		{
+			int size = selectedAlleles[i].size() ;
+			double abund = 0 ;
+			for (j = 0 ; j < size ; ++j)
+				abund += alleleInfo[selectedAlleles[i][j].a].abundance ;
+			if (abund < geneAbundanceCutoff)
+			{
+				for (j = 0 ; j < size ; ++j)
+					alleleInfo[selectedAlleles[i][j].a].genotypeQuality = 0 ;
+			}
+		}
+
+		delete[] geneAbundances ;
 	}
 
 	int GetGeneCnt()
@@ -1162,7 +1207,7 @@ public:
 				if (selectedAlleles[geneIdx][i].b != type)
 					continue ;
 				int majorAlleleIdx = alleleInfo[k].majorAlleleIdx ;
-				abundance += alleleInfo[k].ecAbundance ;
+				abundance += alleleInfo[k].abundance ;
 				if (!used[ majorAlleleIdx ])
 				{
 					qualities[type] = alleleInfo[k].genotypeQuality ;

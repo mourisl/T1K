@@ -115,6 +115,8 @@ while (<FP>)
 			else
 			{
 				my $outputSeq = "" ;
+				last if ($mode eq "dna" && $hasIntron == 0) ;
+
 				# UTR before
 				my $start = $exons[0] - $utrLength ;
 				my $end = $exons[0] - 1 ;
@@ -137,9 +139,37 @@ while (<FP>)
 
 				$outputSeq .= substr($seq, $start, $end - $start + 1) ;
 
-				for (my $i = 0 ; $i < scalar(@exons) ; $i += 2)
+				if ($mode eq "rna")
 				{
-					$outputSeq .= substr($seq, $exons[$i], $exons[$i + 1] - $exons[$i] + 1) ;
+					for (my $i = 0 ; $i < scalar(@exons) ; $i += 2)
+					{
+						$outputSeq .= substr($seq, $exons[$i], $exons[$i + 1] - $exons[$i] + 1) ;
+					}
+				}
+				elsif ($mode eq "dna")
+				{
+					for (my $i = 0 ; $i < scalar(@exons) ; $i += 2)
+					{
+						$start = $exons[$i] ;
+						$end = $exons[$i + 1] ;
+
+						if ($i > 0)
+						{
+							$start = $exons[$i] - $utrLength ;
+							$start = 0 if ($start < 0) ;
+						}
+
+						if ($i + 2 < scalar(@exons))
+						{
+							$end = $exons[$i + 1] + $utrLength ;
+							$end = length($seq) - 1 if ($end >= length($seq)) ;
+						}
+						$outputSeq .= substr($seq, $start, $end - $start + 1) ;
+					}
+				}
+				else
+				{
+					die "Unknown mode $mode\n" ;
 				}
 				# UTR after
 				$start = $exons[scalar(@exons) - 1] + 1;
@@ -161,6 +191,7 @@ while (<FP>)
 				$outputSeq .= substr($seq, $start, $end - $start + 1) ;
 				
 				$outputSeq = uc($outputSeq) ;				
+				
 				if (!defined $partialAlleles{$allele})
 				{
 					push @alleleOrder, $allele ;

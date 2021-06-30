@@ -1432,7 +1432,7 @@ public:
 				r + overlap.readStart - leftOverhangSize, leftOverhangSize, align ) ;
 		GetAlignStats( align, false, matchCnt, mismatchCnt, indelCnt ) ;
 		
-		for ( i = 0 ; align[i] != -1 ; ++i )
+		/*for ( i = 0 ; align[i] != -1 ; ++i )
 			;
 		int tmpMatchCnt = 0  ;
 		for ( i = i - 1, k = 1 ; i >= 0 ; --i, ++k )
@@ -1445,7 +1445,7 @@ public:
 			}
 			else if ( align[i] != EDIT_MISMATCH )
 				break ;
-		}
+		}*/
 		// Extension to 3'-end ( right end )
 		int rightOverhangSize = MIN( len - 1 - overlap.readEnd, seq.consensusLen - 1 - overlap.seqEnd ) ;
 		int goodRightOverhangSize = 0 ;
@@ -1464,7 +1464,10 @@ public:
 		extendedOverlap.matchCnt = 2 * matchCnt + overlap.matchCnt ;
 		extendedOverlap.similarity = (double)( 2 * matchCnt + overlap.matchCnt ) / 
 			( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;	
-			
+		//printf("%d %d %d %d. %d\n", extendedOverlap.readStart, extendedOverlap.readEnd, extendedOverlap.seqStart, extendedOverlap.seqEnd,
+		//		extendedOverlap.matchCnt);		
+		if (extendedOverlap.similarity < refSeqSimilarity)
+			ret = 0 ;
 		return ret ;
 	}
 
