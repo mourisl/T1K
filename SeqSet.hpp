@@ -522,31 +522,9 @@ public:
 		KmerCode kmerCode( kmerLength ) ;
 		while ( fa.Next() )
 		{
-			// Process the effective length
-			int effectiveLen = 0;
-			int factor = 1 ;
-			int len = strlen(fa.id) ;
-			for (i = len - 1 ; i >= 0 ; --i)
-			{
-				if (fa.id[i] < '0' || fa.id[i] > '9')
-					break ;
-				effectiveLen += factor * (fa.id[i] - '0') ;
-				factor *= 10 ;
-			}
-
 			// Insert the kmers 
 			struct _seqWrapper ns ;
-
-			char tmp = fa.id[i] ;
-			if (tmp == '/')
-				fa.id[i] = '\0' ; 
-			else
-			{
-				fprintf(stderr, "Wrong annotation file header %s\n", fa.id) ;
-				exit(1) ;
-			}
 			ns.name = strdup( fa.id ) ;
-			fa.id[i] = tmp ;
 			ns.isRef = true ;
 
 			int id = seqs.size() ;
@@ -556,7 +534,7 @@ public:
 			int seqLen = strlen( fa.seq ) ;
 			sw.consensus = strdup( fa.seq ) ;	
 			sw.consensusLen = strlen( sw.consensus );
-			sw.effectiveLen = effectiveLen ; 	
+			sw.effectiveLen = sw.consensusLen ; //effectiveLen ; 	
 			sw.barcode = -1 ;
 			seqIndex.BuildIndexFromRead( kmerCode, sw.consensus, sw.consensusLen, id ) ;
 		}

@@ -265,5 +265,5 @@ for my $allele (@alleleOrder)
 
 	next if (defined $usedSeq{$outputSeq}) ;
 	$usedSeq{$outputSeq} = 1 ;
-	print(">$allele/".$alleleEffectiveLength{$allele}."\n$outputSeq\n") ;
+	print(">$allele\n$outputSeq\n") ;
 }

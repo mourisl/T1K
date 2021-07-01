@@ -1147,7 +1147,7 @@ public:
 				geneAbundances[i] += alleleInfo[selectedAlleles[i][j].a].abundance ;
 		}
 		std::sort(geneAbundances, geneAbundances + geneCnt, CompSortDoubleDec) ;
-		double geneAbundanceCutoff = geneAbundances[2] / 10.0 ;
+		double geneAbundanceCutoff = geneAbundances[1] / 10.0 ;
 
 		for (i = 0 ; i < geneCnt ; ++i)
 		{
