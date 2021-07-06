@@ -22,6 +22,10 @@ for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
 		$mode = $ARGV[$i + 1] ;
 		++$i ;
 	}
+	elsif ($ARGV[$i] eq "--gene")
+	{
+		++$i ;
+	}
 	else
 	{
 		die "Unknown option ".$ARGV[$i]."\n" ;
@@ -64,21 +68,29 @@ my %alleleEffectiveLength ; # exon length + 2 * utrLength
 
 my $utrLength = 50 ;
 my $intronPaddingLength = 200 ;
+my %alleleExonRegions ; # the actuall exon regions in the output sequence
 
 while (<FP>)
 {
-	if (/^FT/)
+	if (/^ID/)
 	{
-		if (/allele=\"(.*?)\"/)
-		{
-			$allele = $1 ;
-		}
-		elsif (/\sCDS\s/)
-		{
 			undef @exons ;
 			$hasIntron = 0 ;
 			$seq = "" ;
+			$allele = "-1" ;
+	}
+	elsif (/^FT/)
+	{
+		if (/allele=\"(.*?)\"/)
+		{
+			$allele = $1 ; 
 		}
+		#elsif (/\sCDS\s/)
+		#{
+		#	undef @exons ;
+		#	$hasIntron = 0 ;
+		#	$seq = "" ;
+		#}
 		elsif (/\sexon\s/)
 		{
 			chomp ;
@@ -118,12 +130,15 @@ while (<FP>)
 			{
 				my $outputSeq = "" ;
 				last if ($mode eq "dna" && $hasIntron == 0) ;
-
+				last if ($allele eq "-1") ;
+				last if (scalar(@exons) == 0) ;
 				# UTR before
 				my $start = $exons[0] - $utrLength ;
 				my $end = $exons[0] - 1 ;
 				my $gene = (split /\*/, $allele)[0] ;
 				@{$allelePaddingLength{$allele}} = (0, 0) ;
+				my $exonOffset = 0 ;
+				my @exonActualRegion ;
 				if ($start < 0) 
 				{
 					$allelePaddingLength{$allele}[0] = -$start ;
@@ -138,14 +153,18 @@ while (<FP>)
 				{
 					$gene5UTRPadding{$gene} = uc(substr($seq, $start, $end - $start + 1)) ;
 				}
-
+							
 				$outputSeq .= substr($seq, $start, $end - $start + 1) ;
 
+				$exonOffset = $utrLength ;
 				if ($mode eq "rna")
 				{
 					for (my $i = 0 ; $i < scalar(@exons) ; $i += 2)
 					{
 						$outputSeq .= substr($seq, $exons[$i], $exons[$i + 1] - $exons[$i] + 1) ;
+						push @exonActualRegion, $exonOffset ;
+						push @exonActualRegion, $exonOffset + $exons[$i + 1] - $exons[$i] ;
+						$exonOffset += ($exons[$i + 1] - $exons[$i] + 1) ;
 					}
 				}
 				elsif ($mode eq "dna")
@@ -158,24 +177,37 @@ while (<FP>)
 						if ($i > 0)
 						{
 							$start = $exons[$i] - $intronPaddingLength ;
-							$start = 0 if ($start < 0) ;
+							$start = 0 if ($start < 0) ; # no need to worry about, if this happens, exons will merge
+							$exonOffset += $intronPaddingLength ;
 						}
 
+						push @exonActualRegion, $exonOffset ; 
+						push @exonActualRegion, $exonOffset + $exons[$i + 1] - $exons[$i] ; 
+						
+						my $k = $i ;
 						while ($i + 2 < scalar(@exons))
 						{
 							$end = $exons[$i + 1] + $intronPaddingLength ;
 							$end = length($seq) - 1 if ($end >= length($seq)) ;
+							
 							if ($end >= $exons[$i + 2] - $intronPaddingLength)
 							{
 								# short intron.
 								$i += 2 ;
+								$end = $exons[$i + 1] ;
+								push @exonActualRegion, $exonOffset + $exons[$i] - $exons[$k] ; 
+								push @exonActualRegion, $exonOffset + $exons[$i + 1] - $exons[$k] ; 
 							}
 							else
 							{
 								last ;
 							}
 						}
+						
 						$outputSeq .= substr($seq, $start, $end - $start + 1) ;
+						
+						$exonOffset += ($exons[$i + 1] - $exons[$k] + 1) ;
+						$exonOffset += $intronPaddingLength ;
 					}
 				}
 				else
@@ -207,6 +239,7 @@ while (<FP>)
 				{
 					push @alleleOrder, $allele ;
 					$alleleSeq{$allele} = $outputSeq ;
+					@{$alleleExonRegions{$allele}} = @exonActualRegion ;
 					#print(">$allele\n$outputSeq\n") ;
 				}
 
@@ -265,5 +298,7 @@ for my $allele (@alleleOrder)
 
 	next if (defined $usedSeq{$outputSeq}) ;
 	$usedSeq{$outputSeq} = 1 ;
-	print(">$allele\n$outputSeq\n") ;
+	print(">$allele ".scalar(@{$alleleExonRegions{$allele}}) / 2 .
+		" ".join(" ", @{$alleleExonRegions{$allele}}).
+		"\n$outputSeq\n") ;
 }

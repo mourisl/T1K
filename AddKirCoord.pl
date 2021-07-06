@@ -66,7 +66,7 @@ while (<FP>)
 	else 
 	{
 		print $seq, "\n" if ($seq ne "") ;
-		my $header = $_ ;
+		my $header = (split /\s+/, $_)[0] ;
 		my $gene = (split /\*/, substr($header, 1))[0] ;
 		print "$header ".$geneCoord{$gene}."\n" ;
 		$seq = "" ;	

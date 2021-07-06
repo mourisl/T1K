@@ -8,6 +8,9 @@
 #include "defs.h"
 #include "SimpleVector.hpp"
 
+#define GENETYPE_KIR 0
+#define GENETYPE_HLA 1
+
 struct _alleleInfo
 {
 	int majorAlleleIdx ; 
@@ -44,18 +47,45 @@ private:
 	void ParseAlleleName(char *allele, char *gene, char *majorAllele)
 	{
 		int i, j ;
+		int parseType = 1 ; // 1-first three; 2-colon(HLA)
 		strcpy(gene, allele) ;
 		strcpy(majorAllele, allele) ;
 		for (i = 0 ; allele[i] ; ++i)
+			if (allele[i] == ':')
+				parseType = 2 ;
+
+		if (parseType == 1)
 		{
-			if (allele[i] == '*')
-				break ;
+			for (i = 0 ; allele[i] ; ++i)
+			{
+				if (allele[i] == '*')
+					break ;
+			}
+			gene[i] = '\0' ;
+			for (j = 0 ; j <= 3 && allele[i + j] ; ++j)
+				;
+			majorAllele[i + j] = '\0' ;
 		}
-		strcpy(gene, allele) ;
-		gene[i] = '\0' ;
-		for (j = 0 ; j <= 3 && allele[i + j] ; ++j)
-			;
-		majorAllele[i + j] = '\0' ;
+		else if (parseType == 2)
+		{
+			for (i = 0 ; allele[i] ; ++i)
+			{
+				if (allele[i] == '*')
+					break ;
+			}
+			gene[i] = '\0' ;
+			int k = 0 ;
+			for (j = i ; allele[j] ; ++j)
+			{
+				if (allele[j] == ':')	
+				{
+					++k ;
+					if (k >= 3)
+						break ;
+				}
+			}
+			majorAllele[j] = '\0' ;
+		}
 	}
 	
 	static bool CompSortPairByBDec( const struct _pair &p1, const struct _pair &p2 )
@@ -139,6 +169,8 @@ private:
 	SimpleVector<double> geneMaxAlleleAbundance ;
 
 	int64_t randomSeed ;
+
+	int geneType ;  // not used actually
 public:
 	SeqSet refSet ;
 	
@@ -148,13 +180,20 @@ public:
 		majorAlleleBuffer = new char[256] ;
 		alleleCnt = majorAlleleCnt = geneCnt = readCnt = 0 ;
 		randomSeed = 17 ;
+		geneType = GENETYPE_KIR ;
 	}
+
 	~Genotyper() 
 	{
 		delete[] geneBuffer ;
 		delete[] majorAlleleBuffer ;
 	}
-	
+
+	void SetGeneType(int g)
+	{
+		geneType = g ;
+	}
+
 	void InitRefSet(char *filename)
 	{
 		int i ;

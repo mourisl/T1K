@@ -17,7 +17,9 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
 		"\t-f STRING: IPD KIR gene sequence file\n".
 		"Optional:\n".
 		"\t-o STRING: output folder (default: ./)\n".
-		"\t-g STRING: genome annotation file (default: not used)\n" if (@ARGV == 0);
+		"\t-g STRING: genome annotation file (default: not used)\n".
+		"\t--target STRING: KIR or HLA (default: KIR)\n" 
+		if (@ARGV == 0);
 
 
 sub system_call
@@ -36,6 +38,7 @@ my $ipdkirFasta = "" ;
 my $ipdkirDat = "" ;
 my $outputDirectory = "./" ;
 my $annotationFile = "" ;
+my $targetGene = "kir" ;
 
 for ($i = 0 ; $i < @ARGV ; ++$i) 
 {
@@ -59,6 +62,11 @@ for ($i = 0 ; $i < @ARGV ; ++$i)
 		$annotationFile = $ARGV[$i + 1] ;
 		++$i ;
 	}
+	elsif ($ARGV[$i] eq "--target")
+	{
+		$targetGene = lc($ARGV[$i + 1]) ;
+		++$i ;
+	}
 	else
 	{
 		die "Unknown parameter ".$ARGV[$i]."\n" ;
@@ -75,8 +83,8 @@ if ( !-d $outputDirectory)
 	mkdir $outputDirectory ;
 }
 
-my $kirRnaSeqFile = "$outputDirectory/kir_rna_seq.fa" ;
-my $kirDnaSeqFile = "$outputDirectory/kir_dna_seq.fa" ;
+my $kirRnaSeqFile = "$outputDirectory/${targetGene}_rna_seq.fa" ;
+my $kirDnaSeqFile = "$outputDirectory/${targetGene}_dna_seq.fa" ;
 
 # Reheader the IPD KIR gene sequence file
 if ($ipdkirDat ne "")
@@ -121,6 +129,6 @@ system_call("bwa index -p $outputDirectory/bwa_idx/bwa_dna $kirDnaSeqFile") ;
 # Add the genome coordinate to fasta file.
 if ($annotationFile ne "")
 {
-	system_call("perl $WD/AddKirCoord.pl $kirRnaSeqFile $annotationFile > $outputDirectory/kir_rna_coord.fa") ;
-	system_call("perl $WD/AddKirCoord.pl $kirDnaSeqFile $annotationFile > $outputDirectory/kir_dna_coord.fa") ;
+	system_call("perl $WD/AddKirCoord.pl $kirRnaSeqFile $annotationFile > $outputDirectory/${targetGene}_rna_coord.fa") ;
+	system_call("perl $WD/AddKirCoord.pl $kirDnaSeqFile $annotationFile > $outputDirectory/${targetGene}_dna_coord.fa") ;
 }
