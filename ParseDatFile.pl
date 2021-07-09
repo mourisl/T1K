@@ -8,6 +8,7 @@ die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna] > yyy.fa\n" if (@ARGV =
 my %selectedAlleles ;
 my $selectAlleleFile = "" ;
 my $mode = "rna" ;
+my $genePrefix = "KIR" ;
 
 my $i ;
 for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
@@ -24,6 +25,7 @@ for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
 	}
 	elsif ($ARGV[$i] eq "--gene")
 	{
+		$genePrefix = uc($ARGV[$i + 1]) ;
 		++$i ;
 	}
 	else
@@ -297,6 +299,7 @@ for my $allele (@alleleOrder)
 	}
 
 	next if (defined $usedSeq{$outputSeq}) ;
+	next if (!($allele =~ /^$genePrefix/)) ;
 	$usedSeq{$outputSeq} = 1 ;
 	print(">$allele ".scalar(@{$alleleExonRegions{$allele}}) / 2 .
 		" ".join(" ", @{$alleleExonRegions{$allele}}).

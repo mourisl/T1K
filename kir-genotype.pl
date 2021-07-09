@@ -33,8 +33,7 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "\t--noExtraction: directly use the files from provided -1 -2/-u to assemble (default: extraction first)\n".
     "\t--stage INT: start TRUST4 on specified stage (default: 0):\n".
     "\t\t0: start from beginning (candidate read extraction)\n".
-    "\t\t1: start from bwa validation\n".
-    "\t\t2: start from genotype with kallisto result\n".
+    "\t\t1: start from genotype with candidate reads\n".
     "" 
 	if ( @ARGV == 0 ) ;
 
@@ -324,7 +323,7 @@ my $bwaRd2 = "${prefix}_bwa_r2.fq" ;
 my $bwaRd = "${prefix}_bwa.fq" ;
 my $bwaReadFiles = "$bwaRd1 $bwaRd2" ;
 
-if ( $stage <= 1 )
+if ( 0 ) # no long needed #$stage <= 1 )
 {
 	system_call("bwa mem -t $threadCnt $bwaIdx $possibleFiles > ${prefix}_bwa_aligned.sam") ;
 	my @cols = split /\s/, $possibleFiles ;
@@ -341,7 +340,7 @@ if ( $stage <= 1 )
 }
 
 # Obtain the genotype
-if ( $stage <= 2 )
+if ( $stage <= 1 )
 {
 	#system_call("python3 $WD/KirGenotype.py -a ${prefix}_kallisto/abundance.tsv > ${prefix}_genotype.tsv") ;
 	system_call("$WD/genotyper -t $threadCnt -f $kirseqFasta -1 $bwaRd1 -2 $bwaRd2 > ${prefix}_genotype.tsv") ;

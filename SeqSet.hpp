@@ -451,6 +451,27 @@ private:
 		return false ;
 	}
 
+	// o is from the mate1 set. Test whether o's mate pair could be missing due
+	// to too short reference sequence.
+	bool TruncatedMatePairOverlap(struct _overlap &o, struct _overlap &compMate1, struct _overlap &compMate2)
+	{
+		if (o.seqIdx == -1 || compMate1.seqIdx == -1 || compMate2.seqIdx == -1)
+			return false ;
+
+		if (o.strand == 1) // mate is on the firght
+		{
+			if (seqs[o.seqIdx].consensusLen - 1 < o.seqEnd + compMate2.seqEnd - compMate1.seqEnd)
+				return true ;
+		}
+		else if (o.strand == -1)
+		{
+			if (o.seqStart - (compMate1.seqStart - compMate2.seqStart) < 0)
+				return true ;
+		}
+
+		return false ;	
+	}
+
 public:
 	SeqSet( int kl ) 
 	{
@@ -460,7 +481,7 @@ public:
 		isLongSeqSet = false ;
 
 		novelSeqSimilarity = 0.9 ;
-		refSeqSimilarity = 0.75 ; 
+		refSeqSimilarity = 0.8 ; 
 	}
 
 	~SeqSet() 
@@ -751,6 +772,12 @@ public:
 		SimpleVector<struct _pair> concordantHitCoord ;
 		SimpleVector<struct _pair> hitCoordLIS ;
 		SimpleVector<struct _hit> finalHits ;
+		int maxReadOffset = -1 ;
+
+		for (i = 0 ; i < hitSize ; ++i)
+			if (hits[i].readOffset > maxReadOffset)
+				maxReadOffset = hits[i].readOffset ;
+		int *readOffsetUsed = new int[maxReadOffset + 1] ;
 		
 		// Compute the minHitRequired. 
 		// NOTE: each strand should have its own minHitRequired, it could be that on one strand,
@@ -857,10 +884,19 @@ public:
 			int adjustRadius = radius ;
 			if ( !seqs[ hits[i].indexHit.idx ].isRef )
 				adjustRadius = 0 ;
+			
+			int currCoordDiffCnt = 0 ;
+			int currCoordDiff = 0 ;
+			int dominantCoordDiff = 0 ;
+			int dominantCoordDiffCnt = 0 ;
 
 			for ( s = 0 ; s < j - i ; )
 			{
 				int diffSum = 0 ;
+				currCoordDiff = hitCoordDiff[s].c ;
+				currCoordDiffCnt = 1 ;
+				dominantCoordDiffCnt = 0 ;
+				readOffsetUsed[hitCoordDiff[s].a] = -1 ; 
 				for ( e = s + 1 ; e < j - i ; ++e )
 				{
 					int diff = hitCoordDiff[e].c - hitCoordDiff[e - 1].c ;
@@ -869,12 +905,31 @@ public:
 					
 					if ( diff > adjustRadius ) 
 						break ;
-
+					
+					if (diff == 0)
+						++currCoordDiffCnt ;
+					else
+					{
+						if (currCoordDiffCnt > dominantCoordDiffCnt)
+						{
+							dominantCoordDiff = currCoordDiff ;
+							dominantCoordDiffCnt = currCoordDiffCnt ;
+						}
+						currCoordDiff = hitCoordDiff[e].c ;
+						currCoordDiffCnt = 1 ;
+					}
+					//printf("%d %d\n", currCoordDiffCnt, hitCoordDiff[e].c) ;
+					
+					readOffsetUsed[hitCoordDiff[e].a] = -1 ; 
 					diffSum += diff ; 
 				}
+				if (currCoordDiffCnt > dominantCoordDiffCnt)
+				{
+					dominantCoordDiff = currCoordDiff ;
+					dominantCoordDiffCnt = dominantCoordDiffCnt ;
+				}
+
 				//printf( "%d %d: %d %d\n", i, j, s, e ) ;
-
-
 				if ( e - s < minHitRequired 
 					|| ( e - s ) * kmerLength < hitLenRequired )
 				{
@@ -900,8 +955,10 @@ public:
 						continue ;
 					}
 				}
+
 				// [s, e) holds the candidate in the array of hitCoordDiff 
 				concordantHitCoord.Clear() ;
+				
 				for ( k = s ; k < e ; ++k )
 				{
 					struct _pair nh ;
@@ -909,8 +966,27 @@ public:
 					nh.b = hitCoordDiff[k].b ;
 					concordantHitCoord.PushBack( nh ) ;
 				}
+				
 				if ( adjustRadius > 0 )
+				{
+					for (k = 0 ; k < e - s ; ++k)
+						if (readOffsetUsed[ concordantHitCoord[k].a ] == -1
+								|| readOffsetUsed[concordantHitCoord[k].a] > ABS(concordantHitCoord[k].a - concordantHitCoord[k].b - dominantCoordDiff))
+						{
+							readOffsetUsed[concordantHitCoord[k].a] = ABS(concordantHitCoord[k].a - concordantHitCoord[k].b - dominantCoordDiff ) ;
+						}
+					int l = 0 ;
+					for (k = 0 ; k < e - s ; ++k)
+					{
+						if (ABS(concordantHitCoord[k].a - concordantHitCoord[k].b - dominantCoordDiff) == readOffsetUsed[concordantHitCoord[k].a] )
+						{
+							concordantHitCoord[l] = concordantHitCoord[k] ;
+							++l ;
+						}
+					}
+					concordantHitCoord.Resize( l ) ;
 					std::sort( concordantHitCoord.BeginAddress(), concordantHitCoord.EndAddress(), CompSortPairBInc ) ;
+				}
 				//for ( k = 0 ; k < e - s ; ++k )	
 				//	printf( "%d (%d-%d): %d %s %d %d\n", i, s, e, hits[i].indexHit.idx, seqs[ hits[i].indexHit.idx ].name, concordantHitCoord[k].a, concordantHitCoord[k].b ) ;
 
@@ -1008,6 +1084,7 @@ public:
 			} // iterate through concordant hits.
 			i = j ;
 		}
+		delete []readOffsetUsed ;
 		return overlaps.size() ;
 	}
 
@@ -1664,12 +1741,54 @@ public:
 		}
 		for (i = 1 ; i < assignCnt ; ++i)
 		{
-			if (assign[i].matchCnt < assign[0].matchCnt) // TODO: maybe allow more difference
+			if (assign[i].matchCnt < assign[0].matchCnt
+					|| assign[i].similarity < assign[0].similarity ) // TODO: maybe allow more difference
 			{
 				assign.resize(i) ;
 				break ;
 			}	
 		}
+
+		// Check whether there is better alignment but mate could not be aligned due to truncated reference gene (e.g. UTR).
+		if (assign.size() > 0 && read2 != NULL)
+		{
+			struct _overlap representative ;
+			representative = assign[0].overlap1 ;
+			bool filter = false ;
+			for (i = 0 ; i < overlapCnt && !filter ; ++i)
+			{
+				if (extendedOverlaps[i].matchCnt > representative.matchCnt
+						|| (extendedOverlaps[i].matchCnt == representative.matchCnt
+							&& extendedOverlaps[i].similarity > representative.similarity) 
+						&& seqIdxToOverlapIdx.find(extendedOverlaps[i].seqIdx) == seqIdxToOverlapIdx.end())
+				{
+					if (TruncatedMatePairOverlap(extendedOverlaps[i], assign[0].overlap1, assign[0].overlap2))
+					{
+						filter = true ;
+					}
+				}
+			}
+			// Better read 2
+			representative = assign[0].overlap2 ;
+			for (i = 0 ; i < overlapCnt2 && !filter ; ++i)
+			{
+				if (extendedOverlaps2[i].matchCnt > representative.matchCnt
+						|| (extendedOverlaps2[i].matchCnt == representative.matchCnt
+							&& extendedOverlaps2[i].similarity > representative.similarity) 
+						&& seqIdxToOverlapIdx.find(extendedOverlaps2[i].seqIdx) == seqIdxToOverlapIdx.end())
+				{
+					if (TruncatedMatePairOverlap(extendedOverlaps2[i], assign[0].overlap2, assign[0].overlap1))
+					{
+						filter = true ;
+					}
+				}
+			}
+
+			if (filter)
+				assign.clear() ;
+		}
+
+
 		delete[] rc ;
 		delete[] align ;
 		if (read2 != NULL)

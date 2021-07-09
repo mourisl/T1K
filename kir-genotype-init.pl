@@ -89,8 +89,8 @@ my $kirDnaSeqFile = "$outputDirectory/${targetGene}_dna_seq.fa" ;
 # Reheader the IPD KIR gene sequence file
 if ($ipdkirDat ne "")
 {
-	system_call("perl $WD/ParseDatFile.pl $ipdkirDat --mode dna > $kirDnaSeqFile") ;
-	system_call("perl $WD/ParseDatFile.pl $ipdkirDat --mode rna > $kirRnaSeqFile") ;
+	system_call("perl $WD/ParseDatFile.pl $ipdkirDat --mode dna --gene $targetGene > $kirDnaSeqFile") ;
+	system_call("perl $WD/ParseDatFile.pl $ipdkirDat --mode rna --gene $targetGene > $kirRnaSeqFile") ;
 }
 else
 {
@@ -112,12 +112,12 @@ else
 }
 
 # Build BWA index
-if (!-d "$outputDirectory/bwa_idx")
-{
-	mkdir "$outputDirectory/bwa_idx" ;
-}
-system_call("bwa index -p $outputDirectory/bwa_idx/bwa_rna $kirRnaSeqFile") ;
-system_call("bwa index -p $outputDirectory/bwa_idx/bwa_dna $kirDnaSeqFile") ;
+#if (!-d "$outputDirectory/bwa_idx")
+#{
+#	mkdir "$outputDirectory/bwa_idx" ;
+#}
+#system_call("bwa index -p $outputDirectory/bwa_idx/bwa_rna $kirRnaSeqFile") ;
+#system_call("bwa index -p $outputDirectory/bwa_idx/bwa_dna $kirDnaSeqFile") ;
 
 # Build Kallisto index
 #if (!-d "$outputDirectory/kallisto_idx")
