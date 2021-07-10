@@ -876,45 +876,78 @@ public:
 		}
 		
 		// Go through each gene with more than 2 alleles
+		int *readCoverage = new int[readCnt] ;
+		
+		int iter = 0 ;
+		const int iterMax = 1000 ;
+		int coveredReadCnt = 0 ;
+		
+		memset(readCoverage, 0, sizeof(int) * readCnt) ;
+		std::map<int, int> usedEc ;
 		for (i = 0 ; i < geneCnt ; ++i)
 		{
-			int alleleTypeCnt = GetGeneAlleleTypes(i) ;
-			if (alleleTypeCnt <= 2)
-				continue ;
-			std::map<int, int> usedEc ;
-			std::map<int, int> coveredReads ;
-			std::map<int, int> coveredReadsFromA ;
-			SimpleVector<struct _pair> bestTypes ;
-			
 			int selectedAlleleCnt = selectedAlleles[i].size() ;
-			int maxCover = 0 ;	
-			for (j = 0 ; j < alleleTypeCnt - 1 ; ++j)
+			for (j = 0 ; j < selectedAlleleCnt ; ++j)
 			{
-				int l ;
-				usedEc.clear() ;
-				coveredReadsFromA.clear() ;
+				if (selectedAlleles[i][j].b > 1)
+					continue ;
+				int alleleIdx = selectedAlleles[i][j].a ;
+				if (usedEc.find(alleleInfo[alleleIdx].equivalentClass) != usedEc.end())
+					continue ;
+				usedEc[alleleInfo[alleleIdx].equivalentClass] = 1 ;
 
-				for (l = 0 ; l < selectedAlleleCnt ; ++l)
+				int size = readsInAllele[alleleIdx].size() ;
+				for (int r = 0 ; r < size ; ++r)
 				{
-					if (selectedAlleles[i][l].b != j)
-						continue ;
-					int alleleIdx = selectedAlleles[i][l].a ;
+					if (readCoverage[readsInAllele[alleleIdx][r]] == 0)
+						++coveredReadCnt ;
+					++readCoverage[readsInAllele[alleleIdx][r]] ;
+				}
+			}
+		}
+			
+		for (iter = 0 ; iter < iterMax ; ++iter)
+		{
+			int updatedGeneCnt = 0 ;
+			for (i = 0 ; i < geneCnt ; ++i)
+			{
+				int alleleTypeCnt = GetGeneAlleleTypes(i) ;
+				if (alleleTypeCnt <= 2)
+					continue ;
+				std::map<int, int> coveredReads ;
+				std::map<int, int> coveredReadsFromA ;
+				SimpleVector<struct _pair> bestTypes ;
 
+				int selectedAlleleCnt = selectedAlleles[i].size() ;
+				int maxCover = 0 ;	
+
+				// Remove the effects of current gene
+				usedEc.clear() ;
+				for (j = 0 ; j < selectedAlleleCnt ; ++j)
+				{
+					if (selectedAlleles[i][j].b > 1)
+						continue ;
+					int alleleIdx = selectedAlleles[i][j].a ;
 					if (usedEc.find(alleleInfo[alleleIdx].equivalentClass) != usedEc.end())
 						continue ;
 					usedEc[alleleInfo[alleleIdx].equivalentClass] = 1 ;
-					
-					int r ;
+
 					int size = readsInAllele[alleleIdx].size() ;
-					for (r = 0 ; r < size ; ++r)
-						coveredReadsFromA[readsInAllele[alleleIdx][r]] = 1 ;
+					for (int r = 0 ; r < size ; ++r)
+					{
+						--readCoverage[readsInAllele[alleleIdx][r]] ;
+					}
 				}
-				for (k = j + 1 ; k < alleleTypeCnt ; ++k)
+
+				for (j = 0 ; j < alleleTypeCnt - 1 ; ++j)
 				{
-					coveredReads = coveredReadsFromA ;
+					int l ;
+					usedEc.clear() ;
+					coveredReadsFromA.clear() ;
+
 					for (l = 0 ; l < selectedAlleleCnt ; ++l)
 					{
-						if (selectedAlleles[i][l].b != k)
+						if (selectedAlleles[i][l].b != j)
 							continue ;
 						int alleleIdx = selectedAlleles[i][l].a ;
 
@@ -925,44 +958,94 @@ public:
 						int r ;
 						int size = readsInAllele[alleleIdx].size() ;
 						for (r = 0 ; r < size ; ++r)
-							coveredReads[readsInAllele[alleleIdx][r]] = 1 ;
+							if (readCoverage[readsInAllele[alleleIdx][r]] == 0)
+								coveredReadsFromA[readsInAllele[alleleIdx][r]] = 1 ;
 					}
-					
-					int coveredReadCnt = coveredReads.size() ;
-					struct _pair np ;
-					np.a = j ;
-					np.b = k ;
-					//printf("Further selection %d %d %d %d\n", i, j, k, coveredReadCnt) ;
-					if (coveredReadCnt > maxCover )
+					for (k = j + 1 ; k < alleleTypeCnt ; ++k)
 					{
-						maxCover = coveredReadCnt ;
-						bestTypes.Clear() ;
-						bestTypes.PushBack(np) ;
-					}
-					else if (coveredReadCnt == maxCover)
-					{
-						bestTypes.PushBack(np) ;
-					}
-				} // for k-alleleII
-			} // for j-alleleI
+						coveredReads = coveredReadsFromA ;
+						for (l = 0 ; l < selectedAlleleCnt ; ++l)
+						{
+							if (selectedAlleles[i][l].b != k)
+								continue ;
+							int alleleIdx = selectedAlleles[i][l].a ;
 
-			struct _pair bestType = bestTypes[0] ;
-			k = 0 ;
-			for (j = 0 ; j < selectedAlleleCnt ; ++j)
-			{
-				if (selectedAlleles[i][j].b == bestType.a
-						|| selectedAlleles[i][j].b == bestType.b)
+							if (usedEc.find(alleleInfo[alleleIdx].equivalentClass) != usedEc.end())
+								continue ;
+							usedEc[alleleInfo[alleleIdx].equivalentClass] = 1 ;
+
+							int r ;
+							int size = readsInAllele[alleleIdx].size() ;
+							for (r = 0 ; r < size ; ++r)
+								if (readCoverage[readsInAllele[alleleIdx][r]] == 0)
+									coveredReads[readsInAllele[alleleIdx][r]] = 1 ;
+						}
+
+						int coveredReadCnt = coveredReads.size() ;
+						struct _pair np ;
+						np.a = j ;
+						np.b = k ;
+						//printf("Further selection %d %d %d %d\n", i, j, k, coveredReadCnt) ;
+						if (coveredReadCnt > maxCover )
+						{
+							maxCover = coveredReadCnt ;
+							bestTypes.Clear() ;
+							bestTypes.PushBack(np) ;
+						}
+						else if (coveredReadCnt == maxCover)
+						{
+							bestTypes.PushBack(np) ;
+						}
+					} // for k-alleleII
+				} // for j-alleleI
+
+				struct _pair bestType = bestTypes[0] ;
+				// Rearrange the first two allele as the best selections
+				if (bestType.a != 0 || bestType.b != 1)
+				{	
+					++updatedGeneCnt ;
+					for (j = 0 ; j < selectedAlleleCnt ; ++j)
+					{
+						int newAlleleRank ;
+						if (selectedAlleles[i][j].b == bestType.a)
+							newAlleleRank = 0 ;
+						else if (selectedAlleles[i][j].b == bestType.b)
+							newAlleleRank = 1 ;
+						else if (selectedAlleles[i][j].b < bestType.a)
+							newAlleleRank = selectedAlleles[i][j].b + 2 ;
+						else if (selectedAlleles[i][j].b < bestType.b)
+							newAlleleRank = selectedAlleles[i][j].b + 1 ;
+						else 
+							continue ;
+
+						selectedAlleles[i][j] = selectedAlleles[i][j] ;
+						selectedAlleles[i][j].b = newAlleleRank ;
+						alleleInfo[ selectedAlleles[i][j].a ].alleleRank = newAlleleRank ;
+					} // for j-selected allele
+				} // for if need update selected alleles
+
+				// Update read coverage.
+				usedEc.clear() ;
+				for (j = 0 ; j < selectedAlleleCnt ; ++j)
 				{
-					int newAlleleRank = 0;
-					if (selectedAlleles[i][j].b == bestType.b)
-						newAlleleRank = 1 ;
-					selectedAlleles[i][k] = selectedAlleles[i][j] ;
-					selectedAlleles[i][k].b = newAlleleRank ;
-					alleleInfo[ selectedAlleles[i][k].a ].alleleRank = newAlleleRank ;
-					++k ;
-				}
-			} // for j-selected allele
-		} // for i-geneCnt
+					if (selectedAlleles[i][j].b > 1)
+						continue ;
+					int alleleIdx = selectedAlleles[i][j].a ;
+					if (usedEc.find(alleleInfo[alleleIdx].equivalentClass) != usedEc.end())
+						continue ;
+					usedEc[alleleInfo[alleleIdx].equivalentClass] = 1 ;
+
+					int size = readsInAllele[alleleIdx].size() ;
+					for (int r = 0 ; r < size ; ++r)
+					{
+						++readCoverage[readsInAllele[alleleIdx][r]] ;
+					}
+				} // for j- selected allele 
+			} // for i-geneCnt
+
+			if (updatedGeneCnt == 0)
+				break ;
+		} // for iter: global iterations
 
 		// Set the genes with too few abundance to quality 0.
 		double *geneAbundances = new double[geneCnt] ;
@@ -990,7 +1073,8 @@ public:
 					alleleInfo[selectedAlleles[i][j].a].genotypeQuality = 0 ;
 			}
 		}
-
+		
+		delete[] readCoverage ;
 		delete[] geneAbundances ;
 	}
 

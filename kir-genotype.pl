@@ -245,11 +245,11 @@ if ( $outputDirectory ne "" )
 }
 
 # Extract the file
-my $extractorPrefix = "${prefix}_possible" ;
-my $possibleRd1 = "${extractorPrefix}_1.fq" ;
-my $possibleRd2 = "${extractorPrefix}_2.fq" ;
-my $possibleRd = "${extractorPrefix}.fq" ;
-my $possibleFiles = "$possibleRd1 $possibleRd2" ;
+my $extractorPrefix = "${prefix}_candidate" ;
+my $candidateRd1 = "${extractorPrefix}_1.fq" ;
+my $candidateRd2 = "${extractorPrefix}_2.fq" ;
+my $candidateRd = "${extractorPrefix}.fq" ;
+my $candidateFiles = "$candidateRd1 $candidateRd2" ;
 if ( $stage <= 0 )
 {
 	if ( @bamFiles > 0 )
@@ -285,20 +285,20 @@ if ( $stage <= 0 )
 			$fastqExtractorArgs .= " --barcode ".$fname ;
 		}
 		system_call( "$WD/fastq-extractor -t $threadCnt -f $kirseqFasta -o $extractorPrefix $fastqExtractorArgs" ) ;
-		$possibleFiles = "$possibleRd" ;
+		$candidateFiles = "$candidateRd" ;
 	}
 }
 
 # determine paired-end or single-end
 if ( $noExtraction == 0 )
 {
-	if ( -e $possibleRd1 )
+	if ( -e $candidateRd1 )
 	{
 		;
 	}
-	elsif ( -e $possibleRd )
+	elsif ( -e $candidateRd )
 	{
-		$possibleFiles = "$possibleRd" ;
+		$candidateFiles = "$candidateRd" ;
 	}
 	elsif ( $stage <= 1 )
 	{
@@ -309,11 +309,11 @@ else
 {
 	if ( @firstMateFiles > 0 )
 	{
-		$possibleFiles = $firstMateFiles[0]." ".$secondMateFiles[0] ;		
+		$candidateFiles = $firstMateFiles[0]." ".$secondMateFiles[0] ;		
 	}
 	elsif ( @singleFiles > 0 )
 	{
-		$possibleFiles = $singleFiles[0] ;
+		$candidateFiles = $singleFiles[0] ;
 	}
 }
 
@@ -325,8 +325,8 @@ my $bwaReadFiles = "$bwaRd1 $bwaRd2" ;
 
 if ( 0 ) # no long needed #$stage <= 1 )
 {
-	system_call("bwa mem -t $threadCnt $bwaIdx $possibleFiles > ${prefix}_bwa_aligned.sam") ;
-	my @cols = split /\s/, $possibleFiles ;
+	system_call("bwa mem -t $threadCnt $bwaIdx $candidateFiles > ${prefix}_bwa_aligned.sam") ;
+	my @cols = split /\s/, $candidateFiles ;
 	if (scalar(@cols) > 1)
 	{
 		system_call("perl $WD/ExtractBamHits.pl ${prefix}_bwa_aligned.sam ".$cols[0]."> $bwaRd1") ;
@@ -343,7 +343,7 @@ if ( 0 ) # no long needed #$stage <= 1 )
 if ( $stage <= 1 )
 {
 	#system_call("python3 $WD/KirGenotype.py -a ${prefix}_kallisto/abundance.tsv > ${prefix}_genotype.tsv") ;
-	system_call("$WD/genotyper -t $threadCnt -f $kirseqFasta -1 $bwaRd1 -2 $bwaRd2 > ${prefix}_genotype.tsv") ;
+	system_call("$WD/genotyper -t $threadCnt -f $kirseqFasta -1 $candidateRd1 -2 $candidateRd2 > ${prefix}_genotype.tsv") ;
 }
 
 print STDERR "[".localtime()."] Finish.\n";
