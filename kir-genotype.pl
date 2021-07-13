@@ -67,6 +67,7 @@ my $noExtraction = 0 ;
 my $hasBarcode = 0 ;
 my $hasUmi = 0 ;
 my $outputDirectory = "" ;
+my $targetGene = "kir" ;
 my $mode = "rna" ;
 
 print STDERR "[".localtime()."] $progName begins.\n" ;
@@ -185,6 +186,11 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		$mode = $ARGV[$i + 1] ;
 		++$i ;
 	}
+	elsif ($ARGV[$i] eq "--target")
+	{
+		$targetGene = lc($ARGV[$i + 1]) ;
+		++$i ;
+	}
 	elsif ( $ARGV[$i] eq "--stage" )
 	{
 		$stage = $ARGV[$i + 1] ;
@@ -211,8 +217,8 @@ if ( $refFolder eq "" )
 	die "Need to use -f to specify the folder for annotation/index files.\n" ;
 }
 
-my $kirCoordFasta = "$refFolder/kir_${mode}_coord.fa" ;
-my $kirseqFasta = "$refFolder/kir_${mode}_seq.fa" ;
+my $kirCoordFasta = "$refFolder/${targetGene}_${mode}_coord.fa" ;
+my $kirseqFasta = "$refFolder/${targetGene}_${mode}_seq.fa" ;
 my $bwaIdx = "$refFolder/bwa_idx/bwa_${mode}" ;
 
 
@@ -222,19 +228,19 @@ if ( $prefix eq "" )
 	# infer the output prefix.
 	if ( @bamFiles > 0 )
 	{
-		$prefix = "kir_".( split /\./, basename( $bamFiles[0] ) )[0] ;
+		$prefix = "${targetGene}_".( split /\./, basename( $bamFiles[0] ) )[0] ;
 	}
 	elsif ( @firstMateFiles > 0 )
 	{
-		$prefix = "kir_".( split /\./, basename( $firstMateFiles[0] ) )[0] ;
+		$prefix = "${targetGene}_".( split /\./, basename( $firstMateFiles[0] ) )[0] ;
 	}
 	elsif ( @singleFiles > 0 )
 	{
-		$prefix = "kir_".( split /\./, basename( $singleFiles[0] ) )[0] ;
+		$prefix = "${targetGene}_".( split /\./, basename( $singleFiles[0] ) )[0] ;
 	}
 	else
 	{
-		$prefix = "kir" ;
+		$prefix = "${targetGene}" ;
 	}
 }
 
