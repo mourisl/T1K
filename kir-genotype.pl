@@ -12,16 +12,16 @@ my $progName = "kir-genotype" ;
 die "$progName usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
     #"\t[Input]:\n".
-    "\t-b STRING: path to bam file\n".
+    "\t-b STRING: path to BAM file\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
     "\t-u STRING: path to single-end read file\n".
-    "\t-f STRING: folder to the KIR annotation, BWA, kallisto index\n".
+    "\t-f STRING: path to the KIR reference sequence file\n".
     "Optional:\n".
+		"\t-c STRING: path to the gene coordinate file (required when -b input)\n".
     "\t-o STRING: prefix of output files. (default: inferred from file prefix)\n".
     "\t--od STRING: the directory for output files. (default: ./)\n".
-		"\t--mode STRING: \"rna\"-based or \"dna\"-based (default: rna)\n".
     "\t-t INT: number of threads (default: 1)\n".
-    "\t--barcode STRING: if -b, bam field for barcode; if -1 -2/-u, file containing barcodes (default: not used)\n".
+    "\t--barcode STRING: if -b, BAM field for barcode; if -1 -2/-u, file containing barcodes (default: not used)\n".
     "\t--barcodeRange INT INT CHAR: start, end(-1 for length-1), strand in a barcode is the true barcode (default: 0 -1 +)\n".
     "\t--barcodeWhitelist STRING: path to the barcode whitelist (default: not used)\n".
     "\t--read1Range INT INT: start, end(-1 for length-1) in -1/-u files for genomic sequence (default: 0 -1)\n".
@@ -30,8 +30,8 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     #"\t--umiRange INT INT CHAR: start, end(-1 for lenght-1), strand in a umi is the true umi (default: 0 -1 +)\n".
     "\t--mateIdSuffixLen INT: the suffix length in read id for mate. (default: not used)\n".
     "\t--abnormalUnmapFlag: the flag in BAM for the unmapped read-pair is nonconcordant (default: not set)\n".
-    "\t--noExtraction: directly use the files from provided -1 -2/-u to assemble (default: extraction first)\n".
-    "\t--stage INT: start TRUST4 on specified stage (default: 0):\n".
+    "\t--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)\n".
+    "\t--stage INT: start genotyping on specified stage (default: 0):\n".
     "\t\t0: start from beginning (candidate read extraction)\n".
     "\t\t1: start from genotype with candidate reads\n".
     "" 
@@ -51,10 +51,8 @@ my $j ;
 
 
 # process the options.
-my @singleFiles ;
 my @firstMateFiles ;
 my @secondMateFiles ;
-my $refFolder = "" ;
 my @bamFiles ;
 my @barcodeFiles ;
 my $prefix = "" ;
@@ -67,8 +65,9 @@ my $noExtraction = 0 ;
 my $hasBarcode = 0 ;
 my $hasUmi = 0 ;
 my $outputDirectory = "" ;
-my $targetGene = "kir" ;
-my $mode = "rna" ;
+
+my $refCoordFasta = "" ;
+my $refSeqFasta = "" ;
 
 print STDERR "[".localtime()."] $progName begins.\n" ;
 for ( $i = 0 ; $i < @ARGV ; ++$i )
@@ -96,7 +95,7 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		for ($j = $i + 1; $j < @ARGV; ++$j )		
 		{
 			last if ($ARGV[$j] =~ /^-/) ;
-			push @singleFiles, glob($ARGV[$j]) ;
+			push @firstMateFiles, glob($ARGV[$j]) ;
 		}
 		$i = $j - 1 ;
 	}
@@ -107,7 +106,12 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 	}
 	elsif ( $ARGV[$i] eq "-f" )
 	{	
-		$refFolder = $ARGV[$i + 1] ;
+		$refSeqFasta = $ARGV[$i + 1] ;
+		++$i ;
+	}
+	elsif ( $ARGV[$i] eq "-c" )
+	{	
+		$refCoordFasta = $ARGV[$i + 1] ;
 		++$i ;
 	}
 	elsif ( $ARGV[$i] eq "-o" )
@@ -181,16 +185,6 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		$bamExtractorArgs .= " --UMI ".$ARGV[$i + 1] ;
 		++$i ;
 	}
-	elsif ( $ARGV[$i] eq "--mode")
-	{
-		$mode = $ARGV[$i + 1] ;
-		++$i ;
-	}
-	elsif ($ARGV[$i] eq "--target")
-	{
-		$targetGene = lc($ARGV[$i + 1]) ;
-		++$i ;
-	}
 	elsif ( $ARGV[$i] eq "--stage" )
 	{
 		$stage = $ARGV[$i + 1] ;
@@ -202,7 +196,7 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 	}
 }
 
-if ( @bamFiles == 0 && @firstMateFiles == 0 && @singleFiles == 0 )
+if ( @bamFiles == 0 && @firstMateFiles == 0 )
 {
 	die "Need to use -b/{-1,-2}/-u to specify input reads.\n" ;
 }
@@ -212,14 +206,16 @@ if ( @bamFiles > 0 && $noExtraction == 1 )
 	die "--noExtraction option can only be set when using -1 -2/-u as input.\n" ;
 }
 
-if ( $refFolder eq "" )
+if ( $refSeqFasta eq "" )
 {
-	die "Need to use -f to specify the folder for annotation/index files.\n" ;
+	die "Need to use -f to specify the reference sequence file.\n" ;
 }
 
-my $kirCoordFasta = "$refFolder/${targetGene}_${mode}_coord.fa" ;
-my $kirseqFasta = "$refFolder/${targetGene}_${mode}_seq.fa" ;
-my $bwaIdx = "$refFolder/bwa_idx/bwa_${mode}" ;
+if ( @bamFiles > 0 && $refCoordFasta eq "" )
+{
+	die "Need to use -c to specify gene coordinate file for BAM input.\n" ;
+}
+
 
 
 # Infer the output prefix.
@@ -228,19 +224,15 @@ if ( $prefix eq "" )
 	# infer the output prefix.
 	if ( @bamFiles > 0 )
 	{
-		$prefix = "${targetGene}_".( split /\./, basename( $bamFiles[0] ) )[0] ;
+		$prefix = "genotype_".( split /\./, basename( $bamFiles[0] ) )[0] ;
 	}
 	elsif ( @firstMateFiles > 0 )
 	{
-		$prefix = "${targetGene}_".( split /\./, basename( $firstMateFiles[0] ) )[0] ;
-	}
-	elsif ( @singleFiles > 0 )
-	{
-		$prefix = "${targetGene}_".( split /\./, basename( $singleFiles[0] ) )[0] ;
+		$prefix = "genotype_".( split /\./, basename( $firstMateFiles[0] ) )[0] ;
 	}
 	else
 	{
-		$prefix = "${targetGene}" ;
+		$prefix = "genotype" ;
 	}
 }
 
@@ -260,9 +252,9 @@ if ( $stage <= 0 )
 {
 	if ( @bamFiles > 0 )
 	{
-		system_call( "$WD/bam-extractor -b ".$bamFiles[0]." -t $threadCnt -f $kirCoordFasta -o $extractorPrefix $bamExtractorArgs" ) ;
+		system_call( "$WD/bam-extractor -b ".$bamFiles[0]." -t $threadCnt -f $refCoordFasta -o $extractorPrefix $bamExtractorArgs" ) ;
 	}
-	elsif ( @firstMateFiles > 0 && $noExtraction == 0 )
+	elsif ( @secondMateFiles > 0 && $noExtraction == 0 )
 	{
 		my $fname ; 
 		foreach $fname (@firstMateFiles)
@@ -277,12 +269,12 @@ if ( $stage <= 0 )
 		{
 			$fastqExtractorArgs .= " --barcode ".$fname ;
 		}
-		system_call( "$WD/fastq-extractor -t $threadCnt -f $kirseqFasta -o $extractorPrefix $fastqExtractorArgs" ) ;
+		system_call( "$WD/fastq-extractor -t $threadCnt -f $refSeqFasta -o $extractorPrefix $fastqExtractorArgs" ) ;
 	}
-	elsif ( @singleFiles > 0 && $noExtraction == 0 )
+	elsif ( @firstMateFiles > 0 && $noExtraction == 0 )
 	{
 		my $fname ; 
-		foreach $fname (@singleFiles)
+		foreach $fname (@firstMateFiles)
 		{
 			$fastqExtractorArgs .= " -u ".$fname ;
 		}
@@ -290,7 +282,7 @@ if ( $stage <= 0 )
 		{
 			$fastqExtractorArgs .= " --barcode ".$fname ;
 		}
-		system_call( "$WD/fastq-extractor -t $threadCnt -f $kirseqFasta -o $extractorPrefix $fastqExtractorArgs" ) ;
+		system_call( "$WD/fastq-extractor -t $threadCnt -f $refSeqFasta -o $extractorPrefix $fastqExtractorArgs" ) ;
 		$candidateFiles = "$candidateRd" ;
 	}
 }
@@ -313,13 +305,13 @@ if ( $noExtraction == 0 )
 }
 else
 {
-	if ( @firstMateFiles > 0 )
+	if ( @secondMateFiles > 0 )
 	{
 		$candidateFiles = $firstMateFiles[0]." ".$secondMateFiles[0] ;		
 	}
-	elsif ( @singleFiles > 0 )
+	elsif ( @firstMateFiles > 0 )
 	{
-		$candidateFiles = $singleFiles[0] ;
+		$candidateFiles = $firstMateFiles[0] ;
 	}
 }
 
@@ -331,7 +323,7 @@ my $bwaReadFiles = "$bwaRd1 $bwaRd2" ;
 
 if ( 0 ) # no long needed #$stage <= 1 )
 {
-	system_call("bwa mem -t $threadCnt $bwaIdx $candidateFiles > ${prefix}_bwa_aligned.sam") ;
+	#system_call("bwa mem -t $threadCnt $bwaIdx $candidateFiles > ${prefix}_bwa_aligned.sam") ;
 	my @cols = split /\s/, $candidateFiles ;
 	if (scalar(@cols) > 1)
 	{
@@ -349,7 +341,15 @@ if ( 0 ) # no long needed #$stage <= 1 )
 if ( $stage <= 1 )
 {
 	#system_call("python3 $WD/KirGenotype.py -a ${prefix}_kallisto/abundance.tsv > ${prefix}_genotype.tsv") ;
-	system_call("$WD/genotyper -t $threadCnt -f $kirseqFasta -1 $candidateRd1 -2 $candidateRd2 > ${prefix}_genotype.tsv") ;
+	my @cols = split /\s/, $candidateFiles ;
+	if (scalar(@cols) > 1)
+	{
+		system_call("$WD/genotyper -t $threadCnt -f $refSeqFasta -1 ".$cols[0]." -2 ".$cols[1]." > ${prefix}_genotype.tsv") ;
+	}
+	else
+	{
+		system_call("$WD/genotyper -t $threadCnt -f $refSeqFasta -u ".$cols[0]." > ${prefix}_genotype.tsv") ;
+	}
 }
 
 print STDERR "[".localtime()."] Finish.\n";
