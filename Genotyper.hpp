@@ -34,7 +34,7 @@ struct _readAssignment
 {
 	int alleleIdx ;
 	int start, end ;
-	double similarity ; // can be used as weight.
+	double weight ; 
 
 	bool operator<(const struct _readAssignment &b) const
 	{
@@ -138,6 +138,19 @@ private:
 				return false ;
 		}
 		return true ;
+	}
+
+	double ReadAssignmentWeight(const struct _fragmentOverlap &o)
+	{
+		double ret = 1 ;
+		if (o.similarity < 0.95)
+			ret = 0.5 ;
+		else if (o.similarity < 0.9)
+			ret = 0.1 ;
+		else if (o.similarity < 0.85)
+			ret = 0.01 ;
+		
+		return ret ;
 	}
 
 	int Rand()
@@ -253,13 +266,18 @@ public:
 		int i ;
 		int assignmentCnt = assignment.size() ;
 		readAssignments[readId].clear() ;
+
+		/*for (i = 1 ; i < assignmentCnt ; ++i)
+			if ( alleleInfo[assignment[i].seqIdx].geneIdx != alleleInfo[assignment[i - 1].seqIdx].geneIdx)
+				return ;*/
+
 		for (i = 0; i < assignmentCnt; ++i)
 		{
 			struct _readAssignment na ;
 			na.alleleIdx = assignment[i].seqIdx ;
 			na.start = assignment[i].seqStart ;
 			na.end = assignment[i].seqEnd ;
-			na.similarity = assignment[i].similarity ;
+			na.weight = ReadAssignmentWeight(assignment[i]) ;
 			readAssignments[readId].push_back(na) ;
 		}
 	}
@@ -493,15 +511,15 @@ public:
 				readToReadGroup[readId] = rgCnt ;
 				struct _readGroupInfo nrg ;
 				nrg.representative = readId ;
-				nrg.count = 1 ; //readAssignments[readId][0].similarity ;
+				nrg.count = readAssignments[readId][0].weight ;
 				readGroupInfo.PushBack(nrg) ;
 				++rgCnt ;
 			}
 			else
 			{
 				readToReadGroup[readId] = readToReadGroup[ readFingerprint[j].a ] ;
-				++readGroupInfo[ readToReadGroup[readId] ].count ;
-				//readGroupInfo[readToReadGroup[readId]].count += readAssignments[readFingerprint[i].a][0].similarity ;
+				//++readGroupInfo[ readToReadGroup[readId] ].count ;
+				readGroupInfo[readToReadGroup[readId]].count += readAssignments[readFingerprint[i].a][0].weight ;
 			}
 			++effectiveReadCnt ;
 		}
@@ -799,7 +817,9 @@ public:
 				if (readCovered[readList[j]])
 					++covered ;
 			}
-			//printf("%d %s %lf %d %d\n", alleleIdx, refSet.GetSeqName(alleleIdx), alleleInfo[alleleIdx].ecAbundance, covered, readListSize ) ;
+#ifdef DEBUG
+			printf("%d %s %lf %d %d\n", alleleIdx, refSet.GetSeqName(alleleIdx), alleleInfo[alleleIdx].ecAbundance, covered, readListSize ) ;
+#endif
 			if (covered == readListSize) // no uncovered reads
 				continue ;
 			// Add these alleles to the gene allele
@@ -810,10 +830,16 @@ public:
 				alleleIdx = equivalentClassToAlleles[ec][j] ;
 				int geneIdx = alleleInfo[alleleIdx].geneIdx ;
 				
+				// This cutoff is not very stringent,
+				// geneMaxAllele is at allele level, ecAbundance is at equivalent class level
 				if (alleleInfo[alleleIdx].ecAbundance < 0.1 * geneMaxAlleleAbundance[geneIdx])				
 					continue ;
-				//if (GetGeneAlleleTypes(geneIdx) >= 2)
-				//	continue ;
+				if (GetGeneAlleleTypes(geneIdx) >= 2)
+				{
+					// If there is already a good amount haplottypes, we need a harsher cutoff
+					if (alleleInfo[alleleIdx].abundance < 0.25 * geneMaxAlleleAbundance[geneIdx]) 
+						continue ;
+				}
 
 				int tmp = genesToAdd.Size() ;
 				for (k = 0 ; k < tmp ; ++k)
@@ -880,7 +906,7 @@ public:
 		
 		int iter = 0 ;
 		const int iterMax = 1000 ;
-		int coveredReadCnt = 0 ;
+		int totalCoveredReadCnt = 0 ;
 		
 		memset(readCoverage, 0, sizeof(int) * readCnt) ;
 		std::map<int, int> usedEc ;
@@ -900,7 +926,7 @@ public:
 				for (int r = 0 ; r < size ; ++r)
 				{
 					if (readCoverage[readsInAllele[alleleIdx][r]] == 0)
-						++coveredReadCnt ;
+						++totalCoveredReadCnt ;
 					++readCoverage[readsInAllele[alleleIdx][r]] ;
 				}
 			}
@@ -919,7 +945,7 @@ public:
 				SimpleVector<struct _pair> bestTypes ;
 
 				int selectedAlleleCnt = selectedAlleles[i].size() ;
-				int maxCover = 0 ;	
+				double maxCover = 0 ;	
 
 				// Remove the effects of current gene
 				usedEc.clear() ;
@@ -944,7 +970,7 @@ public:
 					int l ;
 					usedEc.clear() ;
 					coveredReadsFromA.clear() ;
-
+					
 					for (l = 0 ; l < selectedAlleleCnt ; ++l)
 					{
 						if (selectedAlleles[i][l].b != j)
@@ -981,11 +1007,17 @@ public:
 									coveredReads[readsInAllele[alleleIdx][r]] = 1 ;
 						}
 
-						int coveredReadCnt = coveredReads.size() ;
+						double coveredReadCnt = 0 ; //coveredReads.size() ;
+						for (std::map<int ,int>::iterator it = coveredReads.begin(); it != coveredReads.end() ; ++it){
+							coveredReadCnt += readAssignments[it->first][0].weight ; // the read must have some assignment to be here.
+						}
+						
 						struct _pair np ;
 						np.a = j ;
 						np.b = k ;
-						//printf("Further selection %d %d %d %d\n", i, j, k, coveredReadCnt) ;
+#ifdef DEBUG
+						printf("Further selection %s %s %.2lf\n", refSet.GetSeqName(selectedAlleles[i][j].a), refSet.GetSeqName(selectedAlleles[i][k].a), coveredReadCnt) ;
+#endif
 						if (coveredReadCnt > maxCover )
 						{
 							maxCover = coveredReadCnt ;
