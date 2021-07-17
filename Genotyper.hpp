@@ -143,12 +143,12 @@ private:
 	double ReadAssignmentWeight(const struct _fragmentOverlap &o)
 	{
 		double ret = 1 ;
-		if (o.similarity < 0.95)
-			ret = 0.5 ;
+		if (o.similarity < 0.85)
+			ret = 0.01 ;
 		else if (o.similarity < 0.9)
 			ret = 0.1 ;
-		else if (o.similarity < 0.85)
-			ret = 0.01 ;
+		else if (o.similarity < 0.95)
+			ret = 0.5 ;
 		
 		return ret ;
 	}
@@ -180,7 +180,7 @@ private:
 	// variables for abundance
 	SimpleVector<double> geneAbundance ;
 	SimpleVector<double> majorAlleleAbundance ;
-	SimpleVector<double> geneMaxAlleleAbundance ;
+	SimpleVector<double> geneMaxMajorAlleleAbundance ;
 
 	int64_t randomSeed ;
 
@@ -312,24 +312,24 @@ public:
 		geneAbundance.SetZero(0, geneCnt) ;
 		majorAlleleAbundance.ExpandTo(majorAlleleCnt) ;
 		majorAlleleAbundance.SetZero(0, majorAlleleCnt) ;
-		geneMaxAlleleAbundance.ExpandTo(geneCnt) ;
-		geneMaxAlleleAbundance.SetZero(0, geneCnt) ;
+		geneMaxMajorAlleleAbundance.ExpandTo(geneCnt) ;
+		geneMaxMajorAlleleAbundance.SetZero(0, geneCnt) ;
 		for (i = 0 ; i < alleleCnt ; ++i)
 		{
 			majorAlleleAbundance[ alleleInfo[i].majorAlleleIdx ] += alleleInfo[i].abundance ;
 			geneAbundance[ alleleInfo[i].geneIdx ] += alleleInfo[i].abundance ;
 
-			/*if (alleleInfo[i].abundance > geneMaxAlleleAbundance[ alleleInfo[i].geneIdx ])
+			/*if (alleleInfo[i].abundance > geneMaxMajorAlleleAbundance[ alleleInfo[i].geneIdx ])
 			{
-				geneMaxAlleleAbundance[ alleleInfo[i].geneIdx ] = alleleInfo[i].abundance ;
+				geneMaxMajorAlleleAbundance[ alleleInfo[i].geneIdx ] = alleleInfo[i].abundance ;
 			}*/
 		}
 
 		for (i = 0 ; i < alleleCnt ; ++i)
 		{
 			double abund = majorAlleleAbundance[ alleleInfo[i].majorAlleleIdx ] ;
-			if (abund > geneMaxAlleleAbundance[ alleleInfo[i].geneIdx ])
-				geneMaxAlleleAbundance[ alleleInfo[i].geneIdx ] = abund ;
+			if (abund > geneMaxMajorAlleleAbundance[ alleleInfo[i].geneIdx ])
+				geneMaxMajorAlleleAbundance[ alleleInfo[i].geneIdx ] = abund ;
 		}
 	}
 
@@ -830,16 +830,24 @@ public:
 				alleleIdx = equivalentClassToAlleles[ec][j] ;
 				int geneIdx = alleleInfo[alleleIdx].geneIdx ;
 				
-				// This cutoff is not very stringent,
 				// geneMaxAllele is at allele level, ecAbundance is at equivalent class level
-				if (alleleInfo[alleleIdx].ecAbundance < 0.1 * geneMaxAlleleAbundance[geneIdx])				
+				if (alleleInfo[alleleIdx].ecAbundance < 0.1 * geneMaxMajorAlleleAbundance[geneIdx])				
 					continue ;
-				if (GetGeneAlleleTypes(geneIdx) >= 2)
+				/*if (GetGeneAlleleTypes(geneIdx) >= 2)
 				{
 					// If there is already a good amount haplottypes, we need a harsher cutoff
-					if (alleleInfo[alleleIdx].abundance < 0.25 * geneMaxAlleleAbundance[geneIdx]) 
+					int selectedAlleleSize = selectedAlleles[geneIdx].size() ;
+					for (k = 0 ; k < selectedAlleleSize ; ++k)
+					{
+						if (alleleInfo[alleleIdx].ecAbundance > 
+								0.25 * majorAlleleAbundance[ alleleInfo[ selectedAlleles[geneIdx][k].a ].majorAlleleIdx ] ) 
+						{
+							break ;
+						}
+					}
+					if (k >= selectedAlleleSize)
 						continue ;
-				}
+				}*/
 
 				int tmp = genesToAdd.Size() ;
 				for (k = 0 ; k < tmp ; ++k)
