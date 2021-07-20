@@ -1550,6 +1550,16 @@ public:
 		//		extendedOverlap.matchCnt);		
 		if (extendedOverlap.similarity < refSeqSimilarity)
 			ret = 0 ;
+		/*if (leftOverhangSize + rightOverhangSize > 10
+				&& (double)matchCnt / (leftOverhangSize + rightOverhangSize) < 0.5)
+			ret = 0 ;*/
+		/*else
+		{
+			AlignAlgo::GlobalAlignment(seq.consensus + extendedOverlap.seqStart, extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ,
+					r, len, align) ;
+			AlignAlgo::VisualizeAlignment(seq.consensus + extendedOverlap.seqStart, extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ,
+					r, len, align) ;
+		}*/
 		return ret ;
 	}
 
