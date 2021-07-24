@@ -380,7 +380,17 @@ public:
 		if ( selectedAlleles[geneIdx].size() == 0 )
 			return  0 ;
 		else
-			return selectedAlleles[geneIdx].back().b + 1;
+		{
+			//return selectedAlleles[geneIdx].back().b + 1;
+			int size = selectedAlleles[geneIdx].size() ;
+			int i, ret = 0 ;
+			for (i = 0 ; i < size ; ++i)
+			{
+				if (selectedAlleles[geneIdx][i].b > ret)
+					ret = selectedAlleles[geneIdx][i].b ;
+			}
+			return ret + 1 ;
+		}
 	}
 
 	// Return: the number of allele equivalent class
@@ -576,7 +586,8 @@ public:
 			for (i = 0 ; i < ecCnt ; ++i)
 			{
 				//ecAbundance[i] = Rand()%7 + 1 ; //1.0 / ecCnt ;
-				ecAbundance[i] = equivalentClassToAlleles[i].size() ; //1.0 / ecCnt ;
+				//ecAbundance[i] = equivalentClassToAlleles[i].size() + (Rand()%3 - 1); //1.0 / ecCnt ;
+				ecAbundance[i] = equivalentClassToAlleles[i].size() ; 
 			}
 
 			for (t = 0 ; t < maxEMIterations ; ++t)
@@ -609,11 +620,12 @@ public:
 					double tmp = ecReadCount[i] / effectiveReadCnt ;
 					tmp = ecReadCount[i] / ecLength[i] / normalization ;
 					//printf("%d %s %d: %lf %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), tmp, ecReadCount[i], ecLength[i], ecAbundance[i]) ;
+					
 					diffSum += ABS(tmp - ecAbundance[i]) ;
 					ecAbundance[i] = tmp ;
 				}
 				//printf("%lf\n", diffSum) ;
-				if (diffSum < 1e-3 && t < maxEMIterations - 2)
+				if (diffSum < 1e-5 && t < maxEMIterations - 2)
 					t = maxEMIterations - 2 ; // Force one more iteration
 			}
 
@@ -637,6 +649,7 @@ public:
 			}
 			//printf("%lf\n", abund) ;
 			abund /= maxRandIterations ;
+			abund = abund / ecLength[i] * 1000.0 ; // FPK
 			for (j = 0 ; j < size ; ++j)
 			{
 				k = equivalentClassToAlleles[i][j] ;
@@ -828,8 +841,8 @@ public:
 #ifdef DEBUG
 			printf("%d %s %lf %lf %lf\n", alleleIdx, refSet.GetSeqName(alleleIdx), alleleInfo[alleleIdx].ecAbundance, covered, totalAssignedWeight ) ;
 #endif
-			if (covered == totalAssignedWeight) // no uncovered reads
-				continue ;
+			//if (covered == totalAssignedWeight) // no uncovered reads
+			//	continue ;
 			// Add these alleles to the gene allele
 			genesToAdd.Clear() ;
 			allelesToAdd.Clear() ;
@@ -840,7 +853,11 @@ public:
 				
 				// geneMaxAllele is at allele level, ecAbundance is at equivalent class level
 				if (alleleInfo[alleleIdx].ecAbundance < 0.1 * geneMaxMajorAlleleAbundance[geneIdx]
-						&& totalAssignedWeight - covered < 100)				
+						&& totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] / alleleInfo[alleleIdx].ecAbundance)				
+					continue ;
+				if (covered == totalAssignedWeight 
+						&& (alleleInfo[alleleIdx].ecAbundance < 0.25 * geneMaxMajorAlleleAbundance[geneIdx]
+						|| selectedAlleles[geneIdx].size() == 0 || alleleInfo[alleleIdx].ecAbundance < 0.5 * alleleInfo[selectedAlleles[geneIdx].back().a].ecAbundance ) ) 
 					continue ;
 				/*if (GetGeneAlleleTypes(geneIdx) >= 2)
 				{
@@ -910,6 +927,9 @@ public:
 				alleleInfo[alleleIdx].genotypeQuality = quality ;
 				alleleInfo[alleleIdx].alleleRank = alleleRank ;
 				//printf("%s %lf %d\n", refSet.GetSeqName(alleleIdx), alleleRank, alleleInfo[alleleIdx].ecAbundance ) ;
+				if (alleleInfo[alleleIdx].ecAbundance < 0.1 * geneMaxMajorAlleleAbundance[geneIdx])
+					alleleInfo[alleleIdx].genotypeQuality = 0 ; 
+
 				struct _pair np ;
 				np.a = alleleIdx ;
 				np.b = alleleRank ;	
@@ -964,7 +984,7 @@ public:
 				int selectedAlleleCnt = selectedAlleles[i].size() ;
 				double maxCover = 0 ;	
 				
-				int debugJ, debugK ; 
+				int alleleJ, alleleK ; // representative allele for type J and K 
 
 				// Remove the effects of current gene
 				usedEc.clear() ;
@@ -1005,7 +1025,7 @@ public:
 						for (r = 0 ; r < size ; ++r)
 							if (readCoverage[readsInAllele[alleleIdx][r]] == 0)
 								coveredReadsFromA[readsInAllele[alleleIdx][r]] = 1 ;
-						debugJ = l ;
+						alleleJ = l ;
 					}
 					for (k = j + 1 ; k < alleleTypeCnt ; ++k)
 					{
@@ -1025,7 +1045,7 @@ public:
 							for (r = 0 ; r < size ; ++r)
 								if (readCoverage[readsInAllele[alleleIdx][r]] == 0)
 									coveredReads[readsInAllele[alleleIdx][r]] = 1 ;
-							debugK = l ;
+							alleleK = l ;
 						}
 
 						double coveredReadCnt = 0 ; //coveredReads.size() ;
@@ -1038,9 +1058,9 @@ public:
 						np.a = j ;
 						np.b = k ;
 #ifdef DEBUG
-						printf("Further selection %s %s %.2lf\n", refSet.GetSeqName(selectedAlleles[i][debugJ].a), refSet.GetSeqName(selectedAlleles[i][debugK].a), coveredReadCnt) ;
+						printf("Further selection %s %s %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), coveredReadCnt) ;
 #endif
-						if (coveredReadCnt > maxCover )
+						if (coveredReadCnt > maxCover)
 						{
 							maxCover = coveredReadCnt ;
 							bestTypes.Clear() ;
@@ -1072,7 +1092,8 @@ public:
 						else 
 							continue ;
 
-						selectedAlleles[i][j] = selectedAlleles[i][j] ;
+						//selectedAlleles[i][j] = selectedAlleles[i][j] ;
+						//printf("%d %d %d\n", i, j, newAlleleRank) ;
 						selectedAlleles[i][j].b = newAlleleRank ;
 						alleleInfo[ selectedAlleles[i][j].a ].alleleRank = newAlleleRank ;
 					} // for j-selected allele

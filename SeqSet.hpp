@@ -1592,7 +1592,7 @@ public:
 		{
 			overlapCnt2 = GetOverlapsFromRead(read2, 0, barcode, overlaps2 ) ;
 		}
-		//printf( "%d %d\n", overlapCnt, mateOverlapCnt ) ;
+		//printf( "%d %d\n", overlapCnt, overlapCnt2 ) ;
 		//printf( "%d %s\n%d %s\n", overlaps[0].strand, reads[i].seq, mateOverlaps[0].strand, reads[i + 1].seq ) ;
 
 		if ( overlapCnt <= 0 || seqs.size() == 0
@@ -1630,13 +1630,17 @@ public:
 		int extendCnt = 0 ;
 		for ( i = 0 ; i < overlapCnt ; ++i )
 		{
-			//printf( "%d %d: %d-%d %d-%d %lf\n", i, overlaps[i].seqIdx, overlaps[i].readStart, overlaps[i].readEnd,
-			//		overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].similarity) ;
+			//printf( "0 %d %s %d: %d-%d %d-%d %d %lf\n", i, seqs[overlaps[i].seqIdx].name, overlaps[i].seqIdx, overlaps[i].readStart, overlaps[i].readEnd,
+			//		overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].strand, overlaps[i].similarity) ;
 			if ( overlaps[i].readEnd - overlaps[i].readStart > len / 2 
 					&& ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
 			{
+				//printf( "e0 %d-%d %d-%d %lf\n", eOverlap.readStart, eOverlap.readEnd,
+					//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity) ;
 				extendedOverlaps.push_back(eOverlap) ;
 			}
+			else
+				break ;
 		}
 
 		if (read2 != NULL)
@@ -1646,11 +1650,17 @@ public:
 				r = rc2 ;
 			for (i = 0 ; i < overlapCnt2 ; ++i)
 			{
+				//printf( "1 %d %s %d: %d-%d %d-%d %d %lf\n", i, seqs[overlaps2[i].seqIdx].name, overlaps2[i].seqIdx, overlaps2[i].readStart, overlaps2[i].readEnd,
+				//	overlaps2[i].seqStart, overlaps2[i].seqEnd, overlaps2[i].strand, overlaps2[i].similarity) ;
 				if ( overlaps2[i].readEnd - overlaps2[i].readStart > len2 / 2 
 						&& ExtendOverlap(r, len, seqs[overlaps2[i].seqIdx], align, overlaps2[i], eOverlap) == 1)
 				{
+				 // printf( "e1 %d %d-%d %d-%d %lf\n", eOverlap.seqIdx, eOverlap.readStart, eOverlap.readEnd,
+					//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity) ;
 					extendedOverlaps2.push_back(eOverlap) ;
 				}
+				else
+					break ;
 			}
 		}
 
@@ -1722,7 +1732,7 @@ public:
 				fragmentOverlap.similarity = (double)fragmentOverlap.matchCnt / 
 					(o.readEnd - o.readStart + 1 + o2.readEnd - o2.readStart + 1 + 
 					 o.seqEnd - o.seqStart + 1 + o2.seqEnd - o2.seqStart + 1 ) ;
-			
+				//printf("%s: %d %d\n", seqs[fragmentOverlap.seqIdx].name, fragments[i].a, fragments[i].b) ;	
 				fragmentOverlap.hasMatePair = true ;
 				fragmentOverlap.overlap2 = o2 ;
 			}	
@@ -1758,6 +1768,7 @@ public:
 				break ;
 			}	
 		}
+		//printf("%d\n", assign.size()) ;
 
 		// Check whether there is better alignment but mate could not be aligned due to truncated reference gene (e.g. UTR).
 		if (assign.size() > 0 && read2 != NULL)

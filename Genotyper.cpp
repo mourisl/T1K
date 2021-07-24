@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
 	
 	char outputPrefix[1024] = "kir" ;
 	
-	Genotyper genotyper(11) ;
+	Genotyper genotyper(17) ;
 	ReadFiles reads ;
 	ReadFiles mateReads ;
 	bool hasMate = false ;
