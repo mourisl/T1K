@@ -1751,7 +1751,6 @@ public:
 				break ;
 			}	
 		}
-		//printf("%d\n", assign.size()) ;
 
 		// Check whether there is better alignment but mate could not be aligned due to truncated reference gene (e.g. UTR).
 		if (assign.size() > 0 && pOverlaps2 != NULL)

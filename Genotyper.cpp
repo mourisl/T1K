@@ -243,15 +243,16 @@ int main(int argc, char *argv[])
 	std::sort(allReads.begin(), allReads.end()) ;
 	std::vector< std::vector<struct _overlap> *> readAssignments ;
 	
+	int allReadCnt = allReads.size() ; 
 	int alignedFragmentCnt = 0 ;
 	std::vector< std::vector<struct _fragmentOverlap> > fragmentAssignments ;
-	readAssignments.resize(readCnt) ;
+	readAssignments.resize(allReadCnt) ;
 	fragmentAssignments.resize(readCnt) ;
 
 	if (threadCnt <= 1)
 	{
 		std::vector<struct _overlap> *assignments = NULL ;
-		for (i = 0 ; i < readCnt ; ++i)
+		for (i = 0 ; i < allReadCnt ; ++i)
 		{
 			if (i == 0 || strcmp(allReads[i].seq, allReads[i - 1].seq) != 0)
 			{
@@ -276,7 +277,7 @@ int main(int argc, char *argv[])
 			args[i].threadCnt = threadCnt ;
 			args[i].pRefSet = &refSet ;
 			args[i].pGenotyper = &genotyper ;
-			args[i].pReads = &reads1 ;
+			args[i].pReads = &allReads ;
 			args[i].pReadAssignments = &readAssignments ;
 			pthread_create( &threads[i], &attr, AssignReads_Thread, (void *)( args + i ) ) ;
 		}
@@ -291,7 +292,6 @@ int main(int argc, char *argv[])
 	PrintLog("Finish read end assignments.") ;
 
 	// Matching up read ends to form fragment assignment
-	int allReadCnt = allReads.size() ; 
 	for (i = 0 ; i < allReadCnt ; ++i)
 	{
 		if (allReads[i].mate == 0)		
@@ -317,12 +317,13 @@ int main(int argc, char *argv[])
 	}
 	
 	// Release the memory for read end assignment
-	for (i = 0 ; i < allReadCnt ; ++i)
+	for (i = 0 ; i < allReadCnt ;)
 	{
 		for (j = i + 1 ; j < allReadCnt ; ++j)
 			if (readAssignments[j] != readAssignments[i])
 				break ;
 		delete readAssignments[i] ;
+		i = j ;
 	}
 
 	alignedFragmentCnt = genotyper.FinalizeReadAssignments() ;
