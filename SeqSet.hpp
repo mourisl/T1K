@@ -1142,27 +1142,38 @@ public:
 		//		printf( "- %d %s %d %d\n", it->readOffset, seqs[ it->indexHit.idx ].name, it->indexHit.offset, it->strand ) ;
 		std::vector< SimpleVector<struct _pair> *> overlapsHitCoords ; 
 		overlapCnt = GetOverlapsFromHits( hits, hitLenRequired, 0, overlapsHitCoords, overlaps ) ;
-		std::sort( overlaps.begin(), overlaps.end() ) ;
+		//std::sort( overlaps.begin(), overlaps.end() ) ;
 			
 		//for ( i = 0 ; i < overlapCnt ; ++i )
 		//	printf( "%d: %d %s %d. %d %d %d %d. %d\n", i, overlaps[i].seqIdx,seqs[ overlaps[i].seqIdx ].name, overlaps[i].strand, overlaps[i].readStart, overlaps[i].readEnd, overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].matchCnt ) ; 
 		if ( overlapCnt > 0 )
 		{
-			k = 1 ;
-			for ( i = 1 ; i < overlapCnt ; ++i )
+			k = 0 ;
+			int bestOverlapIdx = 0 ;
+			for (i = 1 ; i < overlapCnt ; ++i)
 			{
-				if ( overlaps[i].strand != overlaps[0].strand )
+				if (overlaps[i] < overlaps[bestOverlapIdx])	
+					bestOverlapIdx = i ;
+			}
+			
+			for ( i = 0 ; i < overlapCnt ; ++i )
+			{
+				if ( overlaps[i].strand != overlaps[bestOverlapIdx].strand )
 				{
 					delete overlapsHitCoords[i] ;
 					overlapsHitCoords[i] = NULL ;
 					continue ;		
 				}
 				if ( i != k )
+				{
 					overlaps[k] = overlaps[i] ;
+					overlapsHitCoords[k] = overlapsHitCoords[i] ;
+				}
 				++k ;
 			}
 
 			overlaps.resize( k ) ;
+			overlapsHitCoords.resize(k) ;
 			overlapCnt = k ;
 		}
 		/*for ( i = 1 ; i < overlapCnt ; ++i )
