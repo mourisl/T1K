@@ -80,10 +80,6 @@ struct _overlap
 	int matchCnt ; // The number of matched bases, count TWICE.
 	double similarity ;
 
-	SimpleVector<struct _pair> *hitCoords ;
-	SimpleVector<int> *info ; // store extra informations 
-	int infoFromHits ; // some information obtained GetOverlapFromHits
-
 	bool operator<( const struct _overlap &b ) const
 	{
 		// The overlap with more matched bases should come first.
@@ -762,7 +758,7 @@ public:
 	}
 
 	// Use the hits to extract overlaps from SeqSet
-	int GetOverlapsFromHits( SimpleVector<struct _hit> &hits, int hitLenRequired, int filter, std::vector<struct _overlap> &overlaps )
+	int GetOverlapsFromHits( SimpleVector<struct _hit> &hits, int hitLenRequired, int filter, std::vector< SimpleVector<struct _pair> * > &overlapsHitCoords, std::vector<struct _overlap> &overlaps)
 	{
 		int i, j, k ;
 		int hitSize = hits.Size() ;
@@ -1069,17 +1065,17 @@ public:
 					s = e ; 
 					continue ;
 				}
-				no.hitCoords = new SimpleVector<struct _pair> ;
-				no.hitCoords->Reserve( lisSize ) ;
+				SimpleVector<struct _pair> *hitCoords = new SimpleVector<struct _pair> ;
+				hitCoords->Reserve( lisSize ) ;
 				for ( k = 0 ; k < lisSize ; ++k )
 				{
 					struct _pair nh ;
 					nh.a = finalHits[k].readOffset ;
 					nh.b = finalHits[k].indexHit.offset ;
-					no.hitCoords->PushBack( nh ) ;
+					hitCoords->PushBack( nh ) ;
 				}
 				overlaps.push_back( no ) ;
-
+				overlapsHitCoords.push_back(hitCoords) ;
 				s = e ;
 			} // iterate through concordant hits.
 			i = j ;
@@ -1144,7 +1140,8 @@ public:
 		//if ( seqs.size() == 1 )
 		//	for ( struct _hit *it = hits.BeginAddress() ; it != hits.EndAddress() ; ++it )
 		//		printf( "- %d %s %d %d\n", it->readOffset, seqs[ it->indexHit.idx ].name, it->indexHit.offset, it->strand ) ;
-		overlapCnt = GetOverlapsFromHits( hits, hitLenRequired, 0, overlaps ) ;
+		std::vector< SimpleVector<struct _pair> *> overlapsHitCoords ; 
+		overlapCnt = GetOverlapsFromHits( hits, hitLenRequired, 0, overlapsHitCoords, overlaps ) ;
 		std::sort( overlaps.begin(), overlaps.end() ) ;
 			
 		//for ( i = 0 ; i < overlapCnt ; ++i )
@@ -1156,8 +1153,8 @@ public:
 			{
 				if ( overlaps[i].strand != overlaps[0].strand )
 				{
-					delete overlaps[i].hitCoords ;
-					overlaps[i].hitCoords = NULL ;
+					delete overlapsHitCoords[i] ;
+					overlapsHitCoords[i] = NULL ;
 					continue ;		
 				}
 				if ( i != k )
@@ -1192,9 +1189,8 @@ public:
 			else
 				r = rcRead ;
 
-			overlaps[i].infoFromHits = i ;
 
-			SimpleVector<struct _pair> &hitCoords = *overlaps[i].hitCoords ; 	
+			SimpleVector<struct _pair> &hitCoords = *overlapsHitCoords[i] ; 	
 			int hitCnt = hitCoords.Size() ;
 			int matchCnt = 0, mismatchCnt = 0, indelCnt = 0  ;
 			double similarity = 1 ;
@@ -1408,9 +1404,9 @@ public:
 		// Release the memory for hitCoords.
 		for ( i = 0 ; i < overlapCnt ; ++i )
 		{
-			overlaps[i].hitCoords->Release() ;
-			delete overlaps[i].hitCoords ;
-			overlaps[i].hitCoords = NULL ;
+			overlapsHitCoords[i]->Release() ;
+			delete overlapsHitCoords[i] ;
+			overlapsHitCoords[i] = NULL ;
 		}
 
 		k = 0 ;
@@ -1480,14 +1476,15 @@ public:
 		}
 		
 		std::vector<struct _overlap> overlaps ;
-		GetOverlapsFromHits( buckets[maxTag][maxSeqIdx], hitLenRequired, 0, overlaps ) ;
+		std::vector< SimpleVector<struct _pair> *> overlapsHitCoords ;
+		GetOverlapsFromHits( buckets[maxTag][maxSeqIdx], hitLenRequired, 0, overlapsHitCoords, overlaps ) ;
 		delete[] buckets[0] ;
 		delete[] buckets[1] ;
 		//printf( "%d %d\n", hitCnt, overlaps.size() ) ;	
 		for ( i = 0 ; i < overlaps.size() ; ++i )
 		{
 			//printf( "%s\n", seqs[ overlaps[i].seqIdx ].name ) ;
-			delete overlaps[i].hitCoords ;
+			delete overlapsHitCoords[i] ;
 		}
 		if ( overlaps.size() == 0 )
 			return false ;
@@ -1625,8 +1622,19 @@ public:
 	
 		delete[] rc ;
 		delete[] align ;
+
+		if (extendedOverlaps.size() > 1000)
+		{
+			std::sort(extendedOverlaps.begin(), extendedOverlaps.end()) ;
+			overlapCnt = extendedOverlaps.size() ;
+			for (j = 1 ; j < overlapCnt ; ++j)
+				if (extendedOverlaps[j].similarity < extendedOverlaps[0].similarity - 0.1)
+					break ;
+			extendedOverlaps.resize(j) ;
+		}
 		
 		assign = extendedOverlaps ;	
+		//printf("%d\n", assign.size()) ;
 		return assign.size() ;
 	}
 

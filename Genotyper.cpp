@@ -105,6 +105,8 @@ void *AssignReads_Thread( void *pArg )
 				assignments = new std::vector<struct _overlap> ;
 				refSet.AssignRead(reads[i].seq, reads[i].barcode, *assignments) ;
 			}
+			//if (arg.tid == 0 && i % 10000 == 0)
+			//	printf("%d\n", i * arg.threadCnt) ;
 			readAssignments[i] = assignments ;
 	}
 	pthread_exit( NULL ) ;
@@ -245,9 +247,9 @@ int main(int argc, char *argv[])
 	
 	int allReadCnt = allReads.size() ; 
 	int alignedFragmentCnt = 0 ;
-	std::vector< std::vector<struct _fragmentOverlap> > fragmentAssignments ;
+	//std::vector< std::vector<struct _fragmentOverlap> > fragmentAssignments ;
 	readAssignments.resize(allReadCnt) ;
-	fragmentAssignments.resize(readCnt) ;
+	//fragmentAssignments.resize(readCnt) ;
 
 	if (threadCnt <= 1)
 	{
@@ -307,13 +309,13 @@ int main(int argc, char *argv[])
 	// TODO: may need parallelization.
 	for (i = 0 ; i < readCnt ; ++i)
 	{
+		std::vector<struct _fragmentOverlap> fragmentAssignment ;
 		if (!hasMate)	
-			refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, fragmentAssignments[i]) ;
+			refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, fragmentAssignment) ;
 		else
 			refSet.ReadAssignmentToFragmentAssignment( readAssignments[reads1[i].info], readAssignments[reads2[i].info],
-					reads1[i].barcode, fragmentAssignments[i]) ;
-		
-		genotyper.SetReadAssignments(i, fragmentAssignments[i] ) ;	
+					reads1[i].barcode, fragmentAssignment) ;
+		genotyper.SetReadAssignments(i, fragmentAssignment ) ;	
 	}
 	
 	// Release the memory for read end assignment
@@ -331,7 +333,7 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
 	for (i = 0 ; i < readCnt ; ++i)
 	{
-		std::vector<struct _fragmentOverlap> &assignments = readAssignments[i] ;
+		std::vector<struct _fragmentOverlap> &assignments = fragmentAssignments[i] ;
 		for (int j = 0 ; j < assignments.size() ; ++j)
 			printf("%s\t%d\t%s\t%d\t%lf. %d %d\n", reads1[i].id, assignments[j].seqIdx, refSet.GetSeqName(assignments[j].seqIdx),
 					assignments[j].matchCnt, assignments[j].similarity, assignments[j].overlap1.matchCnt, assignments[j].overlap2.matchCnt);
