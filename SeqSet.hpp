@@ -1578,55 +1578,35 @@ public:
 	}
 	
 	// Find the seq id this read belongs to.
-	int AssignRead( char *read, char *read2, int barcode, std::vector<struct _fragmentOverlap> &assign )
+	int AssignRead( char *read, int barcode, std::vector<struct _overlap> &assign )
 	{
 		assign.clear() ;
-		
+
 		int i, j ;
 		std::vector<struct _overlap> overlaps ;
-		std::vector<struct _overlap> overlaps2 ;
-		
-		int overlapCnt = GetOverlapsFromRead( read, 0, barcode, overlaps ) ;
-		int overlapCnt2 = 0 ;
-		if (read2 != NULL)
-		{
-			overlapCnt2 = GetOverlapsFromRead(read2, 0, barcode, overlaps2 ) ;
-		}
-		//printf( "%d %d\n", overlapCnt, overlapCnt2 ) ;
-		//printf( "%d %s\n%d %s\n", overlaps[0].strand, reads[i].seq, mateOverlaps[0].strand, reads[i + 1].seq ) ;
 
-		if ( overlapCnt <= 0 || seqs.size() == 0
-				|| (read2 && overlapCnt2 <=0 ) )
+		int overlapCnt = GetOverlapsFromRead( read, 0, barcode, overlaps ) ;
+		if ( overlapCnt <= 0 || seqs.size() == 0)
 		{
 			return -1 ;
 		}
-		
+
 		std::sort( overlaps.begin(), overlaps.end() ) ;
 
 		int len = strlen( read ) ;
-		int len2 = 0 ;
 		char *rc = new char[len + 1] ;
-		char *rc2 = NULL ;
 
 		ReverseComplement( rc, read, len ) ;
-
-		if (read2)
-		{
-			len2 = strlen(read2) ;
-			rc2 = new char[len + 1] ;
-			ReverseComplement( rc2, read2, len2 ) ;
-		}
 
 		char *r = read ;
 		if ( overlaps[0].strand == -1 )
 			r = rc ;
 
 		std::vector<struct _overlap> extendedOverlaps ;
-		std::vector<struct _overlap> extendedOverlaps2 ;
 		struct _overlap eOverlap ;
-		
+
 		char *align = new char[ 2 * len + 2 ] ;
-		
+
 		int extendCnt = 0 ;
 		for ( i = 0 ; i < overlapCnt ; ++i )
 		{
@@ -1636,39 +1616,30 @@ public:
 					&& ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
 			{
 				//printf( "e0 %d-%d %d-%d %lf\n", eOverlap.readStart, eOverlap.readEnd,
-					//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity) ;
+				//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity) ;
 				extendedOverlaps.push_back(eOverlap) ;
 			}
 			else
 				break ;
 		}
+	
+		delete[] rc ;
+		delete[] align ;
+		
+		assign = extendedOverlaps ;	
+		return assign.size() ;
+	}
 
-		if (read2 != NULL)
-		{
-			r = read2 ;
-			if (overlaps2[0].strand == -1)
-				r = rc2 ;
-			for (i = 0 ; i < overlapCnt2 ; ++i)
-			{
-				//printf( "1 %d %s %d: %d-%d %d-%d %d %lf\n", i, seqs[overlaps2[i].seqIdx].name, overlaps2[i].seqIdx, overlaps2[i].readStart, overlaps2[i].readEnd,
-				//	overlaps2[i].seqStart, overlaps2[i].seqEnd, overlaps2[i].strand, overlaps2[i].similarity) ;
-				if ( overlaps2[i].readEnd - overlaps2[i].readStart > len2 / 2 
-						&& ExtendOverlap(r, len, seqs[overlaps2[i].seqIdx], align, overlaps2[i], eOverlap) == 1)
-				{
-				 // printf( "e1 %d %d-%d %d-%d %lf\n", eOverlap.seqIdx, eOverlap.readStart, eOverlap.readEnd,
-					//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity) ;
-					extendedOverlaps2.push_back(eOverlap) ;
-				}
-				else
-					break ;
-			}
-		}
-
-		// Match mate pairs
+	int ReadAssignmentToFragmentAssignment( std::vector<struct _overlap> *pOverlaps1, std::vector<struct _overlap> *pOverlaps2, int barcode, std::vector<struct _fragmentOverlap> &assign )
+	{
+		assign.clear() ;
+		
+		int i, j, k ;
 		SimpleVector<struct _pair> fragments ;
-		overlapCnt = extendedOverlaps.size() ;
-		overlapCnt2 = extendedOverlaps2.size() ;
-		if (read2 == NULL)
+		std::vector<struct _overlap> &overlaps = *pOverlaps1 ;
+		int overlapCnt = overlaps.size()  ;
+
+		if (pOverlaps2 == NULL)
 		{
 			for (i = 0 ; i < overlapCnt ; ++i)
 			{
@@ -1680,19 +1651,30 @@ public:
 		}
 		else
 		{
-			// TODO: improve the efficiency
-			//printf("%d %d\n", overlapCnt, overlapCnt2);
-			//printf("%d %d\n", extendedOverlaps[0].strand, extendedOverlaps2[0].strand);
+			std::vector<struct _overlap> &overlaps2 = *pOverlaps2 ;
+			std::map< int, std::vector<int> > seqIdxToOverlap2 ;
+
+			int overlapCnt2 = overlaps2.size() ;
+			if (overlapCnt == 0 || overlapCnt2 == 0)
+				return 0 ;
+
+			for (i = 0 ; i < overlapCnt2 ; ++i)
+				seqIdxToOverlap2[ overlaps2[i].seqIdx ].push_back(i) ;
+
 			for (i = 0 ; i < overlapCnt ; ++i)
 			{
-				for (j = 0 ; j < overlapCnt2 ; ++j)
+				if (seqIdxToOverlap2.find(overlaps[i].seqIdx) == seqIdxToOverlap2.end())
+					continue ;
+				int size = seqIdxToOverlap2[overlaps[i].seqIdx].size() ;
+				for (k = 0 ; k < size ; ++k)
 				{
+					j = seqIdxToOverlap2[overlaps[i].seqIdx][k] ; 
 					// compatible mate pairs
-					if ( extendedOverlaps[i].strand == extendedOverlaps2[j].strand
-							|| extendedOverlaps[i].seqIdx != extendedOverlaps2[j].seqIdx)
+					if ( overlaps[i].strand == overlaps2[j].strand
+							|| overlaps[i].seqIdx != overlaps2[j].seqIdx)
 						continue ;
-					if ((extendedOverlaps[i].strand == 1 && extendedOverlaps[i].seqStart < extendedOverlaps2[j].seqStart)
-							|| (extendedOverlaps[i].strand == -1 && extendedOverlaps[i].seqStart > extendedOverlaps2[j].seqStart))
+					if ((overlaps[i].strand == 1 && overlaps[i].seqStart < overlaps2[j].seqStart)
+							|| (overlaps[i].strand == -1 && overlaps[i].seqStart > overlaps2[j].seqStart))
 					{
 						struct _pair nf ;
 						nf.a = i ;
@@ -1700,16 +1682,17 @@ public:
 						//printf("hi: %d %d\n", i, j);
 						fragments.PushBack(nf) ;
 					}
-				}
-			}
-		}
+				} // for k
+			} // for i
+		} // else for paired-end reds
 
+		// For each seq idx, keep the best fragment
 		int fragmentCnt = fragments.Size() ;
 		std::map<int, int> seqIdxToOverlapIdx ;
 		for (i = 0 ; i < fragmentCnt ; ++i)
 		{
 			struct _fragmentOverlap fragmentOverlap ;
-			struct _overlap &o = extendedOverlaps[fragments[i].a] ;
+			struct _overlap &o = overlaps[fragments[i].a] ;
 
 			fragmentOverlap.matchCnt = o.matchCnt ;
 			fragmentOverlap.similarity = o.similarity ;
@@ -1721,7 +1704,7 @@ public:
 			
 			if (fragments[i].b >= 0)
 			{
-				struct _overlap &o2 = extendedOverlaps2[fragments[i].b] ;
+				struct _overlap &o2 = (*pOverlaps2)[fragments[i].b] ;
 				fragmentOverlap.matchCnt += o2.matchCnt ;
 				if (o.strand == 1)
 					fragmentOverlap.seqEnd = o2.seqEnd ;
@@ -1771,19 +1754,23 @@ public:
 		//printf("%d\n", assign.size()) ;
 
 		// Check whether there is better alignment but mate could not be aligned due to truncated reference gene (e.g. UTR).
-		if (assign.size() > 0 && read2 != NULL)
+		if (assign.size() > 0 && pOverlaps2 != NULL)
 		{
 			struct _overlap representative ;
 			representative = assign[0].overlap1 ;
 			bool filter = false ;
+			
+			std::vector<struct _overlap> &overlaps2 = *pOverlaps2 ;
+			int overlapCnt2 = overlaps2.size() ;
+
 			for (i = 0 ; i < overlapCnt && !filter ; ++i)
 			{
-				if (extendedOverlaps[i].matchCnt > representative.matchCnt
-						|| (extendedOverlaps[i].matchCnt == representative.matchCnt
-							&& extendedOverlaps[i].similarity > representative.similarity) 
-						&& seqIdxToOverlapIdx.find(extendedOverlaps[i].seqIdx) == seqIdxToOverlapIdx.end())
+				if (overlaps[i].matchCnt > representative.matchCnt
+						|| (overlaps[i].matchCnt == representative.matchCnt
+							&& overlaps[i].similarity > representative.similarity) 
+						&& seqIdxToOverlapIdx.find(overlaps[i].seqIdx) == seqIdxToOverlapIdx.end())
 				{
-					if (TruncatedMatePairOverlap(extendedOverlaps[i], assign[0].overlap1, assign[0].overlap2))
+					if (TruncatedMatePairOverlap(overlaps[i], assign[0].overlap1, assign[0].overlap2))
 					{
 						filter = true ;
 					}
@@ -1793,12 +1780,12 @@ public:
 			representative = assign[0].overlap2 ;
 			for (i = 0 ; i < overlapCnt2 && !filter ; ++i)
 			{
-				if (extendedOverlaps2[i].matchCnt > representative.matchCnt
-						|| (extendedOverlaps2[i].matchCnt == representative.matchCnt
-							&& extendedOverlaps2[i].similarity > representative.similarity) 
-						&& seqIdxToOverlapIdx.find(extendedOverlaps2[i].seqIdx) == seqIdxToOverlapIdx.end())
+				if (overlaps2[i].matchCnt > representative.matchCnt
+						|| (overlaps2[i].matchCnt == representative.matchCnt
+							&& overlaps2[i].similarity > representative.similarity) 
+						&& seqIdxToOverlapIdx.find(overlaps2[i].seqIdx) == seqIdxToOverlapIdx.end())
 				{
-					if (TruncatedMatePairOverlap(extendedOverlaps2[i], assign[0].overlap2, assign[0].overlap1))
+					if (TruncatedMatePairOverlap(overlaps2[i], assign[0].overlap2, assign[0].overlap1))
 					{
 						filter = true ;
 					}
@@ -1807,14 +1794,6 @@ public:
 
 			if (filter)
 				assign.clear() ;
-		}
-
-
-		delete[] rc ;
-		delete[] align ;
-		if (read2 != NULL)
-		{
-			delete[] rc2 ;
 		}
 		return assign.size() ;
 	}

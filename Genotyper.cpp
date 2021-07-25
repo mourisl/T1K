@@ -36,13 +36,23 @@ static struct option long_options[] = {
 struct _genotypeRead
 {
 	char *id ;
-	char *read ;
+	char *seq ;
 	char *qual ;
 
 	int strand ;
 
 	int barcode ;
 	int umi ;
+
+	int mate ; // 0-first mate, 1-second mate
+	int idx ; 
+	
+	int info ;
+
+	bool operator<(const struct _genotypeRead &b)	
+	{
+		return strcmp(seq, b.seq) < 0 ;
+	}
 } ;
 
 struct _assignReadsThreadArg
@@ -52,11 +62,8 @@ struct _assignReadsThreadArg
 
 	SeqSet *pRefSet ;
 	Genotyper *pGenotyper ;	
-	std::vector<struct _genotypeRead> *pReads1 ;
-	std::vector<struct _genotypeRead> *pReads2 ;	
-	std::vector< std::vector<struct _fragmentOverlap> > *pReadAssignments ;
-	
-	bool hasMate ;
+	std::vector<struct _genotypeRead> *pReads ;
+	std::vector< std::vector<struct _overlap> *> *pReadAssignments ;
 } ;
 
 char buffer[10241] = "" ;
@@ -79,25 +86,25 @@ void *AssignReads_Thread( void *pArg )
 	struct _assignReadsThreadArg &arg = *( (struct _assignReadsThreadArg *)pArg ) ;
 	int start, end ;
 	int i ;
-	int totalReadCnt = arg.pReads1->size() ;
+	int totalReadCnt = arg.pReads->size() ;
 	start = totalReadCnt / arg.threadCnt * arg.tid ;
 	end = totalReadCnt / arg.threadCnt * ( arg.tid + 1 ) ;
 	if ( arg.tid == arg.threadCnt - 1 )
 		end = totalReadCnt ;
 	struct _overlap assign ;
 	
-	std::vector<struct _genotypeRead> &reads1 = *(arg.pReads1) ;
-	std::vector<struct _genotypeRead> &reads2 = *(arg.pReads2) ;
-	std::vector< std::vector<struct _fragmentOverlap> > &readAssignments = *(arg.pReadAssignments);
+	std::vector<struct _genotypeRead> &reads = *(arg.pReads) ;
+	std::vector< std::vector<struct _overlap> *> &readAssignments = *(arg.pReadAssignments);
 	SeqSet &refSet = *(arg.pRefSet) ;
+	std::vector<struct _overlap> *assignments = NULL ;
+
 	for ( i = start ; i < end ; ++i )
 	{
-			std::vector<struct _fragmentOverlap> assignments ;
-			if (arg.hasMate)
-				refSet.AssignRead(reads1[i].read, reads2[i].read, reads1[i].barcode, assignments) ;
-			else
-				refSet.AssignRead(reads1[i].read, NULL, reads1[i].barcode, assignments) ;
-			arg.pGenotyper->SetReadAssignments(i, assignments) ;
+			if (i == start || strcmp(reads[i].seq, reads[i - 1].seq) != 0)
+			{
+				assignments = new std::vector<struct _overlap> ;
+				refSet.AssignRead(reads[i].seq, reads[i].barcode, *assignments) ;
+			}
 			readAssignments[i] = assignments ;
 	}
 	pthread_exit( NULL ) ;
@@ -116,7 +123,7 @@ int main(int argc, char *argv[])
 	
 	char outputPrefix[1024] = "kir" ;
 	
-	Genotyper genotyper(17) ;
+	Genotyper genotyper(11) ;
 	ReadFiles reads ;
 	ReadFiles mateReads ;
 	bool hasMate = false ;
@@ -193,7 +200,7 @@ int main(int argc, char *argv[])
 		int barcode = -1 ;
 		int umi = -1 ;
 		
-		nr.read = strdup(reads.seq) ;
+		nr.seq = strdup(reads.seq) ;
 		nr.id = strdup(reads.id) ;
 		if (reads.qual != NULL)
 			nr.qual = strdup(reads.qual);
@@ -201,13 +208,15 @@ int main(int argc, char *argv[])
 			nr.qual = NULL;
 		nr.barcode = barcode ;
 		nr.umi = umi ;
+		nr.idx = i ;
+		nr.mate = 0 ;
 
 		reads1.push_back(nr);		
 
 		if (hasMate)
 		{
 			mateReads.Next() ;
-			mateR.read = strdup(mateReads.seq);
+			mateR.seq = strdup(mateReads.seq);
 			mateR.id = strdup(mateReads.id);
 			mateR.barcode = barcode;
 			mateR.umi = umi;
@@ -215,7 +224,8 @@ int main(int argc, char *argv[])
 				mateR.qual = strdup( mateReads.qual );
 			else
 				mateR.qual = NULL;
-			
+			mateR.idx = i ;	
+			mateR.mate = 1 ;
 			reads2.push_back(mateR);			
 		}
 		++i;
@@ -226,24 +236,29 @@ int main(int argc, char *argv[])
 	genotyper.InitReadAssignments(readCnt) ;	
 	PrintLog("Found %d read fragments. Start read assignment.", readCnt) ;
 	
-	int alignedReadCnt = 0 ;
-	std::vector< std::vector<struct _fragmentOverlap> > readAssignments ;
+	// Put all the ends into one big array to reuse alignment information.
+	std::vector<struct _genotypeRead> allReads ; 
+	allReads = reads1 ;
+	allReads.insert(allReads.end(), reads2.begin(), reads2.end()) ;
+	std::sort(allReads.begin(), allReads.end()) ;
+	std::vector< std::vector<struct _overlap> *> readAssignments ;
+	
+	int alignedFragmentCnt = 0 ;
+	std::vector< std::vector<struct _fragmentOverlap> > fragmentAssignments ;
 	readAssignments.resize(readCnt) ;
+	fragmentAssignments.resize(readCnt) ;
 
 	if (threadCnt <= 1)
 	{
+		std::vector<struct _overlap> *assignments = NULL ;
 		for (i = 0 ; i < readCnt ; ++i)
 		{
-			std::vector<struct _fragmentOverlap> assignments ;
-			if (hasMate)
-				refSet.AssignRead(reads1[i].read, reads2[i].read, reads1[i].barcode, assignments) ;
-			else
-				refSet.AssignRead(reads1[i].read, NULL, reads1[i].barcode, assignments) ;
-			
+			if (i == 0 || strcmp(allReads[i].seq, allReads[i - 1].seq) != 0)
+			{
+				assignments = new std::vector<struct _overlap> ;
+				refSet.AssignRead(allReads[i].seq, allReads[i].barcode, *assignments) ;
+			}
 			readAssignments[i] = assignments ;
-
-			//	++alignedReadCnt ;
-			genotyper.SetReadAssignments(i, assignments) ;
 		}
 	}
 	else
@@ -261,10 +276,8 @@ int main(int argc, char *argv[])
 			args[i].threadCnt = threadCnt ;
 			args[i].pRefSet = &refSet ;
 			args[i].pGenotyper = &genotyper ;
-			args[i].pReads1 = &reads1 ;
-			args[i].pReads2 = &reads2 ;
+			args[i].pReads = &reads1 ;
 			args[i].pReadAssignments = &readAssignments ;
-			args[i].hasMate = hasMate ;
 			pthread_create( &threads[i], &attr, AssignReads_Thread, (void *)( args + i ) ) ;
 		}
 
@@ -275,9 +288,45 @@ int main(int argc, char *argv[])
 		delete[] threads ;
 		delete[] args ;
 	}
-	alignedReadCnt = genotyper.FinalizeReadAssignments() ;
-	PrintLog("Finish read assignments. %d read fragments can be assigned.", alignedReadCnt) ;
+	PrintLog("Finish read end assignments.") ;
 
+	// Matching up read ends to form fragment assignment
+	int allReadCnt = allReads.size() ; 
+	for (i = 0 ; i < allReadCnt ; ++i)
+	{
+		if (allReads[i].mate == 0)		
+		{
+			reads1[ allReads[i].idx ].info = i ; // map to the read assignment part
+		}
+		else if (allReads[i].mate == 1)
+		{
+			reads2[ allReads[i].idx ].info = i ;
+		}
+	}
+
+	// TODO: may need parallelization.
+	for (i = 0 ; i < readCnt ; ++i)
+	{
+		if (!hasMate)	
+			refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, fragmentAssignments[i]) ;
+		else
+			refSet.ReadAssignmentToFragmentAssignment( readAssignments[reads1[i].info], readAssignments[reads2[i].info],
+					reads1[i].barcode, fragmentAssignments[i]) ;
+		
+		genotyper.SetReadAssignments(i, fragmentAssignments[i] ) ;	
+	}
+	
+	// Release the memory for read end assignment
+	for (i = 0 ; i < allReadCnt ; ++i)
+	{
+		for (j = i + 1 ; j < allReadCnt ; ++j)
+			if (readAssignments[j] != readAssignments[i])
+				break ;
+		delete readAssignments[i] ;
+	}
+
+	alignedFragmentCnt = genotyper.FinalizeReadAssignments() ;
+	PrintLog( "Finish read fragment assignments. %d read fragments can be assigned.", alignedFragmentCnt) ;
 #ifdef DEBUG
 	for (i = 0 ; i < readCnt ; ++i)
 	{
@@ -322,14 +371,14 @@ int main(int argc, char *argv[])
 	for ( i = 0 ; i < readCnt ; ++i )
 	{
 		free( reads1[i].id ) ;
-		free( reads1[i].read ) ;
+		free( reads1[i].seq ) ;
 		if ( reads1[i].qual != NULL )
 			free( reads1[i].qual ) ;
 	
 		if (hasMate)
 		{
 			free( reads2[i].id ) ;
-			free( reads2[i].read ) ;
+			free( reads2[i].seq ) ;
 			if ( reads2[i].qual != NULL )
 				free( reads2[i].qual ) ;
 		}
