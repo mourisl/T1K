@@ -3,7 +3,7 @@
 use strict ;
 use warnings ;
 
-die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna] > yyy.fa\n" if (@ARGV == 0) ;
+die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna --gene KIR|HLA] > yyy.fa\n" if (@ARGV == 0) ;
 
 my %selectedAlleles ;
 my $selectAlleleFile = "" ;
@@ -58,6 +58,7 @@ my $seq = "" ;
 my $allele = "" ;
 my %partialAlleles ;
 my $hasIntron ;
+my $isPartial ;
 my %usedSeq ;
 my @alleleOrder ;
 my %alleleSeq ;
@@ -78,6 +79,7 @@ while (<FP>)
 	{
 			undef @exons ;
 			$hasIntron = 0 ;
+			$isPartial = 0 ;
 			$seq = "" ;
 			$allele = "-1" ;
 	}
@@ -111,11 +113,13 @@ while (<FP>)
 		}
 		elsif (/partial$/)
 		{
-			$partialAlleles{$allele} = 1 ;
+			#$partialAlleles{$allele} = 1 ;
+			$isPartial = 1 ;
 		}
 	}
 	elsif (/^SQ/)
 	{
+		$partialAlleles{$allele} = 1 if ($isPartial) ;
 		# skip the header
 		while (<FP>)
 		{
