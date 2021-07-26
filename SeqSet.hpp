@@ -1657,7 +1657,8 @@ public:
 		SimpleVector<struct _pair> fragments ;
 		std::vector<struct _overlap> &overlaps = *pOverlaps1 ;
 		int overlapCnt = overlaps.size()  ;
-
+		
+		fragments.Reserve(overlapCnt) ;
 		if (pOverlaps2 == NULL)
 		{
 			for (i = 0 ; i < overlapCnt ; ++i)
@@ -1703,8 +1704,8 @@ public:
 					}
 				} // for k
 			} // for i
+			//printf("%d %d %d\n", overlapCnt, overlapCnt2, fragments.Size()) ;		
 		} // else for paired-end reds
-
 		// For each seq idx, keep the best fragment
 		int fragmentCnt = fragments.Size() ;
 		std::map<int, int> seqIdxToOverlapIdx ;
@@ -1754,7 +1755,7 @@ public:
 			}	
 		}
 
-		std::sort(assign.begin(), assign.end()) ;
+		/*std::sort(assign.begin(), assign.end()) ;
 		int assignCnt = assign.size() ;
 		if (assignCnt > 0 && assign[0].similarity < refSeqSimilarity)
 		{
@@ -1769,7 +1770,30 @@ public:
 				assign.resize(i) ;
 				break ;
 			}	
+		}*/
+
+		struct _fragmentOverlap bestAssign ;
+		int assignCnt = assign.size() ;
+		bestAssign.matchCnt = -1 ;
+		for (i = 0 ; i < assignCnt ; ++i)
+		{
+			if (assign[i].matchCnt > bestAssign.matchCnt 
+					|| (assign[i].matchCnt == bestAssign.matchCnt 
+							&& assign[i].similarity > bestAssign.similarity))
+			{
+				bestAssign = assign[i] ; 
+			}
 		}
+		k = 0 ;
+		for (i = 0 ; i < assignCnt ; ++i)
+		{
+			if (assign[i].matchCnt == bestAssign.matchCnt && assign[i].similarity == bestAssign.similarity )
+			{
+				assign[k] = assign[i] ;
+				++k ;
+			}
+		}
+		assign.resize(k) ;
 
 		// Check whether there is better alignment but mate could not be aligned due to truncated reference gene (e.g. UTR).
 		if (assign.size() > 0 && pOverlaps2 != NULL)
