@@ -190,6 +190,60 @@ private:
 	int64_t randomSeed ;
 
 	int geneType ;  // not used actually
+
+	double EMupdate(double *ecAbundance0, double *ecAbundance1, double *ecReadCount, const std::vector<std::vector<int> > &readGroupToAlleleEc, const SimpleVector<struct _readGroupInfo> readGroupInfo, const double *ecLength)
+	{
+		int ecCnt = equivalentClassToAlleles.size() ;
+		int rgCnt = readGroupToAlleleEc.size() ;
+		int i, j ;
+		// E-step: find the expected number of reads
+		memset(ecReadCount, 0, sizeof(double) * ecCnt) ;
+		for (i = 0 ; i < rgCnt ; ++i)
+		{
+			double psum	= 0 ;
+			int size = readGroupToAlleleEc[i].size() ;
+			for (j = 0 ; j < size ; ++j)
+				psum += ecAbundance0[readGroupToAlleleEc[i][j]] ;
+			if (psum == 0)	
+				psum = 1 ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				int ecIdx = readGroupToAlleleEc[i][j] ;
+				ecReadCount[ecIdx] += readGroupInfo[i].count * ecAbundance0[ecIdx] / psum ;
+			}
+		}
+
+		// M-step: recompute the abundance
+		double diffSum = 0 ;
+		double normalization = 0 ;
+		for (i = 0 ; i < ecCnt ; ++i)
+			normalization += ecReadCount[i] / ecLength[i] ;
+
+		for (i = 0 ; i < ecCnt ; ++i)
+		{
+			double tmp = ecReadCount[i] / ecLength[i] / normalization ;
+			//printf("%d %s %d: %lf %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), tmp, ecReadCount[i], ecLength[i], ecAbundance[i]) ;
+
+			diffSum += ABS(tmp - ecAbundance0[i]) ;
+			ecAbundance1[i] = tmp ;
+		}
+		return diffSum ;
+	}
+	
+	// Compute the update coeffcient alpha in the SQUREEM paper
+	double SQUAREMalpha(double *t0, double *t1, double *t2, int n)
+	{
+		int i ;
+		double sqrSumR = 0 ;
+		double sqrSumV = 0 ;
+		for (i = 0 ; i < n ; ++i)
+		{
+			sqrSumR += (t1[i] - t0[i]) * (t1[i] - t0[i]) ;
+			sqrSumV += (t2[i] - 2 * t1[i] + t0[i]) * (t2[i] - 2 * t1[i] + t0[i]) ;
+		}
+		return -sqrt(sqrSumR) / sqrt(sqrSumV) ;
+	}
+
 public:
 	SeqSet refSet ;
 	
@@ -307,6 +361,22 @@ public:
 
 		BuildAlleleEquivalentClass() ;
 		return ret ;
+	}
+
+	double GetAverageReadAssignmentCnt()
+	{
+		int i ;
+		double sum = 0 ;
+		double cnt = 0 ;
+		for (i = 0 ; i < readCnt ; ++i)
+		{
+			if (readAssignments[i].size() > 0)
+			{
+				sum += readAssignments[i].size() ;
+				++cnt ;
+			}
+		}
+		return sum / cnt ;
 	}
 
 	void SetMajorAlleleAndGeneAbundance()
@@ -459,13 +529,14 @@ public:
 		}
 		return ecCnt ;
 	}
-
-	void QuantifyAlleleEquivalentClass()
+	
+	// return : EM algorithm iterations
+	int QuantifyAlleleEquivalentClass()
 	{
 		int i, j, k ;
 		int t ; // iteration for EM algorithm.
 		int ecCnt = equivalentClassToAlleles.size() ;	
-		
+		int ret = 0 ;	
 		
 		SimpleVector<struct _pair> readFingerprint ;
 		const int FINGERPRINT_MAX = 1000003 ;
@@ -563,7 +634,10 @@ public:
 		double *emResults ;
 		const int maxEMIterations = 1000 ;
 		const int maxRandIterations = 1 ;
-		double *ecAbundance = new double[ecCnt] ;
+		double *ecAbundance0 = new double[ecCnt] ;
+		double *ecAbundance1 = new double[ecCnt] ;
+		double *ecAbundance2 = new double[ecCnt] ;
+		double *ecAbundance3 = new double[ecCnt] ;
 		double *ecReadCount = new double[ecCnt] ;
 		double *ecLength = new double[ecCnt] ; // the sequence length for equivalent class.
 		int randIter ;
@@ -583,48 +657,38 @@ public:
 		double **emEcReadCount = new double*[maxRandIterations] ;
 		for (randIter = 0 ; randIter < maxRandIterations ; ++randIter)
 		{
+			ret = 0 ;
 			for (i = 0 ; i < ecCnt ; ++i)
 			{
 				//ecAbundance[i] = Rand()%7 + 1 ; //1.0 / ecCnt ;
-				//ecAbundance[i] = equivalentClassToAlleles[i].size() + (Rand()%3 - 1); //1.0 / ecCnt ;
-				ecAbundance[i] = equivalentClassToAlleles[i].size() ; 
+				//ecAbundance[i] = equivalentClassToAlleles[i].size() + (Rand()%3 - 1) * 0.5 ; //1.0 / ecCnt ;
+				ecAbundance0[i] = equivalentClassToAlleles[i].size() ; 
 			}
 
 			for (t = 0 ; t < maxEMIterations ; ++t)
 			{
-				// E-step: find the expected number of reads
-				memset(ecReadCount, 0, sizeof(double) * ecCnt) ;
-				for (i = 0 ; i < rgCnt ; ++i)
-				{
-					double psum	= 0 ;
-					int size = readGroupToAlleleEc[i].size() ;
-					for (j = 0 ; j < size ; ++j)
-						psum += ecAbundance[readGroupToAlleleEc[i][j]] ;
-					if (psum == 0)	
-						psum = 1 ;
-					for (j = 0 ; j < size ; ++j)
-					{
-						int ecIdx = readGroupToAlleleEc[i][j] ;
-						ecReadCount[ecIdx] += readGroupInfo[i].count * ecAbundance[ecIdx] / psum ;
-					}
-				}
-
-				// M-step: recompute the abundance
-				double diffSum = 0 ;
-				double normalization = 0 ;
+				++ret ;
+				double diffSum = EMupdate(ecAbundance0, ecAbundance1, ecReadCount,
+						readGroupToAlleleEc, readGroupInfo, ecLength) ;
+				diffSum = EMupdate(ecAbundance1, ecAbundance2, ecReadCount,
+						readGroupToAlleleEc, readGroupInfo, ecLength) ;
+				
+				double alpha = SQUAREMalpha(ecAbundance0, ecAbundance1, ecAbundance2, ecCnt) ;
+				//memcpy(ecAbundance0, ecAbundance1, sizeof(double) * ecCnt) ;
 				for (i = 0 ; i < ecCnt ; ++i)
-					normalization += ecReadCount[i] / ecLength[i] ;
-
+					ecAbundance3[i] = ecAbundance0[i] 
+							- 2 * alpha * (ecAbundance1[i] - ecAbundance0[i])
+							+ alpha * alpha * (ecAbundance2[i] - 2 * ecAbundance1[i] + ecAbundance0[i]) ;
+				EMupdate(ecAbundance3, ecAbundance1, ecReadCount,
+					 readGroupToAlleleEc, readGroupInfo, ecLength	) ;
+				
+				diffSum = 0 ;
 				for (i = 0 ; i < ecCnt ; ++i)
 				{
-					double tmp = ecReadCount[i] / effectiveReadCnt ;
-					tmp = ecReadCount[i] / ecLength[i] / normalization ;
-					//printf("%d %s %d: %lf %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), tmp, ecReadCount[i], ecLength[i], ecAbundance[i]) ;
-					
-					diffSum += ABS(tmp - ecAbundance[i]) ;
-					ecAbundance[i] = tmp ;
+					diffSum += ABS(ecAbundance1[i] - ecAbundance0[i]) ;
+					ecAbundance0[i] = ecAbundance1[i] ;
 				}
-				//printf("%lf\n", diffSum) ;
+				
 				if (diffSum < 1e-5 && t < maxEMIterations - 2)
 					t = maxEMIterations - 2 ; // Force one more iteration
 			}
@@ -668,8 +732,13 @@ public:
 		delete[] emEcReadCount ;
 
 		delete[] ecLength ;	
-		delete[] ecAbundance ;
+		delete[] ecAbundance0 ;
+		delete[] ecAbundance1 ;
+		delete[] ecAbundance2 ;
+		delete[] ecAbundance3 ;
 		delete[] ecReadCount ;
+		
+		return ret ;
 	}
 
 	// Based on the read coverage, remove the ones that are not likely to be true
@@ -983,7 +1052,7 @@ public:
 
 				int selectedAlleleCnt = selectedAlleles[i].size() ;
 				double maxCover = 0 ;	
-				
+				double maxCoverAbundance = 0 ;
 				int alleleJ, alleleK ; // representative allele for type J and K 
 
 				// Remove the effects of current gene
@@ -1057,16 +1126,24 @@ public:
 						struct _pair np ;
 						np.a = j ;
 						np.b = k ;
+						double abundanceSum = 0 ;
+						for (l = 0 ; l < selectedAlleleCnt ; ++l)
+						{
+							if (selectedAlleles[i][l].b == j || selectedAlleles[i][l].b == k)
+								abundanceSum += alleleInfo[selectedAlleles[i][l].a].abundance ;
+						}	
 #ifdef DEBUG
-						printf("Further selection %s %s %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), coveredReadCnt) ;
+						printf("Further selection %s %s %lf %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceSum, coveredReadCnt) ;
 #endif
-						if (coveredReadCnt > maxCover)
+						if (coveredReadCnt > maxCover
+								|| (coveredReadCnt == maxCover && abundanceSum > maxCoverAbundance))
 						{
 							maxCover = coveredReadCnt ;
+							maxCoverAbundance = abundanceSum ;
 							bestTypes.Clear() ;
 							bestTypes.PushBack(np) ;
 						}
-						else if (coveredReadCnt == maxCover)
+						else if (coveredReadCnt == maxCover )
 						{
 							bestTypes.PushBack(np) ;
 						}

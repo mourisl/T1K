@@ -35,6 +35,12 @@ struct _triple
 {
 	int a, b, c ;
 } ;
+
+struct _tripleIID
+{
+	int a, b ;
+	double c ;
+} ;
 /*struct _pair_b64
 {
 	int a ;

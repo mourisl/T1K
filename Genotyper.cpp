@@ -360,6 +360,12 @@ int main(int argc, char *argv[])
 			else
 				refSet.ReadAssignmentToFragmentAssignment( readAssignments[reads1[i].info], readAssignments[reads2[i].info],
 						reads1[i].barcode, fragmentAssignment) ;
+#ifdef DEBUG
+			std::vector<struct _fragmentOverlap> &assignments = fragmentAssignment ;
+			for (int j = 0 ; j < assignments.size() ; ++j)
+				printf("%s\t%d\t%s\t%d\t%lf. %d %d\n", reads1[i].id, assignments[j].seqIdx, refSet.GetSeqName(assignments[j].seqIdx),
+						assignments[j].matchCnt, assignments[j].similarity, assignments[j].overlap1.matchCnt, assignments[j].overlap2.matchCnt);
+#endif
 			genotyper.SetReadAssignments(i, fragmentAssignment ) ;	
 		}
 	}
@@ -403,23 +409,18 @@ int main(int argc, char *argv[])
 	}
 
 	alignedFragmentCnt = genotyper.FinalizeReadAssignments() ;
-	PrintLog( "Finish read fragment assignments. %d read fragments can be assigned.", alignedFragmentCnt) ;
-#ifdef DEBUG
-	/*for (i = 0 ; i < readCnt ; ++i)
-	{
-		std::vector<struct _fragmentOverlap> &assignments = fragmentAssignments[i] ;
-		for (int j = 0 ; j < assignments.size() ; ++j)
-			printf("%s\t%d\t%s\t%d\t%lf. %d %d\n", reads1[i].id, assignments[j].seqIdx, refSet.GetSeqName(assignments[j].seqIdx),
-					assignments[j].matchCnt, assignments[j].similarity, assignments[j].overlap1.matchCnt, assignments[j].overlap2.matchCnt);
-	}*/
-#endif
+	PrintLog( "Finish read fragment assignments. %d read fragments can be assigned (average %.2lf alleles/read).", 
+			alignedFragmentCnt, genotyper.GetAverageReadAssignmentCnt()) ;
 
 	// Get some global abundance information, 
 	// need for allele selection.
 	if (fpAbundance)
 		genotyper.InitAlleleAbundance(fpAbundance) ;			
 	else
-		genotyper.QuantifyAlleleEquivalentClass() ;
+	{
+		int emIterCnt = genotyper.QuantifyAlleleEquivalentClass() ;
+		PrintLog( "Finish allele quantification in %d EM iterations.", emIterCnt) ;
+	}
 	genotyper.RemoveLowLikelihoodAlleleInEquivalentClass() ;
 
 	// Main function to do genotyping
