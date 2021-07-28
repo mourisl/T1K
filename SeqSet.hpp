@@ -1591,6 +1591,10 @@ public:
 		assign.clear() ;
 
 		int i, j ;
+		for (i = 0 ; read[i] ; ++i)
+			if (read[i] == 'N')
+				return 0 ;
+		
 		std::vector<struct _overlap> overlaps ;
 
 		int overlapCnt = GetOverlapsFromRead( read, 0, barcode, overlaps ) ;

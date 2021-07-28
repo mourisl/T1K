@@ -164,11 +164,12 @@ private:
 	}
 
 	int readCnt ;
+	int maxAssignCnt ;
 	std::vector< std::vector<int> >	readsInAllele ;
 	std::vector< std::vector<struct _readAssignment> > readAssignments ;
 	std::vector< std::vector<int> > equivalentClassToAlleles ;
 	std::vector< std::vector<struct _pair> >	selectedAlleles ; // a-allele name, b-which allele (0,1)
-
+	
 	// variables for allele, majorAllele and genes	
 	char *geneBuffer ;
 	char *majorAlleleBuffer ;	
@@ -252,6 +253,7 @@ public:
 		geneBuffer = new char[256] ;
 		majorAlleleBuffer = new char[256] ;
 		alleleCnt = majorAlleleCnt = geneCnt = readCnt = 0 ;
+		maxAssignCnt = 2000 ;
 		randomSeed = 17 ;
 		geneType = GENETYPE_KIR ;
 	}
@@ -306,8 +308,9 @@ public:
 		}
 	}
 
-	void InitReadAssignments(int readCnt)
+	void InitReadAssignments(int readCnt, int maxAssignCnt)
 	{
+		maxAssignCnt = maxAssignCnt ;
 		readAssignments.resize(readCnt) ;
 		readsInAllele.resize(alleleCnt) ;
 
@@ -325,6 +328,9 @@ public:
 		int i ;
 		int assignmentCnt = assignment.size() ;
 		readAssignments[readId].clear() ;
+
+		if (maxAssignCnt > 0 && assignmentCnt > maxAssignCnt)
+			return ;
 
 		/*for (i = 1 ; i < assignmentCnt ; ++i)
 			if ( alleleInfo[assignment[i].seqIdx].geneIdx != alleleInfo[assignment[i - 1].seqIdx].geneIdx)
@@ -1037,7 +1043,6 @@ public:
 				}
 			}
 		}
-			
 		for (iter = 0 ; iter < iterMax ; ++iter)
 		{
 			int updatedGeneCnt = 0 ;

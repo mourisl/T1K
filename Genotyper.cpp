@@ -19,6 +19,7 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"Optional:\n"
 		"\t-a STRING: path to the abundance file\n"
 		"\t-t INT: number of threads (default: 1)\n"
+		"\t-n INT: maximal number of alleles per read (default: 2000)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -28,7 +29,7 @@ char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2,
 
 char numToNuc[4] = {'A', 'C', 'G', 'T'} ;
 
-static const char *short_options = "f:a:u:1:2:o:t:" ;
+static const char *short_options = "f:a:u:1:2:o:t:n:" ;
 static struct option long_options[] = {
 	{(char *)0, 0, 0, 0}
 } ;
@@ -144,7 +145,8 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 	SeqSet &refSet = *(arg.pRefSet) ;
 	std::vector<struct _fragmentOverlap > fragmentAssignment ;
 	
-	for (i = start ; i < end ; ++i)
+	//for (i = start ; i < end ; ++i)
+	for (i = arg.tid ; i < end ; i += arg.threadCnt)
 	{
 		if (!arg.hasMate)	
 			refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, fragmentAssignment) ;
@@ -175,6 +177,7 @@ int main(int argc, char *argv[])
 	std::vector<struct _genotypeRead> reads1 ;
 	std::vector<struct _genotypeRead> reads2 ;
 	int threadCnt = 1 ;
+	int maxAssignCnt = 2000 ;
 	FILE *fpAbundance = NULL ;
 
 	while (1)	
@@ -214,6 +217,10 @@ int main(int argc, char *argv[])
 		{
 			threadCnt = atoi( optarg ) ;
 		}
+		else if ( c == 'n' )
+		{
+			maxAssignCnt = atoi(optarg) ;
+		}
 		else
 		{
 			fprintf( stderr, "%s", usage ) ;
@@ -244,7 +251,7 @@ int main(int argc, char *argv[])
 		struct _genotypeRead mateR ;
 		int barcode = -1 ;
 		int umi = -1 ;
-		
+
 		nr.seq = strdup(reads.seq) ;
 		nr.id = strdup(reads.id) ;
 		if (reads.qual != NULL)
@@ -278,7 +285,7 @@ int main(int argc, char *argv[])
 
 	int readCnt = reads1.size() ;
 	//std::vector<struct _fragmentOverlap> alleleAssignments ;
-	genotyper.InitReadAssignments(readCnt) ;	
+	genotyper.InitReadAssignments(readCnt, maxAssignCnt) ;	
 	PrintLog("Found %d read fragments. Start read assignment.", readCnt) ;
 	
 	// Put all the ends into one big array to reuse alignment information.
