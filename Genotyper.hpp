@@ -164,9 +164,12 @@ private:
 	}
 
 	int readCnt ;
+	int totalReadCnt ;
 	int maxAssignCnt ;
 	std::vector< std::vector<int> >	readsInAllele ;
-	std::vector< std::vector<struct _readAssignment> > readAssignments ;
+	std::vector< std::vector<struct _readAssignment> > readAssignments ; // Coalesce reads assigned to the same alleles 
+	std::map<int, std::vector<int> > readAssignmentsFingerprintToIdx ;
+	std::vector< std::vector<struct _readAssignment> > allReadAssignments ;
 	std::vector< std::vector<int> > equivalentClassToAlleles ;
 	std::vector< std::vector<struct _pair> >	selectedAlleles ; // a-allele name, b-which allele (0,1)
 	
@@ -308,27 +311,30 @@ public:
 		}
 	}
 
-	void InitReadAssignments(int readCnt, int maxAssignCnt)
+	void InitReadAssignments(int totalReadCnt, int maxAssignCnt)
 	{
 		maxAssignCnt = maxAssignCnt ;
-		readAssignments.resize(readCnt) ;
+		readCnt = 0 ;
+
+		allReadAssignments.resize(totalReadCnt) ;
+		readAssignments.clear() ;
+		readAssignmentsFingerprintToIdx.clear() ;
 		readsInAllele.resize(alleleCnt) ;
 
 		int i ;
-		for (i = 0 ; i < readCnt ; ++i)
-			readAssignments[i].clear() ;
+		for (i = 0 ; i < totalReadCnt ; ++i)
+			allReadAssignments[i].clear() ;
 		for (i = 0 ; i < alleleCnt ; ++i)
 			readsInAllele[i].clear() ;
 
-		this->readCnt = readCnt ;
+		this->totalReadCnt = totalReadCnt ;
 	}
 
 	void SetReadAssignments(int readId, const std::vector<struct _fragmentOverlap> &assignment)
 	{
 		int i ;
 		int assignmentCnt = assignment.size() ;
-		readAssignments[readId].clear() ;
-
+		allReadAssignments[readId].clear() ;
 		if (maxAssignCnt > 0 && assignmentCnt > maxAssignCnt)
 			return ;
 
@@ -343,8 +349,73 @@ public:
 			na.start = assignment[i].seqStart ;
 			na.end = assignment[i].seqEnd ;
 			na.weight = ReadAssignmentWeight(assignment[i]) ;
-			readAssignments[readId].push_back(na) ;
+			allReadAssignments[readId].push_back(na) ;
 		}
+	}
+	
+	// Coalesce the [begin,end] all reads to the read assignment
+	int CoalesceReadAssignments(int begin, int end)
+	{
+		int i, j, k ;
+		int ret = 0 ;
+		for (i = begin ; i <= end && i < totalReadCnt ; ++i)
+		{
+			const int FINGERPRINT_MAX = 20000003 ;
+			int size = allReadAssignments[i].size() ;
+			if (size == 0)
+				continue ;
+			++ret ;
+			//std::sort(allReadAssignments[i].begin(), allReadAssignments[i].end()) ;
+			int fingerprint = 0 ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				k = allReadAssignments[i][j].alleleIdx ;
+				fingerprint = (fingerprint * (int64_t)alleleCnt + k) % FINGERPRINT_MAX ;
+			}
+			
+			int addTo = -1 ;
+			if (readAssignmentsFingerprintToIdx.find(fingerprint) == readAssignmentsFingerprintToIdx.end())
+				addTo = -1 ;
+			else
+			{
+				std::vector<int> assignmentsIdx = readAssignmentsFingerprintToIdx[fingerprint] ;
+				int idxSize = assignmentsIdx.size() ;
+				addTo = -1 ;
+				for (j = 0 ; j < idxSize ; ++j)
+				{
+					if (IsReadAssignmentTheSame(allReadAssignments[i], 
+								readAssignments[ assignmentsIdx[j] ] ) )
+					{
+						addTo = assignmentsIdx[j] ;
+						break ;
+					}
+				}
+			}
+
+			if (addTo == -1)
+			{
+				readAssignments.push_back( allReadAssignments[i] ) ;
+				readAssignmentsFingerprintToIdx[fingerprint].push_back(readCnt) ;
+				++readCnt ;				
+			}
+			else
+			{
+				for (j = 0 ; j < size ; ++j)
+				{
+					if (allReadAssignments[i][j].start < readAssignments[addTo][j].start)
+						readAssignments[addTo][j].start = allReadAssignments[i][j].start ;
+					if (allReadAssignments[i][j].end < readAssignments[addTo][j].end)
+						readAssignments[addTo][j].end = allReadAssignments[i][j].start ;
+					readAssignments[addTo][j].weight += allReadAssignments[i][j].weight ;
+				}
+			}
+		}
+		// Release the memory space for allReadAssignments
+		for (i = begin ; i <= end && i < totalReadCnt ; ++i)
+		{
+			std::vector<struct _readAssignment>().swap(allReadAssignments[i]) ;
+		}
+		return ret ;
 	}
 	
 	// Build the read in allele list

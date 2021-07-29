@@ -72,6 +72,9 @@ struct _readAssignmentToFragmentAssignmentThreadArg
 	int tid; 
 	int threadCnt ;
 
+	int start ;
+	int end ;
+
 	bool hasMate ;
 
 	SeqSet *pRefSet ;
@@ -130,13 +133,10 @@ void *AssignReads_Thread( void *pArg )
 void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 {
 	struct _readAssignmentToFragmentAssignmentThreadArg &arg = *((struct _readAssignmentToFragmentAssignmentThreadArg *)pArg) ;
-	int start, end ;
 	int i ;
 	int totalReadCnt = arg.pReads1->size() ;
-	start = totalReadCnt / arg.threadCnt * arg.tid ;
-	end = totalReadCnt / arg.threadCnt * ( arg.tid + 1 ) ;
-	if ( arg.tid == arg.threadCnt - 1 )
-		end = totalReadCnt ;
+	//if ( arg.tid == arg.threadCnt - 1 )
+	//	end = totalReadCnt ;
 	struct _overlap assign ;
 	
 	std::vector<struct _genotypeRead> &reads1 = *(arg.pReads1) ;
@@ -146,7 +146,7 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 	std::vector<struct _fragmentOverlap > fragmentAssignment ;
 	
 	//for (i = start ; i < end ; ++i)
-	for (i = arg.tid ; i < end ; i += arg.threadCnt)
+	for (i = arg.tid + arg.start ; i < arg.end ; i += arg.threadCnt)
 	{
 		if (!arg.hasMate)	
 			refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, fragmentAssignment) ;
@@ -355,10 +355,11 @@ int main(int argc, char *argv[])
 			reads2[ allReads[i].idx ].info = i ;
 		}
 	}
-
-	// TODO: may need parallelization.
+	
+	const int coalesceSize = 500000 ;
 	if (threadCnt == 1)
 	{
+		int coalesceStart = 0 ;
 		for (i = 0 ; i < readCnt ; ++i)
 		{
 			std::vector<struct _fragmentOverlap> fragmentAssignment ;
@@ -374,7 +375,14 @@ int main(int argc, char *argv[])
 						assignments[j].matchCnt, assignments[j].similarity, assignments[j].overlap1.matchCnt, assignments[j].overlap2.matchCnt);
 #endif
 			genotyper.SetReadAssignments(i, fragmentAssignment ) ;	
+
+			if (i > 0 && i % coalesceSize == 0)
+			{
+				alignedFragmentCnt += genotyper.CoalesceReadAssignments(coalesceStart, i) ;
+				coalesceStart = i + 1 ;
+			}
 		}
+		alignedFragmentCnt += genotyper.CoalesceReadAssignments(coalesceStart, readCnt - 1) ;
 	}
 	else
 	{
@@ -384,23 +392,30 @@ int main(int argc, char *argv[])
 
 		pthread_attr_init( &attr ) ;
 		pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_JOINABLE ) ;
-
-		for ( i = 0 ; i < threadCnt ; ++i )
+		int start, end ;
+		for (start = 0 ; start < readCnt ; start += coalesceSize)
 		{
-			args[i].tid = i ;
-			args[i].threadCnt = threadCnt ;
-			args[i].pRefSet = &refSet ;
-			args[i].pGenotyper = &genotyper ;
-			args[i].pReads1 = &reads1 ;
-			args[i].pReads2 = &reads2 ;
-			args[i].pReadAssignments = &readAssignments ;
-			args[i].hasMate = hasMate ;
-			pthread_create( &threads[i], &attr, ReadAssignmentToFragmentAssignment_Thread, (void *)( args + i ) ) ;
+			end = start + coalesceSize - 1 <= (readCnt - 1) ? start + coalesceSize - 1 : (readCnt - 1) ;
+			for ( i = 0 ; i < threadCnt ; ++i )
+			{
+				args[i].tid = i ;
+				args[i].threadCnt = threadCnt ;
+				args[i].pRefSet = &refSet ;
+				args[i].pGenotyper = &genotyper ;
+				args[i].pReads1 = &reads1 ;
+				args[i].pReads2 = &reads2 ;
+				args[i].start = start ;
+				args[i].end = end + 1 ;  // the thread part is [begin, end)
+				args[i].pReadAssignments = &readAssignments ;
+				args[i].hasMate = hasMate ;
+				pthread_create( &threads[i], &attr, ReadAssignmentToFragmentAssignment_Thread, (void *)( args + i ) ) ;
+			}
+
+			for ( i = 0 ; i < threadCnt ; ++i )
+				pthread_join( threads[i], NULL ) ;
+
+			alignedFragmentCnt += genotyper.CoalesceReadAssignments(start, end) ;
 		}
-
-		for ( i = 0 ; i < threadCnt ; ++i )
-			pthread_join( threads[i], NULL ) ;
-
 		pthread_attr_destroy(&attr);
 		delete[] threads ;
 		delete[] args ;
@@ -415,7 +430,7 @@ int main(int argc, char *argv[])
 		i = j ;
 	}
 
-	alignedFragmentCnt = genotyper.FinalizeReadAssignments() ;
+	genotyper.FinalizeReadAssignments() ;
 	PrintLog( "Finish read fragment assignments. %d read fragments can be assigned (average %.2lf alleles/read).", 
 			alignedFragmentCnt, genotyper.GetAverageReadAssignmentCnt()) ;
 
