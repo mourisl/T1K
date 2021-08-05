@@ -175,6 +175,13 @@ while (<FP>)
 				}
 				elsif ($mode eq "dna")
 				{
+					for (my $i = 2 ; $i < scalar(@exons) ; $i += 2)
+					{
+						if ($exons[$i] <= $exons[$i - 1] + 1)
+						{
+							$partialAlleles{$allele} = 1;						
+						}
+					}
 					for (my $i = 0 ; $i < scalar(@exons) ; $i += 2)
 					{
 						$start = $exons[$i] ;
@@ -184,7 +191,8 @@ while (<FP>)
 						{
 							$start = $exons[$i] - $intronPaddingLength ;
 							$start = 0 if ($start < 0) ; # no need to worry about, if this happens, exons will merge
-							$exonOffset += $intronPaddingLength ;
+							$exonOffset += 1 + $intronPaddingLength ; # +1 here is for the 'N' separator
+							$outputSeq .= 'N' ;
 						}
 
 						push @exonActualRegion, $exonOffset ; 
@@ -211,7 +219,6 @@ while (<FP>)
 						}
 						
 						$outputSeq .= substr($seq, $start, $end - $start + 1) ;
-						
 						$exonOffset += ($exons[$i + 1] - $exons[$k] + 1) ;
 						$exonOffset += $intronPaddingLength ;
 					}

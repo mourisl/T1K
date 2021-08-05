@@ -149,11 +149,11 @@ private:
 		//	similarity = o.overlap2.similarity ;
 		
 		if (similarity < 0.85)
-			ret = 0.01 ;
+			ret = 0.001 ;
 		else if (similarity < 0.9)
-			ret = 0.1 ;
+			ret = 0.01 ;
 		else if (similarity < 0.95)
-			ret = 0.5 ;
+			ret = 0.1 ;
 		
 		return ret ;
 	}
@@ -1203,11 +1203,23 @@ public:
 						np.a = j ;
 						np.b = k ;
 						double abundanceSum = 0 ;
+						double abundanceJ = 0 ;
+						double abundanceK = 0 ;
 						for (l = 0 ; l < selectedAlleleCnt ; ++l)
 						{
-							if (selectedAlleles[i][l].b == j || selectedAlleles[i][l].b == k)
+							if (selectedAlleles[i][l].b == j) 
+							{
 								abundanceSum += alleleInfo[selectedAlleles[i][l].a].abundance ;
+								abundanceJ += alleleInfo[selectedAlleles[i][l].a].abundance ;
+							}		
+							else if (selectedAlleles[i][l].b == k)
+							{
+								abundanceSum += alleleInfo[selectedAlleles[i][l].a].abundance ;
+								abundanceK += alleleInfo[selectedAlleles[i][l].a].abundance ;
+							}
 						}	
+						//coveredReadCnt += sqrt(abundanceJ) + sqrt(abundanceK) ;
+
 #ifdef DEBUG
 						printf("Further selection %s %s %lf %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceSum, coveredReadCnt) ;
 #endif
