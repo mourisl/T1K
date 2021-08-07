@@ -26,8 +26,7 @@ struct _seqWrapper
 
 	int minLeftExtAnchor, minRightExtAnchor ; // only overlap with size larger than this can be counted as valid extension.
 
-	struct _triple info[3] ; // For storing extra information. for ref, info[0,1] contains the coordinate for CDR1,2 and info[2].a for CDR3
-					// In extending seqs with mate pair information, these are used to store rough V, J, C read coordinate.	
+	std::vector<int> separator ; 
 	int barcode ; // transformed barcode. -1: no barcode
 
 	bool operator<( const struct _seqWrapper &b )	const
@@ -79,6 +78,7 @@ struct _overlap
 	
 	int matchCnt ; // The number of matched bases, count TWICE.
 	double similarity ;
+	int leftClip, rightClip ;
 
 	bool operator<( const struct _overlap &b ) const
 	{
@@ -104,6 +104,15 @@ struct _overlap
 			return seqEnd < b.seqEnd ; 
 
 		return false ;
+	}
+
+	// NOTE: should not use this for sorting
+	bool operator<=(const struct _overlap &b) const
+	{
+		if (matchCnt != b.matchCnt)
+			return matchCnt >= b.matchCnt ;
+		else
+			return similarity >= b.similarity ;	
 	}
 
 	double UpdateSimilarity( int rlen, int slen, int mcnt )
@@ -135,6 +144,7 @@ struct _fragmentOverlap
 			return similarity > b.similarity ; 
 		return overlap1 < b.overlap1 ;
 	}
+	
 } ;
 
 // This order works better against reference set, because it seems works better for the 5' end site
@@ -447,6 +457,17 @@ private:
 		return false ;
 	}
 
+	int IsSeparatorInRange(int s, int e, int seqIdx)
+	{
+		const std::vector<int> &separator = seqs[seqIdx].separator;
+		int i ;
+		int size = separator.size() ;
+		for (i = 0 ; i < size ; ++i)
+			if (separator[i] >= s && separator[i] <= e)
+				return 1 ;
+		return 0 ;
+	}
+
 	// o is from the mate1 set. Test whether o's mate pair could be missing due
 	// to too short reference sequence.
 	bool TruncatedMatePairOverlap(struct _overlap &o, struct _overlap &compMate1, struct _overlap &compMate2)
@@ -456,17 +477,22 @@ private:
 
 		if (o.strand == 1) // mate is on the firght
 		{
-			if (seqs[o.seqIdx].consensusLen - 1 < o.seqEnd + compMate2.seqEnd - compMate1.seqEnd)
+			if (seqs[o.seqIdx].consensusLen - 1 < o.seqEnd + compMate2.seqEnd - compMate1.seqEnd
+					|| IsSeparatorInRange(o.seqEnd, 
+						o.seqEnd + compMate2.seqEnd - compMate1.seqEnd + 1, o.seqIdx))
 				return true ;
 		}
 		else if (o.strand == -1)
 		{
-			if (o.seqStart - (compMate1.seqStart - compMate2.seqStart) < 0)
+			if (o.seqStart - (compMate1.seqStart - compMate2.seqStart) < 0
+					|| IsSeparatorInRange(o.seqStart - (compMate1.seqStart - compMate2.seqStart) - 1,
+						o.seqStart, o.seqIdx))
 				return true ;
 		}
 
 		return false ;	
 	}
+
 
 public:
 	SeqSet( int kl ) 
@@ -553,6 +579,13 @@ public:
 			sw.consensusLen = strlen( sw.consensus );
 			sw.effectiveLen = sw.consensusLen ; //effectiveLen ; 	
 			sw.barcode = -1 ;
+			
+			sw.separator.push_back(0) ;
+			for (i = 0 ; sw.consensus[i] ; ++i)
+				if (sw.consensus[i] == 'N')
+					sw.separator.push_back(i) ;
+			sw.separator.push_back(i) ;
+
 			seqIndex.BuildIndexFromRead( kmerCode, sw.consensus, sw.consensusLen, id ) ;
 		}
 	}
@@ -1516,6 +1549,21 @@ public:
 		int leftOverhangSize = MIN( overlap.readStart, overlap.seqStart ) ;
 		int ret = 1 ;
 		int i, k ;
+		int leftClip = 0, rightClip = 0;
+
+		if (overlap.readStart > overlap.seqStart)
+			leftClip = overlap.readStart - overlap.seqStart ;
+		// Locate the boundary in the reference with 'N';
+		for (i = 0 ; i < leftOverhangSize ; ++i)
+		{
+			if (seq.consensus[ overlap.seqStart - i - 1] == 'N')
+			{
+				leftClip = leftOverhangSize - i ;
+				leftOverhangSize = i ;
+				break ;
+			}
+		}
+
 		int goodLeftOverhangSize = 0 ;
 		AlignAlgo::GlobalAlignment( seq.consensus + overlap.seqStart - leftOverhangSize,
 				leftOverhangSize, 
@@ -1538,6 +1586,18 @@ public:
 		}*/
 		// Extension to 3'-end ( right end )
 		int rightOverhangSize = MIN( len - 1 - overlap.readEnd, seq.consensusLen - 1 - overlap.seqEnd ) ;
+		if (len - 1 - overlap.readEnd > seq.consensusLen - 1 - overlap.seqEnd)
+			rightClip = len - 1 - overlap.readEnd - (seq.consensusLen - 1 - overlap.seqEnd) ;
+
+		for (i = 0 ; i < rightOverhangSize ; ++i)
+		{
+			if (seq.consensus[ overlap.seqEnd + 1 + i] == 'N')
+			{
+				rightClip = rightOverhangSize - i ;
+				rightOverhangSize = i ;
+				break ;
+			}
+		}
 		int goodRightOverhangSize = 0 ;
 		AlignAlgo::GlobalAlignment( seq.consensus + overlap.seqEnd + 1, 
 				rightOverhangSize,
@@ -1553,11 +1613,25 @@ public:
 		extendedOverlap.strand = overlap.strand ;	
 		extendedOverlap.matchCnt = 2 * matchCnt + overlap.matchCnt ;
 		extendedOverlap.similarity = (double)( 2 * matchCnt + overlap.matchCnt ) / 
-			( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;	
+			( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;
+		extendedOverlap.leftClip = leftClip ;
+		extendedOverlap.rightClip = rightClip ;	
 		//printf("%d %d %d %d. %d\n", extendedOverlap.readStart, extendedOverlap.readEnd, extendedOverlap.seqStart, extendedOverlap.seqEnd,
 		//		extendedOverlap.matchCnt);		
 		if (extendedOverlap.similarity < refSeqSimilarity)
 			ret = 0 ;
+
+		if (leftClip > 0 || rightClip > 0)
+		{		
+			/*extendedOverlap.readStart -= leftClip;
+			extendedOverlap.readEnd += rightClip ; 
+			extendedOverlap.seqStart -=  leftClip ;
+			extendedOverlap.seqEnd += rightClip ;*/
+			extendedOverlap.matchCnt += 2 * leftClip + 2 * rightClip ;
+			extendedOverlap.similarity = double(extendedOverlap.matchCnt) / 
+				( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 + 2 * leftClip + 2 * rightClip) ;
+		}
+
 		/*if (leftOverhangSize + rightOverhangSize > 10
 				&& (double)matchCnt / (leftOverhangSize + rightOverhangSize) < 0.5)
 			ret = 0 ;*/
@@ -1620,19 +1694,30 @@ public:
 		char *align = new char[ 2 * len + 2 ] ;
 
 		int extendCnt = 0 ;
+		bool onlyConsiderClip = false ;
 		for ( i = 0 ; i < overlapCnt ; ++i )
 		{
 			//printf( "0 %d %s %d: %d-%d %d-%d %d %lf\n", i, seqs[overlaps[i].seqIdx].name, overlaps[i].seqIdx, overlaps[i].readStart, overlaps[i].readEnd,
-			//		overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].strand, overlaps[i].similarity) ;
-			if ( overlaps[i].readEnd - overlaps[i].readStart > len / 2 
-					&& ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
+				//	overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].strand, overlaps[i].similarity) ;
+			if (IsSeparatorInRange(overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].seqIdx))
+				continue ;
+
+			bool needClip = false ;
+			if (IsSeparatorInRange(overlaps[i].seqStart - overlaps[i].readStart,
+						overlaps[i].seqEnd + (len - overlaps[i].readEnd - 1), overlaps[i].seqIdx ))
+				needClip = true ;
+			if (onlyConsiderClip 
+					&& (!needClip || overlaps[i].similarity < 0.95))
+				continue ;
+
+			if ( ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
 			{
 				//printf( "e0 %d-%d %d-%d %lf\n", eOverlap.readStart, eOverlap.readEnd,
 				//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity) ;
 				extendedOverlaps.push_back(eOverlap) ;
 			}
 			else
-				break ;
+				onlyConsiderClip = true ;
 		}
 	
 		delete[] rc ;
@@ -1651,6 +1736,11 @@ public:
 		assign = extendedOverlaps ;	
 		//printf("%d\n", assign.size()) ;
 		return assign.size() ;
+	}
+
+	int IsFragmentSpanSeparator(const struct _fragmentOverlap &assign)
+	{
+		return IsSeparatorInRange(assign.seqStart, assign.seqEnd, assign.seqIdx) ;
 	}
 
 	int ReadAssignmentToFragmentAssignment( std::vector<struct _overlap> *pOverlaps1, std::vector<struct _overlap> *pOverlaps2, int barcode, std::vector<struct _fragmentOverlap> &assign )
@@ -1738,7 +1828,8 @@ public:
 				// TODO: there might be other better ways to combine the mate pairs.
 				fragmentOverlap.similarity = (double)fragmentOverlap.matchCnt / 
 					(o.readEnd - o.readStart + 1 + o2.readEnd - o2.readStart + 1 + 
-					 o.seqEnd - o.seqStart + 1 + o2.seqEnd - o2.seqStart + 1 ) ;
+					 o.seqEnd - o.seqStart + 1 + o2.seqEnd - o2.seqStart + 1 
+					 + 2 * o.leftClip + 2 * o.rightClip + 2 * o2.leftClip + 2 * o2.rightClip) ;
 				//printf("%s: %d %d\n", seqs[fragmentOverlap.seqIdx].name, fragments[i].a, fragments[i].b) ;	
 				fragmentOverlap.hasMatePair = true ;
 				fragmentOverlap.overlap2 = o2 ;
@@ -1779,6 +1870,7 @@ public:
 		struct _fragmentOverlap bestAssign ;
 		int assignCnt = assign.size() ;
 		bestAssign.matchCnt = -1 ;
+		int bestAssignTag = 0 ;
 		for (i = 0 ; i < assignCnt ; ++i)
 		{
 			if (assign[i].matchCnt > bestAssign.matchCnt 
@@ -1786,18 +1878,41 @@ public:
 							&& assign[i].similarity > bestAssign.similarity))
 			{
 				bestAssign = assign[i] ; 
+				bestAssignTag = i ;
 			}
 		}
 		k = 0 ;
 		for (i = 0 ; i < assignCnt ; ++i)
 		{
+			if (i == bestAssignTag)
+				bestAssignTag = k ;
 			if (assign[i].matchCnt == bestAssign.matchCnt && assign[i].similarity == bestAssign.similarity )
 			{
 				assign[k] = assign[i] ;
 				++k ;
 			}
+			/*else if (assign[i].overlap1 <= bestAssign.overlap1
+					&& (bestAssign.overlap2.similarity < 1 
+						&& assign[i].overlap2.matchCnt >= bestAssign.overlap2.matchCnt - 2)) 
+			{
+				assign[k] = assign[i] ;
+				++k ;
+			}
+			else if (assign[i].overlap2 <= bestAssign.overlap2
+					&& (bestAssign.overlap1.similarity < 1 
+						&& assign[i].overlap1.matchCnt >= bestAssign.overlap1.matchCnt - 2)) 
+			{
+				assign[k] = assign[i] ;
+				++k ;
+			}*/
 		}
 		assign.resize(k) ;
+		/*if (k > 0)
+		{
+			struct _fragmentOverlap tmpAssign = assign[0] ;
+			assign[0] = bestAssign ;
+			assign[bestAssignTag] = tmpAssign ;
+		}*/
 
 		// Check whether there is better alignment but mate could not be aligned due to truncated reference gene (e.g. UTR).
 		if (assign.size() > 0 && pOverlaps2 != NULL)
@@ -1820,6 +1935,10 @@ public:
 					{
 						filter = true ;
 					}
+					else if (overlaps[i].similarity > assign[0].overlap2.similarity + 0.1)
+					{
+						filter = true ;
+					}
 				}
 			}
 			// Better read 2
@@ -1832,6 +1951,10 @@ public:
 						&& seqIdxToOverlapIdx.find(overlaps2[i].seqIdx) == seqIdxToOverlapIdx.end())
 				{
 					if (TruncatedMatePairOverlap(overlaps2[i], assign[0].overlap2, assign[0].overlap1))
+					{
+						filter = true ;
+					}
+					else if (overlaps2[i].similarity > assign[0].overlap1.similarity + 0.1)
 					{
 						filter = true ;
 					}

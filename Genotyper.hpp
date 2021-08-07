@@ -154,6 +154,8 @@ private:
 			ret = 0.01 ;
 		else if (similarity < 0.95)
 			ret = 0.1 ;
+		//else if (similarity < 1)
+		//	ret = 0.5 ;
 		
 		return ret ;
 	}
@@ -161,6 +163,126 @@ private:
 	int Rand()
 	{
 		return randomSeed = (48271 * randomSeed) & 0x7fffffff ;
+	}
+
+	double alnorm ( double x, bool upper )
+
+		//****************************************************************************80
+		//
+		//  Purpose:
+		//
+		//    ALNORM computes the cumulative density of the standard normal distribution.
+		//
+		//  Licensing:
+		//
+		//    This code is distributed under the GNU LGPL license. 
+		//
+		//  Modified:
+		//
+		//    17 January 2008
+		//
+		//  Author:
+		//
+		//    Original FORTRAN77 version by David Hill.
+		//    C++ version by John Burkardt.
+		//
+		//  Reference:
+		//
+		//    David Hill,
+		//    Algorithm AS 66:
+		//    The Normal Integral,
+		//    Applied Statistics,
+		//    Volume 22, Number 3, 1973, pages 424-427.
+		//
+		//  Parameters:
+		//
+		//    Input, double X, is one endpoint of the semi-infinite interval
+		//    over which the integration takes place.
+		//
+		//    Input, bool UPPER, determines whether the upper or lower
+		//    interval is to be integrated:
+		//    .TRUE.  => integrate from X to + Infinity;
+		//    .FALSE. => integrate from - Infinity to X.
+		//
+		//    Output, double ALNORM, the integral of the standard normal
+		//    distribution over the desired interval.
+		//
+	{
+		double a1 = 5.75885480458;
+		double a2 = 2.62433121679;
+		double a3 = 5.92885724438;
+		double b1 = -29.8213557807;
+		double b2 = 48.6959930692;
+		double c1 = -0.000000038052;
+		double c2 = 0.000398064794;
+		double c3 = -0.151679116635;
+		double c4 = 4.8385912808;
+		double c5 = 0.742380924027;
+		double c6 = 3.99019417011;
+		double con = 1.28;
+		double d1 = 1.00000615302;
+		double d2 = 1.98615381364;
+		double d3 = 5.29330324926;
+		double d4 = -15.1508972451;
+		double d5 = 30.789933034;
+		double ltone = 7.0;
+		double p = 0.398942280444;
+		double q = 0.39990348504;
+		double r = 0.398942280385;
+		bool up;
+		double utzero = 18.66;
+		double value;
+		double y;
+		double z;
+
+		up = upper;
+		z = x;
+
+		if ( z < 0.0 )
+		{
+			up = !up;
+			z = - z;
+		}
+
+		if ( ltone < z && ( ( !up ) || utzero < z ) )
+		{
+			if ( up )
+			{
+				value = 0.0;
+			}
+			else
+			{
+				value = 1.0;
+			}
+			return value;
+		}
+
+		y = 0.5 * z * z;
+
+		if ( z <= con )
+		{
+			value = 0.5 - z * ( p - q * y 
+					/ ( y + a1 + b1 
+						/ ( y + a2 + b2 
+							/ ( y + a3 ))));
+		}
+		else
+		{
+			value = r * exp ( - y ) 
+				/ ( z + c1 + d1 
+						/ ( z + c2 + d2 
+							/ ( z + c3 + d3 
+								/ ( z + c4 + d4 
+									/ ( z + c5 + d5 
+										/ ( z + c6 ))))));
+		}
+
+		if ( !up )
+		{
+			value = 1.0 - value;
+		}
+
+		return value;
 	}
 
 	int readCnt ;
@@ -341,6 +463,20 @@ public:
 		/*for (i = 1 ; i < assignmentCnt ; ++i)
 			if ( alleleInfo[assignment[i].seqIdx].geneIdx != alleleInfo[assignment[i - 1].seqIdx].geneIdx)
 				return ;*/
+		double weightFactor = 1.0 ;
+		/*for (i = 1 ; i < assignmentCnt ; ++i)
+			if (assignment[i].overlap1.matchCnt != assignment[i - 1].overlap1.matchCnt ||
+					assignment[i].overlap2.matchCnt != assignment[i - 1].overlap2.matchCnt)
+			{
+				weightFactor = 0.1 ;
+				return;
+				break ;
+			}*/
+		for (i = 0 ; i < assignmentCnt ; ++i)
+		{
+			if (refSet.IsFragmentSpanSeparator(assignment[i]))
+				return;
+		}
 
 		for (i = 0; i < assignmentCnt; ++i)
 		{
@@ -1052,14 +1188,14 @@ public:
 				int alleleRank = -1 ;
 
 				int selectedAlleleSize = selectedAlleles[geneIdx].size() ;
-				for (k = 0 ; k < selectedAlleleSize ; ++k)
+				/*for (k = 0 ; k < selectedAlleleSize ; ++k)
 				{
 					if (alleleInfo[selectedAlleles[geneIdx][k].a].majorAlleleIdx == majorAlleleIdx)
 					{
 						alleleRank = selectedAlleles[geneIdx][k].b ;
 						break ;
 					}
-				}
+				}*/
 				if (alleleRank == -1)
 				{
 					if (geneAlleleTypes.find(geneIdx) != geneAlleleTypes.end()) 
@@ -1219,7 +1355,7 @@ public:
 							}
 						}	
 						//coveredReadCnt += sqrt(abundanceJ) + sqrt(abundanceK) ;
-
+						abundanceSum = abundanceJ * abundanceK ;
 #ifdef DEBUG
 						printf("Further selection %s %s %lf %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceSum, coveredReadCnt) ;
 #endif
@@ -1289,15 +1425,17 @@ public:
 
 		// Set the genes with too few abundance to quality 0.
 		double *geneAbundances = new double[geneCnt] ;
+		double totalGeneAbundance = 0 ;
 		for (i = 0 ; i < geneCnt ; ++i)
 		{
 			int size = selectedAlleles[i].size() ;
 			geneAbundances[i] = 0 ;
 			for (j = 0 ; j < size ; ++j)
 				geneAbundances[i] += alleleInfo[selectedAlleles[i][j].a].abundance ;
+			totalGeneAbundance += geneAbundances[i] ;
 		}
 		std::sort(geneAbundances, geneAbundances + geneCnt, CompSortDoubleDec) ;
-		double geneAbundanceCutoff = geneAbundances[0] / 10.0 ;
+		/*double geneAbundanceCutoff = geneAbundances[0] / 10.0 ;
 		if (geneCnt > 5)
 			geneAbundanceCutoff = geneAbundances[1] / 10.0 ;
 
@@ -1312,7 +1450,35 @@ public:
 				for (j = 0 ; j < size ; ++j)
 					alleleInfo[selectedAlleles[i][j].a].genotypeQuality = 0 ;
 			}
+		}*/
+
+		// Compute the quality score statistically
+		double crossGeneRate = 0.001 ;
+		double crossAlleleRate = 0.01 ;
+		for (i = 0 ; i < geneCnt ; ++i)
+		{
+			int type = 0 ;
+			std::vector<double> alleleRankAbund ;
+			int size = selectedAlleles[i].size() ;
+			alleleRankAbund.clear() ;
+			int rankCnt = GetGeneAlleleTypes(i) ;
+			for (j = 0 ; j < rankCnt ; ++j)
+				alleleRankAbund.push_back(0) ;
+			
+			for (j = 0 ; j < size ; ++j)
+				alleleRankAbund[ selectedAlleles[i][j].b ] += alleleInfo[selectedAlleles[i][j].a].abundance ;
+		
+			for (j = 0 ; j < rankCnt ; ++j)
+			{
+				double nullMean = (geneAbundances[i] - alleleRankAbund[j]) * crossAlleleRate + 
+				 (totalGeneAbundance - geneAbundances[i])	* crossGeneRate ;
+				double score = -log(alnorm(2 * (sqrt(alleleRankAbund[j]) - sqrt(nullMean)), true) * geneCnt * 2)/log(double(10.0)) ;
+				for (k = 0 ; k < size; ++k)
+					if (selectedAlleles[i][k].b == j && alleleInfo[selectedAlleles[i][k].a].genotypeQuality > 0)
+						alleleInfo[selectedAlleles[i][k].a].genotypeQuality = (int)score;
+			}
 		}
+		 
 		
 		delete[] readCoverage ;
 		delete[] geneAbundances ;
