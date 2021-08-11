@@ -464,7 +464,9 @@ private:
 		int size = separator.size() ;
 		for (i = 0 ; i < size ; ++i)
 			if (separator[i] >= s && separator[i] <= e)
+			{
 				return 1 ;
+			}
 		return 0 ;
 	}
 
@@ -580,7 +582,7 @@ public:
 			sw.effectiveLen = sw.consensusLen ; //effectiveLen ; 	
 			sw.barcode = -1 ;
 			
-			sw.separator.push_back(0) ;
+			sw.separator.push_back(-1) ;
 			for (i = 0 ; sw.consensus[i] ; ++i)
 				if (sw.consensus[i] == 'N')
 					sw.separator.push_back(i) ;
@@ -1891,16 +1893,14 @@ public:
 				assign[k] = assign[i] ;
 				++k ;
 			}
-			/*else if (assign[i].overlap1 <= bestAssign.overlap1
-					&& (bestAssign.overlap2.similarity < 1 
-						&& assign[i].overlap2.matchCnt >= bestAssign.overlap2.matchCnt - 2)) 
+			/*else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 
+						&& assign[i].overlap2.matchCnt >= bestAssign.overlap2.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
 				++k ;
 			}
-			else if (assign[i].overlap2 <= bestAssign.overlap2
-					&& (bestAssign.overlap1.similarity < 1 
-						&& assign[i].overlap1.matchCnt >= bestAssign.overlap1.matchCnt - 2)) 
+			else if (assign[i].overlap2 <= bestAssign.overlap2 && bestAssign.overlap2.similarity == 1
+						&& assign[i].overlap1.matchCnt >= bestAssign.overlap1.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
 				++k ;
@@ -1953,6 +1953,7 @@ public:
 					if (TruncatedMatePairOverlap(overlaps2[i], assign[0].overlap2, assign[0].overlap1))
 					{
 						filter = true ;
+						//printf("%s %d. %d-%d\n", seqs[overlaps2[i].seqIdx].name, overlaps2[i].seqStart, assign[0].overlap2.seqStart, assign[0].overlap1.seqStart) ;
 					}
 					else if (overlaps2[i].similarity > assign[0].overlap1.similarity + 0.1)
 					{

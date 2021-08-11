@@ -19,7 +19,11 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"Optional:\n"
 		"\t-a STRING: path to the abundance file\n"
 		"\t-t INT: number of threads (default: 1)\n"
+		"\t-o STRING: output prefix (defult: kir)\n"
 		"\t-n INT: maximal number of alleles per read (default: 2000)\n"
+		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
+		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
+		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.01)"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -31,6 +35,9 @@ char numToNuc[4] = {'A', 'C', 'G', 'T'} ;
 
 static const char *short_options = "f:a:u:1:2:o:t:n:" ;
 static struct option long_options[] = {
+	{ "frac", required_argument, 0, 10000 },
+	{ "cov", required_argument, 0, 10001 },
+	{ "crossGeneRate", required_argument, 0, 10002},
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -179,6 +186,9 @@ int main(int argc, char *argv[])
 	int threadCnt = 1 ;
 	int maxAssignCnt = 2000 ;
 	FILE *fpAbundance = NULL ;
+	double filterFrac = 0.15 ;
+	double filterCov = 1.0 ;
+	double crossGeneRate = 0.001 ;
 
 	while (1)	
 	{
@@ -221,6 +231,18 @@ int main(int argc, char *argv[])
 		{
 			maxAssignCnt = atoi(optarg) ;
 		}
+		else if ( c == 10000 ) // --frac
+		{
+			filterFrac = atof(optarg) ;
+		}
+		else if ( c == 10001 ) // --cov
+		{
+			filterCov = atof(optarg) ;
+		}
+		else if ( c == 10002 ) // --crossGeneRate
+		{
+			crossGeneRate = atof(optarg) ;
+		}
 		else
 		{
 			fprintf( stderr, "%s", usage ) ;
@@ -234,6 +256,11 @@ int main(int argc, char *argv[])
 		fprintf( stderr, "Need to use -f to specify the receptor genome sequence.\n" );
 		return EXIT_FAILURE;
 	}
+
+	genotyper.SetFilterFrac(filterFrac) ;
+	genotyper.SetFilterCov(filterCov) ;
+	genotyper.SetCrossGeneRate(crossGeneRate) ;
+
 
 	int alleleCnt = refSet.Size() ;
 

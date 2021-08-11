@@ -149,11 +149,11 @@ private:
 		//	similarity = o.overlap2.similarity ;
 		
 		if (similarity < 0.85)
-			ret = 0.001 ;
-		else if (similarity < 0.9)
 			ret = 0.01 ;
-		else if (similarity < 0.95)
+		else if (similarity < 0.9)
 			ret = 0.1 ;
+		else if (similarity < 0.95)
+			ret = 0.5 ;
 		//else if (similarity < 1)
 		//	ret = 0.5 ;
 		
@@ -285,38 +285,6 @@ private:
 		return value;
 	}
 
-	int readCnt ;
-	int totalReadCnt ;
-	int maxAssignCnt ;
-	std::vector< std::vector<int> >	readsInAllele ;
-	std::vector< std::vector<struct _readAssignment> > readAssignments ; // Coalesce reads assigned to the same alleles 
-	std::map<int, std::vector<int> > readAssignmentsFingerprintToIdx ;
-	std::vector< std::vector<struct _readAssignment> > allReadAssignments ;
-	std::vector< std::vector<int> > equivalentClassToAlleles ;
-	std::vector< std::vector<struct _pair> >	selectedAlleles ; // a-allele name, b-which allele (0,1)
-	
-	// variables for allele, majorAllele and genes	
-	char *geneBuffer ;
-	char *majorAlleleBuffer ;	
-
-	SimpleVector<struct _alleleInfo> alleleInfo ;
-	std::map<std::string, int> majorAlleleNameToIdx ;
-	std::map<std::string, int> geneNameToIdx ;
-	std::vector<std::string> geneIdxToName ;
-	std::vector<std::string> majorAlleleIdxToName ;
-	int geneCnt ;
-	int majorAlleleCnt ;
-	int alleleCnt ;
-
-	// variables for abundance
-	SimpleVector<double> geneAbundance ;
-	SimpleVector<double> majorAlleleAbundance ;
-	SimpleVector<double> geneMaxMajorAlleleAbundance ;
-
-	int64_t randomSeed ;
-
-	int geneType ;  // not used actually
-
 	double EMupdate(double *ecAbundance0, double *ecAbundance1, double *ecReadCount, const std::vector<std::vector<int> > &readGroupToAlleleEc, const SimpleVector<struct _readGroupInfo> readGroupInfo, const double *ecLength)
 	{
 		int ecCnt = equivalentClassToAlleles.size() ;
@@ -355,7 +323,7 @@ private:
 		}
 		return diffSum ;
 	}
-	
+
 	// Compute the update coeffcient alpha in the SQUREEM paper
 	double SQUAREMalpha(double *t0, double *t1, double *t2, int n)
 	{
@@ -370,6 +338,44 @@ private:
 		return -sqrt(sqrSumR) / sqrt(sqrSumV) ;
 	}
 
+
+	int readCnt ;
+	int totalReadCnt ;
+	int maxAssignCnt ;
+	std::vector< std::vector<int> >	readsInAllele ;
+	std::vector< std::vector<struct _readAssignment> > readAssignments ; // Coalesce reads assigned to the same alleles 
+	std::map<int, std::vector<int> > readAssignmentsFingerprintToIdx ;
+	std::vector< std::vector<struct _readAssignment> > allReadAssignments ;
+	std::vector< std::vector<int> > equivalentClassToAlleles ;
+	std::vector< std::vector<struct _pair> >	selectedAlleles ; // a-allele name, b-which allele (0,1)
+	
+	// variables for allele, majorAllele and genes	
+	char *geneBuffer ;
+	char *majorAlleleBuffer ;	
+
+	SimpleVector<struct _alleleInfo> alleleInfo ;
+	std::map<std::string, int> majorAlleleNameToIdx ;
+	std::map<std::string, int> geneNameToIdx ;
+	std::vector<std::string> geneIdxToName ;
+	std::vector<std::string> majorAlleleIdxToName ;
+	int geneCnt ;
+	int majorAlleleCnt ;
+	int alleleCnt ;
+
+	// variables for abundance
+	SimpleVector<double> geneAbundance ;
+	SimpleVector<double> majorAlleleAbundance ;
+	SimpleVector<double> geneMaxMajorAlleleAbundance ;
+
+	int64_t randomSeed ;
+
+	int geneType ;  // not used actually
+
+	// variables for filter
+	double filterFrac ;
+	double filterCov ;
+	double crossGeneRate ;
+
 public:
 	SeqSet refSet ;
 	
@@ -381,6 +387,10 @@ public:
 		maxAssignCnt = 2000 ;
 		randomSeed = 17 ;
 		geneType = GENETYPE_KIR ;
+
+		filterFrac = 0.15 ;
+		filterCov = 1.0 ;
+		crossGeneRate = 0.001 ;
 	}
 
 	~Genotyper() 
@@ -392,6 +402,21 @@ public:
 	void SetGeneType(int g)
 	{
 		geneType = g ;
+	}
+
+	void SetFilterFrac(double f)
+	{
+		filterFrac = f ;
+	}
+
+	void SetFilterCov(double c)
+	{
+		filterCov = c ;
+	}
+
+	void SetCrossGeneRate(double r)
+	{
+		crossGeneRate = r ;
 	}
 
 	void InitRefSet(char *filename)
@@ -488,7 +513,7 @@ public:
 			allReadAssignments[readId].push_back(na) ;
 		}
 	}
-	
+		
 	// Coalesce the [begin,end] all reads to the read assignment
 	int CoalesceReadAssignments(int begin, int end)
 	{
@@ -571,7 +596,7 @@ public:
 				readsInAllele[readAssignments[i][j].alleleIdx].push_back(i) ;
 			}
 		}
-
+		
 		BuildAlleleEquivalentClass() ;
 		return ret ;
 	}
@@ -1134,8 +1159,8 @@ public:
 				int geneIdx = alleleInfo[alleleIdx].geneIdx ;
 				
 				// geneMaxAllele is at allele level, ecAbundance is at equivalent class level
-				if (alleleInfo[alleleIdx].ecAbundance < 0.1 * geneMaxMajorAlleleAbundance[geneIdx]
-						&& totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] / alleleInfo[alleleIdx].ecAbundance)				
+				if (alleleInfo[alleleIdx].ecAbundance < filterFrac * geneMaxMajorAlleleAbundance[geneIdx]
+						&& totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] / alleleInfo[alleleIdx].ecAbundance / filterFrac)				
 					continue ;
 				if (covered == totalAssignedWeight 
 						&& (alleleInfo[alleleIdx].ecAbundance < 0.25 * geneMaxMajorAlleleAbundance[geneIdx]
@@ -1305,7 +1330,7 @@ public:
 						int size = readsInAllele[alleleIdx].size() ;
 						for (r = 0 ; r < size ; ++r)
 							if (readCoverage[readsInAllele[alleleIdx][r]] == 0)
-								coveredReadsFromA[readsInAllele[alleleIdx][r]] = 1 ;
+								coveredReadsFromA[readsInAllele[alleleIdx][r]] |= 1 ;
 						alleleJ = l ;
 					}
 					for (k = j + 1 ; k < alleleTypeCnt ; ++k)
@@ -1325,16 +1350,10 @@ public:
 							int size = readsInAllele[alleleIdx].size() ;
 							for (r = 0 ; r < size ; ++r)
 								if (readCoverage[readsInAllele[alleleIdx][r]] == 0)
-									coveredReads[readsInAllele[alleleIdx][r]] = 1 ;
+									coveredReads[readsInAllele[alleleIdx][r]] |= 3 ;
 							alleleK = l ;
 						}
 
-						double coveredReadCnt = 0 ; //coveredReads.size() ;
-						for (std::map<int ,int>::iterator it = coveredReads.begin(); it != coveredReads.end() ; ++it)
-						{
-							coveredReadCnt += readAssignments[it->first][0].weight ; // the read must have some assignment to be here.
-						}
-						
 						struct _pair np ;
 						np.a = j ;
 						np.b = k ;
@@ -1356,6 +1375,16 @@ public:
 						}	
 						//coveredReadCnt += sqrt(abundanceJ) + sqrt(abundanceK) ;
 						abundanceSum = abundanceJ * abundanceK ;
+						
+						double coveredReadCnt = 0 ; //coveredReads.size() ;
+						for (std::map<int ,int>::iterator it = coveredReads.begin(); it != coveredReads.end() ; ++it)
+						{
+							/*if (it->second & 1)
+								coveredReadCnt += sqrt(readAssignments[it->first][0].weight) * abundanceJ / (abundanceJ + abundanceK); // the read must have some assignment to be here.
+							if (it->second & 3)
+								coveredReadCnt += sqrt(readAssignments[it->first][0].weight) * abundanceK / (abundanceJ + abundanceK); // the read must have some assignment to be here.*/
+							coveredReadCnt += readAssignments[it->first][0].weight ;
+						}
 #ifdef DEBUG
 						printf("Further selection %s %s %lf %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceSum, coveredReadCnt) ;
 #endif
@@ -1434,8 +1463,8 @@ public:
 				geneAbundances[i] += alleleInfo[selectedAlleles[i][j].a].abundance ;
 			totalGeneAbundance += geneAbundances[i] ;
 		}
-		std::sort(geneAbundances, geneAbundances + geneCnt, CompSortDoubleDec) ;
-		/*double geneAbundanceCutoff = geneAbundances[0] / 10.0 ;
+		/*std::sort(geneAbundances, geneAbundances + geneCnt, CompSortDoubleDec) ;
+		double geneAbundanceCutoff = geneAbundances[0] / 10.0 ;
 		if (geneCnt > 5)
 			geneAbundanceCutoff = geneAbundances[1] / 10.0 ;
 
@@ -1453,7 +1482,6 @@ public:
 		}*/
 
 		// Compute the quality score statistically
-		double crossGeneRate = 0.001 ;
 		double crossAlleleRate = 0.01 ;
 		for (i = 0 ; i < geneCnt ; ++i)
 		{
@@ -1472,10 +1500,25 @@ public:
 			{
 				double nullMean = (geneAbundances[i] - alleleRankAbund[j]) * crossAlleleRate + 
 				 (totalGeneAbundance - geneAbundances[i])	* crossGeneRate ;
-				double score = -log(alnorm(2 * (sqrt(alleleRankAbund[j]) - sqrt(nullMean)), true) * geneCnt * 2)/log(double(10.0)) ;
+				//printf("0: %d %lf %lf %lf\n", i, geneAbundances[i], totalGeneAbundance, alleleRankAbund[j]) ;
+				double score = 0 ;
+				if (alleleRankAbund[j])
+					score = -log(alnorm(2 * (sqrt(alleleRankAbund[j]) - sqrt(nullMean)), true) * geneCnt * 2)/log(double(10.0)) ;
+				
+				//printf("1: %d %lf %lf %lf\n", i, score, alleleRankAbund[j], nullMean) ;
+				if (score > 60)
+					score = 60 ;
+				if (score < 0)
+					score = 0 ;
+				
+				if (alleleRankAbund[j] < filterCov)
+						score = 0 ;
+
 				for (k = 0 ; k < size; ++k)
 					if (selectedAlleles[i][k].b == j && alleleInfo[selectedAlleles[i][k].a].genotypeQuality > 0)
+					{
 						alleleInfo[selectedAlleles[i][k].a].genotypeQuality = (int)score;
+					}
 			}
 		}
 		 
