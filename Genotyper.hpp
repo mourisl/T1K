@@ -6,6 +6,7 @@
 #include "SeqSet.hpp"
 
 #include "defs.h"
+#include "KmerCount.hpp"
 #include "SimpleVector.hpp"
 
 #define GENETYPE_KIR 0
@@ -375,6 +376,7 @@ private:
 	double filterFrac ;
 	double filterCov ;
 	double crossGeneRate ;
+	double **geneSimilarity ;
 
 public:
 	SeqSet refSet ;
@@ -391,12 +393,19 @@ public:
 		filterFrac = 0.15 ;
 		filterCov = 1.0 ;
 		crossGeneRate = 0.001 ;
+
+		geneSimilarity = NULL ;
 	}
 
 	~Genotyper() 
 	{
 		delete[] geneBuffer ;
 		delete[] majorAlleleBuffer ;
+
+		int i ;
+		for (i = 0 ; i < geneCnt ; ++i)
+			delete[] geneSimilarity[i] ;
+		delete[] geneSimilarity ;
 	}
 
 	void SetGeneType(int g)
@@ -421,7 +430,7 @@ public:
 
 	void InitRefSet(char *filename)
 	{
-		int i ;
+		int i, j ;
 
 		refSet.InputRefFa(filename) ;
 
@@ -456,6 +465,35 @@ public:
 			alleleInfo[i].abundance = 0 ;
 			alleleInfo[i].genotypeQuality = -1 ;
 		}
+		
+		geneSimilarity = new double*[geneCnt] ;
+		KmerCount *kmerProfiles = new KmerCount[geneCnt];
+		for (i = 0 ; i < geneCnt ; ++i)
+		{
+			geneSimilarity[i] = new double[geneCnt] ;
+			// Select the lexcographically smallest
+			int minTag = -1 ;
+			for (j = 0 ; j < alleleCnt ; ++j)
+			{
+				if (alleleInfo[j].geneIdx != i)
+					continue ;
+				if (minTag == -1 || strcmp( refSet.GetSeqConsensus(j), refSet.GetSeqConsensus(minTag) ) < 0)
+					minTag = j ;
+			}
+
+			kmerProfiles[i].AddCount(refSet.GetSeqConsensus(minTag)) ;
+		}
+
+		for (i = 0 ; i < geneCnt ; ++i)
+		{
+			geneSimilarity[i][i] = 1.0 ;
+			for (j = i + 1 ; j < geneCnt ; ++j)
+			{
+				geneSimilarity[i][j] = geneSimilarity[j][i] = kmerProfiles[i].GetCountSimilarity( kmerProfiles[j] ) ;
+				//printf("%d %d %lf\n", i, j, geneSimilarity[i][j]) ;
+			}
+		}
+		delete[] kmerProfiles ;
 	}
 
 	void InitReadAssignments(int totalReadCnt, int maxAssignCnt)
@@ -1158,6 +1196,19 @@ public:
 				alleleIdx = equivalentClassToAlleles[ec][j] ;
 				int geneIdx = alleleInfo[alleleIdx].geneIdx ;
 				
+				int selectedAllelesCnt = selectedAlleles[geneIdx].size() ;
+				/*for (k = 0 ; k < selectedAllelesCnt ; ++k)
+				{
+					if (alleleInfo[alleleIdx].majorAlleleIdx == 
+							alleleInfo[ selectedAlleles[geneIdx][k].a ].majorAlleleIdx)
+					{
+						allelesToAdd.PushBack(alleleIdx) ;
+						break ;
+					}
+				}
+				if (k < selectedAllelesCnt)
+					continue ;*/
+
 				// geneMaxAllele is at allele level, ecAbundance is at equivalent class level
 				if (alleleInfo[alleleIdx].ecAbundance < filterFrac * geneMaxMajorAlleleAbundance[geneIdx]
 						&& totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] / alleleInfo[alleleIdx].ecAbundance / filterFrac)				
@@ -1213,14 +1264,14 @@ public:
 				int alleleRank = -1 ;
 
 				int selectedAlleleSize = selectedAlleles[geneIdx].size() ;
-				/*for (k = 0 ; k < selectedAlleleSize ; ++k)
+				for (k = 0 ; k < selectedAlleleSize ; ++k)
 				{
 					if (alleleInfo[selectedAlleles[geneIdx][k].a].majorAlleleIdx == majorAlleleIdx)
 					{
 						alleleRank = selectedAlleles[geneIdx][k].b ;
 						break ;
 					}
-				}*/
+				}
 				if (alleleRank == -1)
 				{
 					if (geneAlleleTypes.find(geneIdx) != geneAlleleTypes.end()) 
@@ -1234,7 +1285,7 @@ public:
 				alleleInfo[alleleIdx].genotypeQuality = quality ;
 				alleleInfo[alleleIdx].alleleRank = alleleRank ;
 				//printf("%s %lf %d\n", refSet.GetSeqName(alleleIdx), alleleRank, alleleInfo[alleleIdx].ecAbundance ) ;
-				if (alleleInfo[alleleIdx].ecAbundance < 0.1 * geneMaxMajorAlleleAbundance[geneIdx])
+				if (alleleInfo[alleleIdx].ecAbundance < filterFrac * geneMaxMajorAlleleAbundance[geneIdx])
 					alleleInfo[alleleIdx].genotypeQuality = 0 ; 
 
 				struct _pair np ;
@@ -1495,15 +1546,22 @@ public:
 			
 			for (j = 0 ; j < size ; ++j)
 				alleleRankAbund[ selectedAlleles[i][j].b ] += alleleInfo[selectedAlleles[i][j].a].abundance ;
-		
+			
+			double crossGeneNoise = 0 ;
+			for (j = 0 ; j < geneCnt ; ++j)
+			{
+				if (i == j)
+					continue ;
+				crossGeneNoise += crossGeneRate * (1 + geneSimilarity[i][j]) * geneAbundances[j];
+			}
+
 			for (j = 0 ; j < rankCnt ; ++j)
 			{
-				double nullMean = (geneAbundances[i] - alleleRankAbund[j]) * crossAlleleRate + 
-				 (totalGeneAbundance - geneAbundances[i])	* crossGeneRate ;
+				double nullMean = (geneAbundances[i] - alleleRankAbund[j]) * crossAlleleRate + crossGeneNoise ;
 				//printf("0: %d %lf %lf %lf\n", i, geneAbundances[i], totalGeneAbundance, alleleRankAbund[j]) ;
 				double score = 0 ;
 				if (alleleRankAbund[j])
-					score = -log(alnorm(2 * (sqrt(alleleRankAbund[j]) - sqrt(nullMean)), true) * geneCnt * 2)/log(double(10.0)) ;
+					score = -log(alnorm(2 * (sqrt(alleleRankAbund[j]) - sqrt(nullMean)), true) /** geneCnt * 2*/)/log(double(10.0)) ;
 				
 				//printf("1: %d %lf %lf %lf\n", i, score, alleleRankAbund[j], nullMean) ;
 				if (score > 60)

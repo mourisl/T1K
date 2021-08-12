@@ -23,7 +23,7 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t-n INT: maximal number of alleles per read (default: 2000)\n"
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
-		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.01)"
+		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.05)"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
 	FILE *fpAbundance = NULL ;
 	double filterFrac = 0.15 ;
 	double filterCov = 1.0 ;
-	double crossGeneRate = 0.001 ;
+	double crossGeneRate = 0.005 ;
 
 	while (1)	
 	{
