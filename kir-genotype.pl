@@ -21,6 +21,9 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "\t-o STRING: prefix of output files. (default: inferred from file prefix)\n".
     "\t--od STRING: the directory for output files. (default: ./)\n".
     "\t-t INT: number of threads (default: 1)\n".
+		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n".
+		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n".
+		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.005)\n".
     "\t--barcode STRING: if -b, BAM field for barcode; if -1 -2/-u, file containing barcodes (default: not used)\n".
     "\t--barcodeRange INT INT CHAR: start, end(-1 for length-1), strand in a barcode is the true barcode (default: 0 -1 +)\n".
     "\t--barcodeWhitelist STRING: path to the barcode whitelist (default: not used)\n".
@@ -58,7 +61,7 @@ my @barcodeFiles ;
 my $prefix = "" ;
 my $bamExtractorArgs = "" ;
 my $fastqExtractorArgs = "" ;
-my $genotypeArgs = "" ;
+my $genotyperArgs = "" ;
 my $threadCnt = 1 ;
 my $stage = 0 ;
 my $noExtraction = 0 ;
@@ -69,6 +72,10 @@ my $outputDirectory = "" ;
 my $refCoordFasta = "" ;
 my $refSeqFasta = "" ;
 
+#my $filterFrac = 0.15 ;
+#my $filterCov = 1.0 ;
+#my $crossGeneRate = 0.0005 ;
+my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0) ;
 print STDERR "[".localtime()."] $progName begins.\n" ;
 for ( $i = 0 ; $i < @ARGV ; ++$i )
 {
@@ -188,6 +195,11 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 	elsif ( $ARGV[$i] eq "--stage" )
 	{
 		$stage = $ARGV[$i + 1] ;
+		++$i ;
+	}
+	elsif ( defined( $genotyperArgNames{$ARGV[$i]} ) )
+	{
+		$genotyperArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
 		++$i ;
 	}
 	else
@@ -344,11 +356,11 @@ if ( $stage <= 1 )
 	my @cols = split /\s/, $candidateFiles ;
 	if (scalar(@cols) > 1)
 	{
-		system_call("$WD/genotyper -t $threadCnt -f $refSeqFasta -1 ".$cols[0]." -2 ".$cols[1]." > ${prefix}_genotype.tsv") ;
+		system_call("$WD/genotyper $genotyperArgs -t $threadCnt -f $refSeqFasta -1 ".$cols[0]." -2 ".$cols[1]." > ${prefix}_genotype.tsv") ;
 	}
 	else
 	{
-		system_call("$WD/genotyper -t $threadCnt -f $refSeqFasta -u ".$cols[0]." > ${prefix}_genotype.tsv") ;
+		system_call("$WD/genotyper $genotyperArgs -t $threadCnt -f $refSeqFasta -u ".$cols[0]." > ${prefix}_genotype.tsv") ;
 	}
 }
 

@@ -392,7 +392,7 @@ public:
 
 		filterFrac = 0.15 ;
 		filterCov = 1.0 ;
-		crossGeneRate = 0.001 ;
+		crossGeneRate = 0.0005 ;
 
 		geneSimilarity = NULL ;
 	}
@@ -1211,7 +1211,8 @@ public:
 
 				// geneMaxAllele is at allele level, ecAbundance is at equivalent class level
 				if (alleleInfo[alleleIdx].ecAbundance < filterFrac * geneMaxMajorAlleleAbundance[geneIdx]
-						&& totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] / alleleInfo[alleleIdx].ecAbundance / filterFrac)				
+						/*&& (totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] / alleleInfo[alleleIdx].ecAbundance / filterFrac
+							|| totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] * filterFrac)*/)				
 					continue ;
 				if (covered == totalAssignedWeight 
 						&& (alleleInfo[alleleIdx].ecAbundance < 0.25 * geneMaxMajorAlleleAbundance[geneIdx]
@@ -1437,7 +1438,7 @@ public:
 							coveredReadCnt += readAssignments[it->first][0].weight ;
 						}
 #ifdef DEBUG
-						printf("Further selection %s %s %lf %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceSum, coveredReadCnt) ;
+						printf("Further selection %s %s %lf %lf %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, coveredReadCnt) ;
 #endif
 						if (coveredReadCnt > maxCover
 								|| (coveredReadCnt == maxCover && abundanceSum > maxCoverAbundance))
