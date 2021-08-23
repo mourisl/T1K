@@ -21,6 +21,7 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t-t INT: number of threads (default: 1)\n"
 		"\t-o STRING: output prefix (defult: kir)\n"
 		"\t-n INT: maximal number of alleles per read (default: 2000)\n"
+		"\t-s FLOAT: filter alignments with alignment similarity less than specified value (defalut: 0.8)"
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
 		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.005)"
@@ -33,7 +34,7 @@ char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2,
 
 char numToNuc[4] = {'A', 'C', 'G', 'T'} ;
 
-static const char *short_options = "f:a:u:1:2:o:t:n:" ;
+static const char *short_options = "f:a:u:1:2:o:t:n:s:" ;
 static struct option long_options[] = {
 	{ "frac", required_argument, 0, 10000 },
 	{ "cov", required_argument, 0, 10001 },
@@ -189,7 +190,8 @@ int main(int argc, char *argv[])
 	double filterFrac = 0.15 ;
 	double filterCov = 1.0 ;
 	double crossGeneRate = 0.0005 ;
-
+	double filterAlignmentSimilarity = 0.8 ;
+	
 	while (1)	
 	{
 		c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
@@ -231,6 +233,10 @@ int main(int argc, char *argv[])
 		{
 			maxAssignCnt = atoi(optarg) ;
 		}
+		else if ( c == 's' )
+		{
+			filterAlignmentSimilarity = atof(optarg) ;
+		}
 		else if ( c == 10000 ) // --frac
 		{
 			filterFrac = atof(optarg) ;
@@ -260,7 +266,7 @@ int main(int argc, char *argv[])
 	genotyper.SetFilterFrac(filterFrac) ;
 	genotyper.SetFilterCov(filterCov) ;
 	genotyper.SetCrossGeneRate(crossGeneRate) ;
-
+	refSet.SetRefSeqSimilarity(filterAlignmentSimilarity) ;
 
 	int alleleCnt = refSet.Size() ;
 

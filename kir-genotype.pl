@@ -75,7 +75,7 @@ my $refSeqFasta = "" ;
 #my $filterFrac = 0.15 ;
 #my $filterCov = 1.0 ;
 #my $crossGeneRate = 0.0005 ;
-my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0) ;
+my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0, "-s"=>0) ;
 print STDERR "[".localtime()."] $progName begins.\n" ;
 for ( $i = 0 ; $i < @ARGV ; ++$i )
 {

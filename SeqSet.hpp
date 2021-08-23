@@ -557,6 +557,11 @@ public:
 		return seqs[seqIdx].effectiveLen ;
 	}
 	
+	void SetRefSeqSimilarity(double s)
+	{
+		refSeqSimilarity = s ;
+	}
+
 	// Input some baseline sequence to match against.
 	void InputRefFa( char *filename ) 
 	{
