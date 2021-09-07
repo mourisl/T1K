@@ -58,7 +58,7 @@ struct _genotypeRead
 	
 	int info ;
 
-	bool operator<(const struct _genotypeRead &b)	
+	bool operator<(const struct _genotypeRead &b) const	
 	{
 		return strcmp(seq, b.seq) < 0 ;
 	}
