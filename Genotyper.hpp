@@ -357,6 +357,7 @@ private:
 	SimpleVector<struct _alleleInfo> alleleInfo ;
 	std::map<std::string, int> majorAlleleNameToIdx ;
 	std::map<std::string, int> geneNameToIdx ;
+	std::vector<int> majorAlleleSize ; // number of alleles in the major allele
 	std::vector<std::string> geneIdxToName ;
 	std::vector<std::string> majorAlleleIdxToName ;
 	int geneCnt ;
@@ -392,7 +393,7 @@ public:
 
 		filterFrac = 0.15 ;
 		filterCov = 1.0 ;
-		crossGeneRate = 0.0005 ;
+		crossGeneRate = 0.005 ;
 
 		geneSimilarity = NULL ;
 	}
@@ -454,6 +455,7 @@ public:
 			{
 				majorAlleleNameToIdx[sMajorAllele] = majorAlleleCnt ;
 				majorAlleleIdxToName.push_back(sMajorAllele) ;
+				majorAlleleSize.push_back(0);
 				++majorAlleleCnt ;
 			}
 
@@ -464,6 +466,7 @@ public:
 			alleleInfo[i].alleleRank = -1 ;
 			alleleInfo[i].abundance = 0 ;
 			alleleInfo[i].genotypeQuality = -1 ;
+			++majorAlleleSize[ alleleInfo[i].majorAlleleIdx ] ;
 		}
 		
 		geneSimilarity = new double*[geneCnt] ;
@@ -477,7 +480,7 @@ public:
 			{
 				if (alleleInfo[j].geneIdx != i)
 					continue ;
-				if (minTag == -1 || strcmp( refSet.GetSeqConsensus(j), refSet.GetSeqConsensus(minTag) ) < 0)
+				if (minTag == -1 || strcmp(refSet.GetSeqConsensus(j), refSet.GetSeqConsensus(minTag) ) < 0)
 					minTag = j ;
 			}
 
@@ -939,6 +942,9 @@ public:
 				//ecAbundance[i] = Rand()%7 + 1 ; //1.0 / ecCnt ;
 				//ecAbundance[i] = equivalentClassToAlleles[i].size() + (Rand()%3 - 1) * 0.5 ; //1.0 / ecCnt ;
 				ecAbundance0[i] = equivalentClassToAlleles[i].size() ; 
+				//ecAbundance0[i] = 0 ;
+				//for (j = 0 ; j < (int)equivalentClassToAlleles[i].size() ; ++j)
+				//	ecAbundance0[i] += majorAlleleSize[alleleInfo[equivalentClassToAlleles[i][j]].majorAlleleIdx] ;
 			}
 
 			for (t = 0 ; t < maxEMIterations ; ++t)
@@ -1555,7 +1561,7 @@ public:
 					continue ;
 				crossGeneNoise += crossGeneRate * (1 + geneSimilarity[i][j]) * geneAbundances[j];
 			}
-
+			
 			for (j = 0 ; j < rankCnt ; ++j)
 			{
 				double nullMean = (geneAbundances[i] - alleleRankAbund[j]) * crossAlleleRate + crossGeneNoise ;
