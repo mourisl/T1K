@@ -433,7 +433,22 @@ public:
 	{
 		int i, j ;
 
-		refSet.InputRefFa(filename) ;
+		//refSet.InputRefFa(filename) ;
+		std::map<std::string, int> usedSeq ;
+		ReadFiles fa ;
+		fa.AddReadFile( filename, false ) ;
+		while ( fa.Next() )
+		{
+			std::string seq( fa.seq );
+			if (usedSeq.find(seq) != usedSeq.end())
+			{
+				refSet.UpdateSeqWeight( usedSeq[seq], 1) ;
+			}
+			else 
+			{
+				usedSeq[seq] = refSet.InputRefSeq(fa.id, fa.seq, 1);
+			}
+		}
 
 		alleleCnt = refSet.Size() ;
 		alleleInfo.ExpandTo(alleleCnt) ;
@@ -466,7 +481,7 @@ public:
 			alleleInfo[i].alleleRank = -1 ;
 			alleleInfo[i].abundance = 0 ;
 			alleleInfo[i].genotypeQuality = -1 ;
-			++majorAlleleSize[ alleleInfo[i].majorAlleleIdx ] ;
+			majorAlleleSize[ alleleInfo[i].majorAlleleIdx ] += refSet.GetSeqWeight(i) ;
 		}
 		
 		geneSimilarity = new double*[geneCnt] ;
@@ -658,9 +673,39 @@ public:
 		return sum / cnt ;
 	}
 
-	void SetMajorAlleleAndGeneAbundance()
+	void SetAlleleAbundance(double *ecReadCount, double *ecLength)
 	{
-		int i ;
+		int i, j, k ;
+		int ecCnt = equivalentClassToAlleles.size();
+		if (ecReadCount != NULL)
+		{
+			for (i = 0 ; i < alleleCnt ; ++i)
+				alleleInfo[i].abundance = alleleInfo[i].ecAbundance = 0 ;
+
+			for (i = 0 ; i < ecCnt ; ++i)
+			{
+				int size = equivalentClassToAlleles[i].size() ;
+				double abund = 0 ; 
+				//k = equivalentClassToAlleles[i][0] ;
+				//printf("%d %d %s %lf %d %d\n", i, k, refSet.GetSeqName(k), emEcReadCount[j][i], refSet.GetSeqConsensusLen(k),readsInAllele[k].size()) ;
+				abund += ecReadCount[i] ;
+				//printf("%lf\n", abund) ;
+				abund = abund / ecLength[i] * 1000.0 ; // FPK
+				for (j = 0 ; j < size ; ++j)
+				{
+					k = equivalentClassToAlleles[i][j] ;
+					//alleleInfo[k].abundance = ecAbundance[i] / size * effectiveReadCnt ;
+					//alleleInfo[k].ecAbundance = ecAbundance[i] * effectiveReadCnt ;
+					alleleInfo[k].abundance = abund / size ;
+					alleleInfo[k].ecAbundance = abund ;
+					//printf("%d %d %s %lf %d %d\n", i, k, refSet.GetSeqName(k), (double)abund, refSet.GetSeqConsensusLen(k),readsInAllele[k].size()) ;
+				}
+				//printf("%lf %lf\n", ecAbundance[i], ecAbundance[i] * effectiveReadCnt) ;
+			}
+		}
+
+
+		// Set major allele and gene abundances
 		// Init other useful abundance data
 		geneAbundance.ExpandTo(geneCnt) ;
 		geneAbundance.SetZero(0, geneCnt) ;
@@ -674,9 +719,9 @@ public:
 			geneAbundance[ alleleInfo[i].geneIdx ] += alleleInfo[i].abundance ;
 
 			/*if (alleleInfo[i].abundance > geneMaxMajorAlleleAbundance[ alleleInfo[i].geneIdx ])
-			{
+				{
 				geneMaxMajorAlleleAbundance[ alleleInfo[i].geneIdx ] = alleleInfo[i].abundance ;
-			}*/
+				}*/
 		}
 
 		for (i = 0 ; i < alleleCnt ; ++i)
@@ -721,7 +766,7 @@ public:
 				alleleInfo[equivalentClassToAlleles[i][j]].ecAbundance = total ;
 		}
 		
-		SetMajorAlleleAndGeneAbundance() ;
+		SetAlleleAbundance(NULL, NULL) ;
 	}
 	
 	int GetGeneAlleleTypes(int geneIdx)
@@ -912,14 +957,12 @@ public:
 		// Start the EM algorithm
 		double *emResults ;
 		const int maxEMIterations = 1000 ;
-		const int maxRandIterations = 1 ;
 		double *ecAbundance0 = new double[ecCnt] ;
 		double *ecAbundance1 = new double[ecCnt] ;
 		double *ecAbundance2 = new double[ecCnt] ;
 		double *ecAbundance3 = new double[ecCnt] ;
 		double *ecReadCount = new double[ecCnt] ;
 		double *ecLength = new double[ecCnt] ; // the sequence length for equivalent class.
-		int randIter ;
 
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
@@ -933,85 +976,73 @@ public:
 			}
 		}
 		
-		double **emEcReadCount = new double*[maxRandIterations] ;
-		for (randIter = 0 ; randIter < maxRandIterations ; ++randIter)
-		{
-			ret = 0 ;
-			for (i = 0 ; i < ecCnt ; ++i)
-			{
-				//ecAbundance[i] = Rand()%7 + 1 ; //1.0 / ecCnt ;
-				//ecAbundance[i] = equivalentClassToAlleles[i].size() + (Rand()%3 - 1) * 0.5 ; //1.0 / ecCnt ;
-				ecAbundance0[i] = equivalentClassToAlleles[i].size() ; 
-				//ecAbundance0[i] = 0 ;
-				//for (j = 0 ; j < (int)equivalentClassToAlleles[i].size() ; ++j)
-				//	ecAbundance0[i] += majorAlleleSize[alleleInfo[equivalentClassToAlleles[i][j]].majorAlleleIdx] ;
-			}
-
-			for (t = 0 ; t < maxEMIterations ; ++t)
-			{
-				++ret ;
-				double diffSum = EMupdate(ecAbundance0, ecAbundance1, ecReadCount,
-						readGroupToAlleleEc, readGroupInfo, ecLength) ;
-				diffSum = EMupdate(ecAbundance1, ecAbundance2, ecReadCount,
-						readGroupToAlleleEc, readGroupInfo, ecLength) ;
-				
-				double alpha = SQUAREMalpha(ecAbundance0, ecAbundance1, ecAbundance2, ecCnt) ;
-				//memcpy(ecAbundance0, ecAbundance1, sizeof(double) * ecCnt) ;
-				for (i = 0 ; i < ecCnt ; ++i)
-					ecAbundance3[i] = ecAbundance0[i] 
-							- 2 * alpha * (ecAbundance1[i] - ecAbundance0[i])
-							+ alpha * alpha * (ecAbundance2[i] - 2 * ecAbundance1[i] + ecAbundance0[i]) ;
-				EMupdate(ecAbundance3, ecAbundance1, ecReadCount,
-					 readGroupToAlleleEc, readGroupInfo, ecLength	) ;
-				
-				diffSum = 0 ;
-				for (i = 0 ; i < ecCnt ; ++i)
-				{
-					diffSum += ABS(ecAbundance1[i] - ecAbundance0[i]) ;
-					ecAbundance0[i] = ecAbundance1[i] ;
-				}
-				
-				if (diffSum < 1e-5 && t < maxEMIterations - 2)
-					t = maxEMIterations - 2 ; // Force one more iteration
-			}
-
-			emEcReadCount[randIter] = new double[ecCnt] ;
-			memcpy(emEcReadCount[randIter], ecReadCount, sizeof(double) * ecCnt) ;
-		}
-
-		for (i = 0 ; i < alleleCnt ; ++i)
-			alleleInfo[i].abundance = alleleInfo[i].ecAbundance = 0 ;
-
+		ret = 0 ;
+		const int maskRound = 10 ; // Mask low abundant alleles every 10 round
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
-			int size = equivalentClassToAlleles[i].size() ;
-			double abund = 0 ; //emEcReadCount[0][i] ;
-			for (j = 0 ; j < maxRandIterations ; ++j)
-			{
-				//if (abund < emEcReadCount[j][i])
-				k = equivalentClassToAlleles[i][0] ;
-				//printf("%d %d %s %lf %d %d\n", i, k, refSet.GetSeqName(k), emEcReadCount[j][i], refSet.GetSeqConsensusLen(k),readsInAllele[k].size()) ;
-				abund += emEcReadCount[j][i] ;
-			}
-			//printf("%lf\n", abund) ;
-			abund /= maxRandIterations ;
-			abund = abund / ecLength[i] * 1000.0 ; // FPK
-			for (j = 0 ; j < size ; ++j)
-			{
-				k = equivalentClassToAlleles[i][j] ;
-				//alleleInfo[k].abundance = ecAbundance[i] / size * effectiveReadCnt ;
-				//alleleInfo[k].ecAbundance = ecAbundance[i] * effectiveReadCnt ;
-				alleleInfo[k].abundance = abund / size ;
-				alleleInfo[k].ecAbundance = abund ;
-				//printf("%d %d %s %lf %d %d\n", i, k, refSet.GetSeqName(k), (double)abund, refSet.GetSeqConsensusLen(k),readsInAllele[k].size()) ;
-			}
-			//printf("%lf %lf\n", ecAbundance[i], ecAbundance[i] * effectiveReadCnt) ;
+			//ecAbundance[i] = Rand()%7 + 1 ; //1.0 / ecCnt ;
+			//ecAbundance[i] = equivalentClassToAlleles[i].size() + (Rand()%3 - 1) * 0.5 ; //1.0 / ecCnt ;
+			//ecAbundance0[i] = equivalentClassToAlleles[i].size() ;
+			ecAbundance0[i] = 0;
+			for (j = 0 ; j < (int)equivalentClassToAlleles[i].size() ; ++j)
+				ecAbundance0[i] += refSet.GetSeqWeight(equivalentClassToAlleles[i][j]);
+			/*ecAbundance0[i] = 0 ;
+				for (j = 0 ; j < (int)equivalentClassToAlleles[i].size() ; ++j)
+				ecAbundance0[i] += majorAlleleSize[alleleInfo[equivalentClassToAlleles[i][j]].majorAlleleIdx] ;*/
 		}
-		SetMajorAlleleAndGeneAbundance() ;
-		
-		for (i = 0 ; i < maxRandIterations ; ++i)
-			delete[] emEcReadCount[i] ;
-		delete[] emEcReadCount ;
+
+		for (t = 0 ; t < maxEMIterations ; ++t)
+		{
+			++ret ;
+			double diffSum = EMupdate(ecAbundance0, ecAbundance1, ecReadCount,
+					readGroupToAlleleEc, readGroupInfo, ecLength) ;
+			diffSum = EMupdate(ecAbundance1, ecAbundance2, ecReadCount,
+					readGroupToAlleleEc, readGroupInfo, ecLength) ;
+
+			double alpha = SQUAREMalpha(ecAbundance0, ecAbundance1, ecAbundance2, ecCnt) ;
+			//memcpy(ecAbundance0, ecAbundance1, sizeof(double) * ecCnt) ;
+			for (i = 0 ; i < ecCnt ; ++i)
+				ecAbundance3[i] = ecAbundance0[i] 
+					- 2 * alpha * (ecAbundance1[i] - ecAbundance0[i])
+					+ alpha * alpha * (ecAbundance2[i] - 2 * ecAbundance1[i] + ecAbundance0[i]) ;
+			EMupdate(ecAbundance3, ecAbundance1, ecReadCount,
+					readGroupToAlleleEc, readGroupInfo, ecLength	) ;
+
+			diffSum = 0 ;
+			for (i = 0 ; i < ecCnt ; ++i)
+			{
+				diffSum += ABS(ecAbundance1[i] - ecAbundance0[i]) ;
+				ecAbundance0[i] = ecAbundance1[i] ;
+			}
+
+			if (diffSum < 1e-5 && t < maxEMIterations - 2)
+				t = maxEMIterations - 2 ; // Force one more iteration
+			
+			if (t > 0 && t % maskRound == 0)
+			{
+				// Filter the low abundant ones
+				SetAlleleAbundance(ecReadCount, ecLength) ;
+
+				for (i = 0 ; i < alleleCnt ; ++i)			
+				{
+					if (majorAlleleAbundance[alleleInfo[i].majorAlleleIdx] 
+							< filterFrac * 0.5 * geneMaxMajorAlleleAbundance[alleleInfo[i].geneIdx])
+					{
+						alleleInfo[i].abundance = 0 ;
+						alleleInfo[i].ecAbundance = 0 ;
+					}
+				}
+
+				// Reset ecAbundance0
+				for (i = 0 ; i < ecCnt ; ++i)
+				{
+					k = equivalentClassToAlleles[i][0] ;
+					ecAbundance0[i] = alleleInfo[k].ecAbundance ;
+				}
+			}
+		}
+
+		SetAlleleAbundance(ecReadCount, ecLength);
 
 		delete[] ecLength ;	
 		delete[] ecAbundance0 ;
@@ -1019,7 +1050,7 @@ public:
 		delete[] ecAbundance2 ;
 		delete[] ecAbundance3 ;
 		delete[] ecReadCount ;
-		
+
 		return ret ;
 	}
 

@@ -24,9 +24,8 @@ struct _seqWrapper
 	SimpleVector<struct _posWeight> posWeight ;
 	bool isRef ; // this is from reference.
 
-	int minLeftExtAnchor, minRightExtAnchor ; // only overlap with size larger than this can be counted as valid extension.
-
 	std::vector<int> separator ; 
+	int weight ;
 	int barcode ; // transformed barcode. -1: no barcode
 
 	bool operator<( const struct _seqWrapper &b )	const
@@ -586,7 +585,8 @@ public:
 			sw.consensusLen = strlen( sw.consensus );
 			sw.effectiveLen = sw.consensusLen ; //effectiveLen ; 	
 			sw.barcode = -1 ;
-			
+			sw.weight = 1 ;
+
 			sw.separator.push_back(-1) ;
 			for (i = 0 ; sw.consensus[i] ; ++i)
 				if (sw.consensus[i] == 'N')
@@ -596,7 +596,47 @@ public:
 			seqIndex.BuildIndexFromRead( kmerCode, sw.consensus, sw.consensusLen, id ) ;
 		}
 	}
+	
+	int InputRefSeq( char *id, char *read, int weight )
+	{
+		struct _seqWrapper ns ;
+		int i ;
+		ns.name = strdup( id ) ;
+		ns.isRef = true ;
 
+		int seqIdx = seqs.size() ;
+		seqs.push_back( ns ) ;
+
+		struct _seqWrapper &sw = seqs[ seqIdx ] ;
+		int seqLen = strlen( read ) ;
+		sw.consensus = strdup( read ) ;
+		sw.consensusLen = seqLen ;	
+		sw.effectiveLen = sw.consensusLen ;
+		sw.barcode = -1 ;
+		sw.weight = weight ;
+
+		sw.separator.push_back(-1) ;
+		for (i = 0 ; sw.consensus[i] ; ++i)
+			if (sw.consensus[i] == 'N')
+				sw.separator.push_back(i) ;
+		sw.separator.push_back(i) ;
+		
+		KmerCode kmerCode( kmerLength ) ;
+		seqIndex.BuildIndexFromRead( kmerCode, sw.consensus, seqLen, seqIdx ) ;
+		
+		return seqIdx ;
+	}	
+
+	void UpdateSeqWeight(int seqIdx, int update)
+	{
+		seqs[seqIdx].weight += update;
+	}
+
+	int GetSeqWeight(int seqIdx)
+	{
+		return seqs[seqIdx].weight ;
+	}
+	
 	// Compute the length of hit from the read, take the overlaps of kmer into account 
 	int GetTotalHitLengthOnRead( SimpleVector<struct _hit> &hits )
 	{

@@ -9,6 +9,7 @@ my %selectedAlleles ;
 my $selectAlleleFile = "" ;
 my $mode = "rna" ;
 my $genePrefix = "KIR" ;
+my $fixGeneLength = 0 ;
 
 my $i ;
 for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
@@ -33,7 +34,16 @@ for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
 		die "Unknown option ".$ARGV[$i]."\n" ;
 	}
 }
-	
+
+if ($mode eq "rna")
+{
+	$fixGeneLength = 1 ;
+}
+elsif ($mode eq "dna")
+{
+	$fixGeneLength = 0 ;
+}
+
 if ($selectAlleleFile ne "" )
 {
 	open FP, $selectAlleleFile ;
@@ -270,7 +280,7 @@ close FP ;
 
 srand(17) ;
 my @numToNuc = ("A", "C", "G", "T") ;
-for my $allele (@alleleOrder)
+foreach my $allele (@alleleOrder)
 {
 	my $gene = (split /\*/, $allele)[0] ;
 	if (!defined $gene5UTRPadding{$gene})
@@ -296,7 +306,9 @@ for my $allele (@alleleOrder)
 		$gene3UTRPadding{$gene} = $randomSeq ;
 	}
 }
-for my $allele (@alleleOrder)
+
+my %geneSeqLengthDist ;
+foreach my $allele (@alleleOrder)
 {
 	my $outputSeq = $alleleSeq{$allele} ;
 	my $gene = (split /\*/, $allele)[0] ;
@@ -308,8 +320,50 @@ for my $allele (@alleleOrder)
 	{
 		$outputSeq = $outputSeq.substr($gene3UTRPadding{$gene}, -$allelePaddingLength{$allele}[1]) ;
 	}
+	$alleleSeq{$allele} = $outputSeq;
+	++${$geneSeqLengthDist{$gene}}{length($outputSeq)} ;
+}
 
-	next if (defined $usedSeq{$outputSeq}) ;
+my %geneSeqLength ;
+foreach my $gene (keys %geneSeqLengthDist)
+{
+	my %dist = %{$geneSeqLengthDist{$gene}} ;
+	my $max = -1;
+	my $chosenLen = -1;
+	foreach my $l (keys %dist)
+	{
+		if ($dist{$l} > $max)
+		{
+			$chosenLen = $l ;
+			$max = $dist{$l} ;
+		}
+	}
+	$geneSeqLength{$gene} = $chosenLen ;
+}
+
+if ($fixGeneLength == 1)
+{
+	foreach my $allele (@alleleOrder)	
+	{
+		my $outputSeq = $alleleSeq{$allele} ;
+		my $gene = (split /\*/, $allele)[0] ;
+		if (length($outputSeq) < $geneSeqLength{$gene})
+		{
+			$outputSeq = "" ;
+		}
+		else
+		{
+			$outputSeq = substr($outputSeq, 0, $geneSeqLength{$gene})
+		}
+		$alleleSeq{$allele} = $outputSeq;
+	}
+}
+
+foreach my $allele (@alleleOrder)
+{
+	my $outputSeq = $alleleSeq{$allele} ;
+	next if ($outputSeq eq "") ;
+	#next if (defined $usedSeq{$outputSeq}) ;
 	next if (!($allele =~ /^$genePrefix/)) ;
 	$usedSeq{$outputSeq} = 1 ;
 	print(">$allele ".scalar(@{$alleleExonRegions{$allele}}) / 2 .
