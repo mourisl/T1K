@@ -1941,7 +1941,7 @@ public:
 				assign[k].weight = 1 ;
 				++k ;
 			}
-			else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 
+			else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 && bestAssign.overlap2.similarity == 1 
 						&& assign[i].overlap2.matchCnt >= bestAssign.overlap2.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
@@ -1949,6 +1949,7 @@ public:
 				++k ;
 			}
 			else if (assign[i].overlap2 <= bestAssign.overlap2 && bestAssign.overlap2.similarity == 1
+						&& bestAssign.overlap1.similarity == 1
 						&& assign[i].overlap1.matchCnt >= bestAssign.overlap1.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
@@ -1968,9 +1969,18 @@ public:
 		if (assign.size() > 0 && pOverlaps2 != NULL)
 		{
 			struct _overlap representative ;
-			representative = assign[0].overlap1 ;
+			int size = assign.size() ;
+			int representativeAssign = 0 ;
+			for (i = 0 ; i < size ; ++i)
+			{
+				if (assign[i].weight == 1)
+				{
+					representativeAssign = i;
+					break ;
+				}
+			}
+			representative = assign[representativeAssign].overlap1 ;
 			bool filter = false ;
-			
 			std::vector<struct _overlap> &overlaps2 = *pOverlaps2 ;
 			int overlapCnt2 = overlaps2.size() ;
 
@@ -1992,7 +2002,7 @@ public:
 				}
 			}
 			// Better read 2
-			representative = assign[0].overlap2 ;
+			representative = assign[representativeAssign].overlap2 ;
 			for (i = 0 ; i < overlapCnt2 && !filter ; ++i)
 			{
 				if (overlaps2[i].matchCnt > representative.matchCnt
