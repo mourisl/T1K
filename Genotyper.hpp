@@ -135,7 +135,8 @@ private:
 		// The read id in each vector should be sorted
 		for (i = 0 ; i < cnt1 ; ++i)
 		{
-			if (a1[i].alleleIdx != a2[i].alleleIdx)
+			if (a1[i].alleleIdx != a2[i].alleleIdx
+					|| a1[i].weight != a2[i].weight)
 				return false ;
 		}
 		return true ;
@@ -286,7 +287,7 @@ private:
 		return value;
 	}
 
-	double EMupdate(double *ecAbundance0, double *ecAbundance1, double *ecReadCount, const std::vector<std::vector<int> > &readGroupToAlleleEc, const SimpleVector<struct _readGroupInfo> readGroupInfo, const double *ecLength)
+	double EMupdate(double *ecAbundance0, double *ecAbundance1, double *ecReadCount, const std::vector<std::vector<struct _pairID> > &readGroupToAlleleEc, const double *ecLength)
 	{
 		int ecCnt = equivalentClassToAlleles.size() ;
 		int rgCnt = readGroupToAlleleEc.size() ;
@@ -298,13 +299,16 @@ private:
 			double psum	= 0 ;
 			int size = readGroupToAlleleEc[i].size() ;
 			for (j = 0 ; j < size ; ++j)
-				psum += ecAbundance0[readGroupToAlleleEc[i][j]] ;
+			{
+				int ecIdx = readGroupToAlleleEc[i][j].a ;
+				psum += ecAbundance0[ecIdx] / ecLength[ecIdx] ;
+			}
 			if (psum == 0)	
 				psum = 1 ;
 			for (j = 0 ; j < size ; ++j)
 			{
-				int ecIdx = readGroupToAlleleEc[i][j] ;
-				ecReadCount[ecIdx] += readGroupInfo[i].count * ecAbundance0[ecIdx] / psum ;
+				int ecIdx = readGroupToAlleleEc[i][j].a ;
+				ecReadCount[ecIdx] += (ecAbundance0[ecIdx] / ecLength[ecIdx] / psum) * readGroupToAlleleEc[i][j].b  ;
 			}
 		}
 
@@ -312,11 +316,11 @@ private:
 		double diffSum = 0 ;
 		double normalization = 0 ;
 		for (i = 0 ; i < ecCnt ; ++i)
-			normalization += ecReadCount[i] / ecLength[i] ;
+			normalization += ecReadCount[i] ; // ecLength[i] ;
 
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
-			double tmp = ecReadCount[i] / ecLength[i] / normalization ;
+			double tmp = ecReadCount[i] / normalization ;
 			//printf("%d %s %d: %lf %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), tmp, ecReadCount[i], ecLength[i], ecAbundance[i]) ;
 
 			diffSum += ABS(tmp - ecAbundance0[i]) ;
@@ -565,7 +569,7 @@ public:
 			na.alleleIdx = assignment[i].seqIdx ;
 			na.start = assignment[i].seqStart ;
 			na.end = assignment[i].seqEnd ;
-			na.weight = ReadAssignmentWeight(assignment[i]) ;
+			na.weight = ReadAssignmentWeight(assignment[i]) * assignment[i].weight;
 			allReadAssignments[readId].push_back(na) ;
 		}
 	}
@@ -619,10 +623,13 @@ public:
 			{
 				for (j = 0 ; j < size ; ++j)
 				{
-					if (allReadAssignments[i][j].start < readAssignments[addTo][j].start)
-						readAssignments[addTo][j].start = allReadAssignments[i][j].start ;
-					if (allReadAssignments[i][j].end < readAssignments[addTo][j].end)
-						readAssignments[addTo][j].end = allReadAssignments[i][j].start ;
+					if (allReadAssignments[i][j].weight == 1)
+					{
+						if (allReadAssignments[i][j].start < readAssignments[addTo][j].start)
+							readAssignments[addTo][j].start = allReadAssignments[i][j].start ;
+						if (allReadAssignments[i][j].end < readAssignments[addTo][j].end)
+							readAssignments[addTo][j].end = allReadAssignments[i][j].start ;
+					}
 					readAssignments[addTo][j].weight += allReadAssignments[i][j].weight ;
 				}
 			}
@@ -851,6 +858,8 @@ public:
 				alleleInfo[alleleIdx].equivalentClass = ecIdx ;
 			}
 		}
+		RemoveLowMAPQAlleleInEquivalentClass() ;
+
 		return ecCnt ;
 	}
 	
@@ -862,94 +871,30 @@ public:
 		int ecCnt = equivalentClassToAlleles.size() ;	
 		int ret = 0 ;	
 		
-		SimpleVector<struct _pair> readFingerprint ;
-		const int FINGERPRINT_MAX = 1000003 ;
-		
-		// First rebuild the read groups: the reads mapping to the same set of alleles
+		// Convert readassignment_to_allele to readassignment_to_alleleEquivalentClass
+		std::vector< std::vector<struct _pairID> > readGroupToAlleleEc ;
+		readGroupToAlleleEc.resize(readCnt) ;
+		std::map<int, int> ecUsed ;
 		for (i = 0 ; i < readCnt ; ++i)
-		{
-			struct _pair np ;
-			np.a = i ;
-			np.b = -1 ;
-			readFingerprint.PushBack(np) ;
-		}
-
-		for (i = 0 ; i < readCnt ; ++i)	
 		{
 			int size = readAssignments[i].size() ;
-			if (size == 0)
-				continue ;
-			readFingerprint[i].b = 0 ;
-			for (j = 0 ; j < size ; ++j)
-			{
-				k = readAssignments[i][j].alleleIdx ;
-				readFingerprint[i].b = (readFingerprint[i].b * (int64_t)readCnt + k) % FINGERPRINT_MAX ;
-			}
-		}
-	
-		SimpleVector<int> readToReadGroup ;
-		SimpleVector<struct _readGroupInfo> readGroupInfo ; // the read represent the read group, so we can easily obtain the assignment information.
-		
-		readToReadGroup.ExpandTo(readCnt) ;
-		std::sort(readFingerprint.BeginAddress(), readFingerprint.EndAddress(), CompSortPairByBDec) ;
-
-		int rgCnt = 0 ;
-		int effectiveReadCnt = 0 ; // the number of reads covering alleles
-		for (i = 0 ; i < readCnt ; ++i)
-		{
-			bool newRg = true ; // rg: read group
-			if (readFingerprint[i].b == -1)
-			{
-				readToReadGroup[ readFingerprint[i].a ] = -1 ;
-				continue ;
-			}
-			for (j = i - 1 ; j >= 0 ; --j)
-			{
-				if (readFingerprint[i].b != readFingerprint[j].b)
-					break ;
-				if (IsReadAssignmentTheSame(readAssignments[readFingerprint[i].a],
-							readAssignments[readFingerprint[j].a]))
-				{
-					newRg = false ;
-					break ;
-				}
-			}
-			
-			int readId = readFingerprint[i].a ;
-			if (newRg)
-			{
-				readToReadGroup[readId] = rgCnt ;
-				struct _readGroupInfo nrg ;
-				nrg.representative = readId ;
-				nrg.count = readAssignments[readId][0].weight ;
-				readGroupInfo.PushBack(nrg) ;
-				++rgCnt ;
-			}
-			else
-			{
-				readToReadGroup[readId] = readToReadGroup[ readFingerprint[j].a ] ;
-				//++readGroupInfo[ readToReadGroup[readId] ].count ;
-				readGroupInfo[readToReadGroup[readId]].count += readAssignments[readFingerprint[i].a][0].weight ;
-			}
-			++effectiveReadCnt ;
-		}
-		
-		// Convert readgroup_to_allele to readgroup_to_alleleEquivalentClass
-		std::vector< std::vector<int> > readGroupToAlleleEc ;
-		readGroupToAlleleEc.resize(rgCnt) ;
-		std::map<int, bool> ecUsed ;
-		for (i = 0 ; i < rgCnt ; ++i)
-		{
-			int readId = readGroupInfo[i].representative ;
-			int size = readAssignments[readId].size() ;
 			ecUsed.clear() ;
 			for (j = 0 ; j < size ; ++j)
 			{
-				int ecIdx = alleleInfo[readAssignments[readId][j].alleleIdx].equivalentClass ;
+				int ecIdx = alleleInfo[readAssignments[i][j].alleleIdx].equivalentClass ;
 				if (ecUsed.find(ecIdx) == ecUsed.end())
 				{
-					readGroupToAlleleEc[i].push_back(ecIdx) ;
-					ecUsed[ecIdx] = true ;
+					struct _pairID np ;
+					np.a = ecIdx ;
+					np.b = readAssignments[i][j].weight ;
+					ecUsed[ecIdx] = readGroupToAlleleEc[i].size() ;
+					readGroupToAlleleEc[i].push_back(np) ;
+				}
+				else
+				{
+					int k = ecUsed[ecIdx] ;
+					if (readAssignments[i][j].weight > readGroupToAlleleEc[i][k].b)
+						readGroupToAlleleEc[i][k].b = readAssignments[i][j].weight ;
 				}
 			}
 		}
@@ -995,18 +940,22 @@ public:
 		{
 			++ret ;
 			double diffSum = EMupdate(ecAbundance0, ecAbundance1, ecReadCount,
-					readGroupToAlleleEc, readGroupInfo, ecLength) ;
+					readGroupToAlleleEc, ecLength) ;
 			diffSum = EMupdate(ecAbundance1, ecAbundance2, ecReadCount,
-					readGroupToAlleleEc, readGroupInfo, ecLength) ;
+					readGroupToAlleleEc, ecLength) ;
 
 			double alpha = SQUAREMalpha(ecAbundance0, ecAbundance1, ecAbundance2, ecCnt) ;
 			//memcpy(ecAbundance0, ecAbundance1, sizeof(double) * ecCnt) ;
 			for (i = 0 ; i < ecCnt ; ++i)
+			{
 				ecAbundance3[i] = ecAbundance0[i] 
 					- 2 * alpha * (ecAbundance1[i] - ecAbundance0[i])
 					+ alpha * alpha * (ecAbundance2[i] - 2 * ecAbundance1[i] + ecAbundance0[i]) ;
+				if (ecAbundance3[i] < 0)
+					ecAbundance3[i] = 0 ;
+			}
 			EMupdate(ecAbundance3, ecAbundance1, ecReadCount,
-					readGroupToAlleleEc, readGroupInfo, ecLength	) ;
+					readGroupToAlleleEc, ecLength	) ;
 
 			diffSum = 0 ;
 			for (i = 0 ; i < ecCnt ; ++i)
@@ -1052,6 +1001,46 @@ public:
 		delete[] ecReadCount ;
 
 		return ret ;
+	}
+
+	void RemoveLowMAPQAlleleInEquivalentClass()
+	{
+		int i, j ;
+		double *alleleReadWeight = new double[alleleCnt];
+		memset(alleleReadWeight, 0, sizeof(double) * alleleCnt) ;
+		for (i = 0 ; i < readCnt; ++i)
+		{
+			int size = readAssignments[i].size() ;
+			for (j = 0 ; j < size ; ++j)		
+				alleleReadWeight[readAssignments[i][j].alleleIdx] += readAssignments[i][j].weight ;
+		}
+	
+		int ecCnt = equivalentClassToAlleles.size() ;
+		std::vector<int> keptAlleles ;
+		for (i = 0 ; i < ecCnt ; ++i)
+		{
+			keptAlleles.clear() ; 
+			int size = equivalentClassToAlleles[i].size() ;
+			double maxWeight = -1 ;
+
+			for (j = 0 ; j < size ; ++j)
+			{
+				int alleleIdx = equivalentClassToAlleles[i][j] ;
+				if (alleleReadWeight[alleleIdx] > maxWeight)
+					maxWeight = alleleReadWeight[alleleIdx] ;
+			}
+
+			for (j = 0 ; j < size ; ++j)
+			{
+				int alleleIdx = equivalentClassToAlleles[i][j] ;
+				if (alleleReadWeight[alleleIdx] == maxWeight)
+					keptAlleles.push_back(alleleIdx) ;
+			}
+
+			equivalentClassToAlleles[i] = keptAlleles ;
+		}
+
+		delete[] alleleReadWeight ;
 	}
 
 	// Based on the read coverage, remove the ones that are not likely to be true

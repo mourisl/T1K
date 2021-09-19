@@ -25,6 +25,12 @@ struct _pair64
 	int64_t a, b ;
 } ;
 
+struct _pairID
+{
+	int a ;
+	double b ;
+} ;
+
 struct _pairIntDouble // integer, double
 {
 	int a ;

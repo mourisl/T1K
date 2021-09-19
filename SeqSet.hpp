@@ -134,7 +134,9 @@ struct _fragmentOverlap
 
 	struct _overlap overlap1 ; // for read 1
 	struct _overlap overlap2 ; // for read 2
-	
+
+	double weight ; // weight for optimial, suboptimal alignments.
+
 	bool operator<( const struct _fragmentOverlap &b ) const
 	{
 		if ( matchCnt != b.matchCnt )
@@ -1760,7 +1762,7 @@ public:
 			if ( ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
 			{
 				//printf( "e0 %d-%d %d-%d %lf\n", eOverlap.readStart, eOverlap.readEnd,
-				//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity) ;
+					//eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity) ;
 				extendedOverlaps.push_back(eOverlap) ;
 			}
 			else
@@ -1936,20 +1938,23 @@ public:
 			if (assign[i].matchCnt == bestAssign.matchCnt && assign[i].similarity == bestAssign.similarity )
 			{
 				assign[k] = assign[i] ;
+				assign[k].weight = 1 ;
 				++k ;
 			}
-			/*else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 
+			else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 
 						&& assign[i].overlap2.matchCnt >= bestAssign.overlap2.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
+				assign[k].weight = 0.01 ;
 				++k ;
 			}
 			else if (assign[i].overlap2 <= bestAssign.overlap2 && bestAssign.overlap2.similarity == 1
 						&& assign[i].overlap1.matchCnt >= bestAssign.overlap1.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
+				assign[k].weight = 0.01 ;
 				++k ;
-			}*/
+			}
 		}
 		assign.resize(k) ;
 		/*if (k > 0)

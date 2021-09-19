@@ -347,11 +347,7 @@ if ($fixGeneLength == 1)
 	{
 		my $outputSeq = $alleleSeq{$allele} ;
 		my $gene = (split /\*/, $allele)[0] ;
-		if (length($outputSeq) < $geneSeqLength{$gene})
-		{
-			$outputSeq = "" ;
-		}
-		else
+		if (length($outputSeq) > $geneSeqLength{$gene})
 		{
 			$outputSeq = substr($outputSeq, 0, $geneSeqLength{$gene})
 		}
