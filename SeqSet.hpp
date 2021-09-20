@@ -135,7 +135,7 @@ struct _fragmentOverlap
 	struct _overlap overlap1 ; // for read 1
 	struct _overlap overlap2 ; // for read 2
 
-	double weight ; // weight for optimial, suboptimal alignments.
+	double qual ; // qulaity of this assignment
 
 	bool operator<( const struct _fragmentOverlap &b ) const
 	{
@@ -1938,14 +1938,14 @@ public:
 			if (assign[i].matchCnt == bestAssign.matchCnt && assign[i].similarity == bestAssign.similarity )
 			{
 				assign[k] = assign[i] ;
-				assign[k].weight = 1 ;
+				assign[k].qual = 1 ;
 				++k ;
 			}
 			else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 && bestAssign.overlap2.similarity == 1 
 						&& assign[i].overlap2.matchCnt >= bestAssign.overlap2.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
-				assign[k].weight = 0.01 ;
+				assign[k].qual = 0.01 ;
 				++k ;
 			}
 			else if (assign[i].overlap2 <= bestAssign.overlap2 && bestAssign.overlap2.similarity == 1
@@ -1953,7 +1953,7 @@ public:
 						&& assign[i].overlap1.matchCnt >= bestAssign.overlap1.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
-				assign[k].weight = 0.01 ;
+				assign[k].qual = 0.01 ;
 				++k ;
 			}
 		}
@@ -1973,7 +1973,7 @@ public:
 			int representativeAssign = 0 ;
 			for (i = 0 ; i < size ; ++i)
 			{
-				if (assign[i].weight == 1)
+				if (assign[i].qual == 1)
 				{
 					representativeAssign = i;
 					break ;
@@ -1991,11 +1991,12 @@ public:
 							&& overlaps[i].similarity > representative.similarity) 
 						&& seqIdxToOverlapIdx.find(overlaps[i].seqIdx) == seqIdxToOverlapIdx.end())
 				{
-					if (TruncatedMatePairOverlap(overlaps[i], assign[0].overlap1, assign[0].overlap2))
+					if (TruncatedMatePairOverlap(overlaps[i], 
+								assign[representativeAssign].overlap1, assign[representativeAssign].overlap2))
 					{
 						filter = true ;
 					}
-					else if (overlaps[i].similarity > assign[0].overlap2.similarity + 0.1)
+					else if (overlaps[i].similarity > assign[representativeAssign].overlap2.similarity + 0.1)
 					{
 						filter = true ;
 					}
@@ -2010,12 +2011,13 @@ public:
 							&& overlaps2[i].similarity > representative.similarity) 
 						&& seqIdxToOverlapIdx.find(overlaps2[i].seqIdx) == seqIdxToOverlapIdx.end())
 				{
-					if (TruncatedMatePairOverlap(overlaps2[i], assign[0].overlap2, assign[0].overlap1))
+					if (TruncatedMatePairOverlap(overlaps2[i], 
+								assign[representativeAssign].overlap2, assign[representativeAssign].overlap1))
 					{
 						filter = true ;
 						//printf("%s %d. %d-%d\n", seqs[overlaps2[i].seqIdx].name, overlaps2[i].seqStart, assign[0].overlap2.seqStart, assign[0].overlap1.seqStart) ;
 					}
-					else if (overlaps2[i].similarity > assign[0].overlap1.similarity + 0.1)
+					else if (overlaps2[i].similarity > assign[representativeAssign].overlap1.similarity + 0.1)
 					{
 						filter = true ;
 					}
