@@ -34,8 +34,8 @@ struct _readAssignment
 {
 	int alleleIdx ;
 	int start, end ;
-	double weight ; 
-	double qual ;
+	float weight ; 
+	float qual ;
 
 	bool operator<(const struct _readAssignment &b) const
 	{

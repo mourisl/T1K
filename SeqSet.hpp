@@ -1941,11 +1941,12 @@ public:
 				assign[k].qual = 1 ;
 				++k ;
 			}
-			else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 && bestAssign.overlap2.similarity == 1 
+			/*else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 
+					&& bestAssign.overlap2.similarity == 1 
 						&& assign[i].overlap2.matchCnt >= bestAssign.overlap2.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
-				assign[k].qual = 0.01 ;
+				assign[k].qual = 0.001 ;
 				++k ;
 			}
 			else if (assign[i].overlap2 <= bestAssign.overlap2 && bestAssign.overlap2.similarity == 1
@@ -1953,9 +1954,9 @@ public:
 						&& assign[i].overlap1.matchCnt >= bestAssign.overlap1.matchCnt - 2) 
 			{
 				assign[k] = assign[i] ;
-				assign[k].qual = 0.01 ;
+				assign[k].qual = 0.001 ;
 				++k ;
-			}
+			}*/
 		}
 		assign.resize(k) ;
 		/*if (k > 0)
