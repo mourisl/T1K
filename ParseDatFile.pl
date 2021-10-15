@@ -3,7 +3,7 @@
 use strict ;
 use warnings ;
 
-die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna --gene KIR|HLA] > yyy.fa\n" if (@ARGV == 0) ;
+die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA] > yyy.fa\n" if (@ARGV == 0) ;
 
 my %selectedAlleles ;
 my $selectAlleleFile = "" ;
@@ -83,6 +83,11 @@ my $utrLength = 50 ;
 my $intronPaddingLength = 200 ;
 my %alleleExonRegions ; # the actuall exon regions in the output sequence
 
+if ($mode eq "genome")
+{
+	$utrLength = 0 ;
+}
+
 while (<FP>)
 {
 	if (/^ID/)
@@ -145,7 +150,7 @@ while (<FP>)
 			else
 			{
 				my $outputSeq = "" ;
-				last if ($mode eq "dna" && $hasIntron == 0) ;
+				last if ($mode ne "rna" && $hasIntron == 0) ;
 				last if ($allele eq "-1") ;
 				last if (scalar(@exons) == 0) ;
 				# UTR before
@@ -232,6 +237,11 @@ while (<FP>)
 						$exonOffset += ($exons[$i + 1] - $exons[$k] + 1) ;
 						$exonOffset += $intronPaddingLength ;
 					}
+				}
+				elsif ($mode eq "genome") 
+				{
+					$outputSeq = $seq ;
+					@exonActualRegion = @exons ;
 				}
 				else
 				{
