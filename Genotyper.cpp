@@ -24,7 +24,7 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t-s FLOAT: filter alignments with alignment similarity less than specified value (defalut: 0.8)\n"
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
-		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.005)\n"
+		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.02)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
 	FILE *fpAbundance = NULL ;
 	double filterFrac = 0.15 ;
 	double filterCov = 1.0 ;
-	double crossGeneRate = 0.005 ;
+	double crossGeneRate = 0.02 ;
 	double filterAlignmentSimilarity = 0.8 ;
 	
 	while (1)	

@@ -5,6 +5,7 @@
 
 #include <map>
 #include <algorithm>
+#include <math.h>
 
 #include "KmerCode.hpp"
 
@@ -162,7 +163,7 @@ public:
 	}
 
 	// Jaccard index
-	double GetCountSimilarity(const KmerCount &b)
+	double GetCountSimilarityJaccard(const KmerCount &b)
 	{
 		int i ;
 		int countA = 0 ;
@@ -177,7 +178,7 @@ public:
 				if (b.count[i].find(it->first) != b.count[i].end())
 				{
 					tmp = b.count[i][it->first] ;
-					sharedCount += (countA < tmp ? countA : tmp) ;
+					sharedCount += (it->second < tmp ? it->second : tmp) ;
 				}
 			}
 
@@ -188,6 +189,30 @@ public:
 		}
 
 		return (double)sharedCount / (countA + countB - sharedCount) ;
+	}
+	
+	// How similar is a to b ; 
+	// Note that this is not symmetric
+	double GetCountSimilarity(const KmerCount &b)
+	{
+		int i ;
+		int countA = 0 ;
+		int sharedCount = 0 ;
+		int tmp ;
+		for (i = 0 ; i < KCOUNT_HASH_MAX ; ++i)
+		{
+			for (std::map<uint64_t, int>::iterator it = count[i].begin() ; it != count[i].end() ; ++it)
+			{
+				countA += it->second ;
+				if (b.count[i].find(it->first) != b.count[i].end())
+				{
+					sharedCount += it->second ;
+				}
+			}
+		}
+		return (double)sharedCount / (double)countA ;
+		//return pow((double)sharedCount / (double)countA, 1.0 / (kmerLength) );
+		//return -log((double)sharedCount / (double)countA) / (double)kmerLength;
 	}
 } ;
 

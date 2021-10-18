@@ -310,7 +310,9 @@ private:
 			{
 				int ecIdx = readGroupToAlleleEc[i][j].a ;
 				double qual = readGroupToAlleleEc[i][j].b ;
-				psum += ecAbundance0[ecIdx] / ecLength[ecIdx] * qual ;
+				//psum += ecAbundance0[ecIdx] / ecLength[ecIdx] * qual ;
+				//if (ecAbundance0[ecIdx] >= 0)
+				psum += ecAbundance0[ecIdx] * qual ;
 			}
 			if (psum == 0)	
 				psum = 1 ;
@@ -318,7 +320,8 @@ private:
 			{
 				int ecIdx = readGroupToAlleleEc[i][j].a ;
 				double qual = readGroupToAlleleEc[i][j].b ;
-				ecReadCount[ecIdx] += readGroupInfo[i].count * (ecAbundance0[ecIdx] * qual / ecLength[ecIdx] / psum)  ;
+				//ecReadCount[ecIdx] += readGroupInfo[i].count * (ecAbundance0[ecIdx] * qual / ecLength[ecIdx] / psum)  ;
+				ecReadCount[ecIdx] += readGroupInfo[i].count * (ecAbundance0[ecIdx] * qual /  psum)  ;
 			}
 		}
 
@@ -326,11 +329,11 @@ private:
 		double diffSum = 0 ;
 		double normalization = 0 ;
 		for (i = 0 ; i < ecCnt ; ++i)
-			normalization += ecReadCount[i] ; // ecLength[i] ;
+			normalization += ecReadCount[i] / ecLength[i] ;
 
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
-			double tmp = ecReadCount[i] / normalization ;
+			double tmp = ecReadCount[i] / ecLength[i] / normalization ;
 			//printf("%d %s %d: %lf %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), tmp, ecReadCount[i], ecLength[i], ecAbundance[i]) ;
 
 			diffSum += ABS(tmp - ecAbundance0[i]) ;
@@ -516,13 +519,27 @@ public:
 			kmerProfiles[i].AddCount(refSet.GetSeqConsensus(minTag)) ;
 		}
 
-		for (i = 0 ; i < geneCnt ; ++i)
+		/*for (i = 0 ; i < geneCnt ; ++i)
 		{
 			geneSimilarity[i][i] = 1.0 ;
 			for (j = i + 1 ; j < geneCnt ; ++j)
 			{
-				geneSimilarity[i][j] = geneSimilarity[j][i] = kmerProfiles[i].GetCountSimilarity( kmerProfiles[j] ) ;
-				//printf("%d %d %lf\n", i, j, geneSimilarity[i][j]) ;
+				geneSimilarity[i][j] = geneSimilarity[j][i] = kmerProfiles[i].GetCountSimilarityJaccard( kmerProfiles[j] ) ;
+				printf("%s %s %lf\n", geneIdxToName[i].c_str(), geneIdxToName[j].c_str(), geneSimilarity[i][j]) ;
+			}
+		}*/
+		
+		for (i = 0 ; i < geneCnt ; ++i)
+		{
+			for (j = 0 ; j < geneCnt ; ++j)
+			{
+				if (i == j) 
+				{
+					geneSimilarity[i][i] = 1.0 ;
+					continue ;
+				}
+				geneSimilarity[i][j] = kmerProfiles[i].GetCountSimilarity( kmerProfiles[j] ) ;
+				//printf("%s %s %lf\n", geneIdxToName[i].c_str(), geneIdxToName[j].c_str(), geneSimilarity[i][j]) ;
 			}
 		}
 		delete[] kmerProfiles ;
@@ -597,7 +614,7 @@ public:
 			if (size == 0)
 				continue ;
 			++ret ;
-			//std::sort(allReadAssignments[i].begin(), allReadAssignments[i].end()) ;
+			std::sort(allReadAssignments[i].begin(), allReadAssignments[i].end()) ;
 			int fingerprint = 0 ;
 			for (j = 0 ; j < size ; ++j)
 			{
@@ -663,7 +680,7 @@ public:
 		for (i = 0 ; i < readCnt ; ++i)
 		{
 			int assignmentCnt = readAssignments[i].size() ;
-			std::sort(readAssignments[i].begin(), readAssignments[i].end()) ;
+			//std::sort(readAssignments[i].begin(), readAssignments[i].end()) ;
 			if (assignmentCnt > 0)
 				++ret ;
 			for (j = 0; j < assignmentCnt; ++j)
@@ -928,7 +945,9 @@ public:
 				}
 			}
 		}
-
+		/*printf("%d %d %d\n", readAssignments[55340].size(),readAssignments[55325].size(),
+			 IsReadAssignmentTheSame(readAssignments[55340], readAssignments[55325])	) ;
+		printf("%d\n", readCnt) ;*/
 		// Start the EM algorithm
 		double *emResults ;
 		const int maxEMIterations = 1000 ;
@@ -976,14 +995,33 @@ public:
 
 			double alpha = SQUAREMalpha(ecAbundance0, ecAbundance1, ecAbundance2, ecCnt) ;
 			//memcpy(ecAbundance0, ecAbundance1, sizeof(double) * ecCnt) ;
+			double minAbund3 = 0  ;
+			double maxAbund3 = 0 ;
 			for (i = 0 ; i < ecCnt ; ++i)
 			{
 				ecAbundance3[i] = ecAbundance0[i] 
 					- 2 * alpha * (ecAbundance1[i] - ecAbundance0[i])
 					+ alpha * alpha * (ecAbundance2[i] - 2 * ecAbundance1[i] + ecAbundance0[i]) ;
-				if (ecAbundance3[i] < 0)
-					ecAbundance3[i] = 0 ;
+				if (ecAbundance3[i] < minAbund3)
+					minAbund3 = ecAbundance3[i] ;
+				if (ecAbundance3[i] > maxAbund3)
+					maxAbund3 = ecAbundance3[i] ;
+					//ecAbundance3[i] = 0 ;
 			}
+			/*if (minAbund3 < 0)
+			{
+				double total = 0 ;
+				for (i = 0 ; i < ecCnt ; ++i)
+				{
+					ecAbundance3[i] = (ecAbundance3[i] - minAbund3 ) ; // (maxAbund3 - minAbund3);
+					total += ecAbundance3[i] ;
+				}
+				
+				// renormalize
+				for (i = 0 ; i < ecCnt ; ++i)
+					ecAbundance3[i] /= total ;
+			}
+			else*/
 			EMupdate(ecAbundance3, ecAbundance1, ecReadCount,
 					readGroupToAlleleEc, readGroupInfo, ecLength	) ;
 
@@ -1624,7 +1662,7 @@ public:
 			{
 				if (i == j)
 					continue ;
-				crossGeneNoise += crossGeneRate * (1 + geneSimilarity[i][j]) * geneAbundances[j];
+				crossGeneNoise += crossGeneRate * geneSimilarity[j][i] * geneAbundances[j];
 			}
 			
 			for (j = 0 ; j < rankCnt ; ++j)
