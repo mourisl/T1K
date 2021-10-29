@@ -17,6 +17,7 @@ struct _Read
 	char *id ;
 	char *seq ;
 	char *qual ;
+	char *comment ;
 } ;
 
 class ReadFiles
@@ -53,10 +54,11 @@ class ReadFiles
 		char *id ;
 		char *seq ;
 		char *qual ;
+		char *comment ;
 
 		ReadFiles(): fpUsed(0), currentFpInd(0)
 		{
-			id = seq = qual = NULL ;
+			id = seq = qual = comment = NULL ;
 		}
 
 		~ReadFiles()
@@ -68,7 +70,8 @@ class ReadFiles
 				free( seq ) ;
 			if ( qual != NULL )
 				free( qual ) ;
-
+			if ( comment != NULL )
+				free( comment ) ;
 			
 			for ( i = 0 ; i < fpUsed ; ++i )
 			{
@@ -139,7 +142,9 @@ class ReadFiles
 				free( seq ) ;
 			if ( qual != NULL )
 				free( qual ) ;
-			id = seq = qual = NULL ;
+			if ( comment != NULL )
+				free( comment ) ;
+			id = seq = qual = comment = NULL ;
 			currentFpInd = 0 ;
 		}
 
@@ -165,6 +170,8 @@ class ReadFiles
 				free( seq ) ;
 			if ( qual != NULL )
 				free( qual ) ;
+			if ( comment != NULL )
+				free( comment ) ;
 
 			id = strdup( inSeq[ currentFpInd ]->name.s ) ;
 			int len = strlen( id ) ;
@@ -180,6 +187,10 @@ class ReadFiles
 			else
 				qual = NULL ;
 
+			if ( inSeq[ currentFpInd ]->comment.l )
+				comment = strdup( inSeq[ currentFpInd]->comment.s ) ;
+			else
+				comment = NULL ;
 			return 1 ;
 		}
 

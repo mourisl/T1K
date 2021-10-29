@@ -36,6 +36,7 @@ struct _readAssignment
 	int start, end ;
 	float weight ; 
 	float qual ;
+	float adjustWeight ; // The weight used for tie breaking
 
 	bool operator<(const struct _readAssignment &b) const
 	{
@@ -166,7 +167,9 @@ private:
 			ret = 0.5 ;
 		//else if (similarity < 1)
 		//	ret = 0.5 ;
-		
+		//if (pairedEndData && !o.hasMatePair)	
+		//	ret *= 0.5 ;
+
 		return ret ;
 	}
 
@@ -389,6 +392,7 @@ private:
 	int64_t randomSeed ;
 
 	int geneType ;  // not used actually
+	bool pairedEndData ; 
 
 	// variables for filter
 	double filterFrac ;
@@ -407,6 +411,7 @@ public:
 		maxAssignCnt = 2000 ;
 		randomSeed = 17 ;
 		geneType = GENETYPE_KIR ;
+		pairedEndData = true ;
 
 		filterFrac = 0.15 ;
 		filterCov = 1.0 ;
@@ -463,7 +468,7 @@ public:
 			}
 			else 
 			{
-				usedSeq[seq] = refSet.InputRefSeq(fa.id, fa.seq, 1);
+				usedSeq[seq] = refSet.InputRefSeq(fa.id, fa.seq, 1, fa.comment);
 			}
 		}
 
@@ -589,6 +594,21 @@ public:
 			if (refSet.IsFragmentSpanSeparator(assignment[i]))
 				return;
 		}
+		
+		double adjustFactor = 1.0 ;
+		double maxSimilarity = 0 ;
+		for (i = 0 ; i < assignmentCnt ; ++i)
+		{
+			if (assignment[i].similarity > maxSimilarity)
+				maxSimilarity = assignment[i].similarity ;
+			/*if (assignment[i].matchCnt != assignment[i - 1].matchCnt)
+			{
+				adjustFactor = 0 ;
+				break ;
+			}*/
+		}
+		if (maxSimilarity < 1)
+			adjustFactor = 0.25 ; 
 
 		for (i = 0; i < assignmentCnt; ++i)
 		{
@@ -598,6 +618,7 @@ public:
 			na.end = assignment[i].seqEnd ;
 			na.weight = ReadAssignmentWeight(assignment[i]);
 			na.qual = assignment[i].qual ;
+			na.adjustWeight = adjustFactor * na.weight ;
 			allReadAssignments[readId].push_back(na) ;
 		}
 	}
@@ -659,6 +680,7 @@ public:
 							readAssignments[addTo][j].end = allReadAssignments[i][j].start ;
 					}
 					readAssignments[addTo][j].weight += allReadAssignments[i][j].weight ;
+					readAssignments[addTo][j].adjustWeight += allReadAssignments[i][j].adjustWeight ;
 					// The read assignment the same test makes sure they have the same quality
 				}
 			}
@@ -1468,7 +1490,7 @@ public:
 					}
 				}
 
-				for (j = 0 ; j < alleleTypeCnt - 1 ; ++j)
+				for (j = 0 ; j < alleleTypeCnt - 1 && j <= 1 ; ++j)
 				{
 					int l ;
 					usedEc.clear() ;
@@ -1543,7 +1565,7 @@ public:
 								coveredReadCnt += sqrt(readAssignments[it->first][0].weight) * abundanceJ / (abundanceJ + abundanceK); // the read must have some assignment to be here.
 							if (it->second & 3)
 								coveredReadCnt += sqrt(readAssignments[it->first][0].weight) * abundanceK / (abundanceJ + abundanceK); // the read must have some assignment to be here.*/
-							coveredReadCnt += readAssignments[it->first][0].weight ;
+							coveredReadCnt += readAssignments[it->first][0].adjustWeight ;
 						}
 #ifdef DEBUG
 						printf("Further selection %s %s %lf %lf %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, coveredReadCnt) ;

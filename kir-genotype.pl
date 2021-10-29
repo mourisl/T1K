@@ -23,7 +23,7 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "\t-t INT: number of threads (default: 1)\n".
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n".
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n".
-		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.005)\n".
+		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.02)\n".
     "\t--barcode STRING: if -b, BAM field for barcode; if -1 -2/-u, file containing barcodes (default: not used)\n".
     "\t--barcodeRange INT INT CHAR: start, end(-1 for length-1), strand in a barcode is the true barcode (default: 0 -1 +)\n".
     "\t--barcodeWhitelist STRING: path to the barcode whitelist (default: not used)\n".

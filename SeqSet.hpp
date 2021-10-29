@@ -15,6 +15,12 @@
 #include "ReadFiles.hpp"
 #include "AlignAlgo.hpp"
 
+struct _validDiff
+{
+	bool m[4] ;
+	bool exon ;
+} ;
+
 struct _seqWrapper
 {
 	char *name ;
@@ -25,6 +31,7 @@ struct _seqWrapper
 	bool isRef ; // this is from reference.
 
 	std::vector<int> separator ; 
+	struct _validDiff *isValidDiff ;
 	int weight ;
 	int barcode ; // transformed barcode. -1: no barcode
 
@@ -78,7 +85,8 @@ struct _overlap
 	int matchCnt ; // The number of matched bases, count TWICE.
 	double similarity ;
 	int leftClip, rightClip ;
-
+	int exonicMatchCnt ; // the number of matches in exon and does not change residue
+	
 	bool operator<( const struct _overlap &b ) const
 	{
 		// The overlap with more matched bases should come first.
@@ -128,6 +136,7 @@ struct _fragmentOverlap
 	int seqStart, seqEnd ;
 
 	int matchCnt ;
+	int exonicMatchCnt ; 
 	double similarity ;
 
 	bool hasMatePair ;
@@ -199,6 +208,7 @@ private:
 	int hitLenRequired ;
 	int gapN ;
 	bool isLongSeqSet ; // Whether this seq set is built from long reads. Long reads may require more drastic filtration.
+	bool ignoreNonExonDiff ;
 
 	// Some threshold
 	double novelSeqSimilarity ;
@@ -496,7 +506,119 @@ private:
 		return false ;	
 	}
 
+	char DnaToAa( char a, char b, char c )
+	{
+		if ( a == 'N' || b == 'N' || c == 'N' )
+			return '-' ;
+		if ( a == 'M' || b == 'M' || c == 'M' )
+			return '-' ;
 
+		if ( a == 'A' )
+		{
+			if ( b == 'A' )
+			{
+				if ( c == 'A' || c == 'G' )
+					return 'K' ;
+				else
+					return 'N' ;
+			}
+			else if ( b == 'C' )
+			{
+				return 'T' ;
+			}
+			else if ( b == 'G' )
+			{
+				if ( c == 'A' || c == 'G' )
+					return 'R' ;
+				else
+					return 'S' ;
+			}
+			else
+			{
+				if ( c == 'G' )
+					return 'M' ;
+				else 
+					return 'I' ;
+			}
+		}
+		else if ( a == 'C' )
+		{
+			if ( b == 'A' )
+			{
+				if ( c == 'A' || c == 'G' )
+					return 'Q' ;
+				else
+					return 'H' ;
+				
+			}
+			else if ( b == 'C' )
+			{
+				return 'P' ;
+			}
+			else if ( b == 'G' )
+			{
+				return 'R' ;
+			}
+			else
+			{
+				return 'L' ;
+			}
+		}
+		else if ( a == 'G' )
+		{
+			if ( b == 'A' )
+			{
+				if ( c == 'A' || c == 'G' )
+					return 'E' ;
+				else
+					return 'D' ;
+			}
+			else if ( b == 'C' )
+			{
+				return 'A' ;
+			}
+			else if ( b == 'G' )
+			{
+				return 'G' ;
+			}
+			else
+			{
+				return 'V' ;
+			}
+		}
+		else
+		{
+			if ( b == 'A' )
+			{
+				if ( c == 'A' || c == 'G' )
+					return '*' ;
+				else
+					return 'Y' ;
+			}
+			else if ( b == 'C' )
+			{
+				return 'S' ;
+			}
+			else if ( b == 'G' )
+			{
+				if ( c == 'A' )
+					return '*' ;
+				else if ( c == 'G' )
+					return 'W' ;
+				else
+					return 'C' ;
+				
+			}
+			else
+			{
+				if ( c == 'A' || c == 'G' )
+					return 'L' ;
+				else
+					return 'F' ;
+			}
+		}
+	}
+	
 public:
 	SeqSet( int kl ) 
 	{
@@ -507,6 +629,8 @@ public:
 
 		novelSeqSimilarity = 0.9 ;
 		refSeqSimilarity = 0.8 ; 
+		
+		ignoreNonExonDiff = false ;
 	}
 
 	~SeqSet() 
@@ -520,6 +644,8 @@ public:
 				free( seqs[i].consensus ) ;
 			if ( seqs[i].name != NULL )
 				free( seqs[i].name ) ;	
+			if ( seqs[i].isValidDiff != NULL )
+				delete[] seqs[i].isValidDiff ;
 		}
 	}
 
@@ -569,7 +695,6 @@ public:
 		int i, j, k ;
 		ReadFiles fa ;
 		fa.AddReadFile( filename, false ) ;
-		
 		KmerCode kmerCode( kmerLength ) ;
 		while ( fa.Next() )
 		{
@@ -599,7 +724,7 @@ public:
 		}
 	}
 	
-	int InputRefSeq( char *id, char *read, int weight )
+	int InputRefSeq( char *id, char *read, int weight, char *comment = NULL )
 	{
 		struct _seqWrapper ns ;
 		int i ;
@@ -626,6 +751,104 @@ public:
 		KmerCode kmerCode( kmerLength ) ;
 		seqIndex.BuildIndexFromRead( kmerCode, sw.consensus, seqLen, seqIdx ) ;
 		
+		std::vector<struct _pair> exons ;
+		if (comment != NULL)	
+		{
+			SimpleVector<int> nums ;
+			int n = 0 ;
+			for (i = 0 ; comment[i] ; ++i)
+			{
+				if (comment[i] >= '0' && comment[i] <= '9')
+					n = n * 10 + comment[i] - '0' ;
+				else
+				{
+					nums.PushBack(n) ;
+					n = 0 ;
+				}
+			}
+			if (n)
+				nums.PushBack(n) ;
+
+			int size = nums.Size() ;
+			for (i = 1 ; i < size ; i += 2)
+			{
+				struct _pair np ;
+				np.a = nums[i] ;
+				np.b = nums[i + 1] ;
+				exons.push_back(np) ;
+			}
+		} 
+		else
+		{
+			struct _pair np ;
+			np.a = 0 ;
+			np.b = seqLen - 1 ;
+			exons.push_back(np) ;
+		}
+
+		// Mark positions where we allow relaxed differences
+		seqs[seqIdx].isValidDiff	= new struct _validDiff[seqLen] ;
+		int size = exons.size() ;
+		for (i = 0 ; i < seqLen ; ++i)
+		{
+			bool *m = seqs[seqIdx].isValidDiff[i].m ;
+			m[0] = m[1] = m[2] = m[3] = true ;
+			seqs[seqIdx].isValidDiff[i].exon = false ;
+		}
+		//memset(seqs[seqIdx].isValidDiff, true, sizeof(struct _validDiff) * seqLen) ;
+		int codonOffset = 2;
+		for (i = 0 ; i < size ; ++i)
+		{
+			int j, k ;
+			int s = exons[i].a ;
+			int e = exons[i].b ;
+			for (j = s ; j <= e ; ++j)
+			{
+				bool *m = seqs[seqIdx].isValidDiff[j].m ;
+				m[0] = m[1] = m[2] = m[3] = false ;
+				seqs[seqIdx].isValidDiff[j].exon = true ;
+			}
+
+			/*for (j = s + codonOffset ; j <= e ; j += 3)
+			{
+				char a, b ;
+				if (j == s)
+				{
+					a = read[ exons[i - 1].b - 1] ;
+					b = read[ exons[i - 1].b] ;
+				}
+				else if ( j == s + 1)
+				{
+					a = read[ exons[i - 1].b] ;
+					b = read[j - 1] ;
+				}
+				else
+				{
+					a = read[j - 2] ;
+					b = read[j - 1] ;
+				}
+				bool *m = seqs[seqIdx].isValidDiff[j].m ;
+				if (a != 'N' && b != 'N' && read[j] != 'N')
+				{
+						char aa = DnaToAa(a, b, read[j]) ;
+						for (k = 0 ; k <= 3 ; ++k)
+						{
+							if (DnaToAa(a, b, numToNuc[k]) == aa)
+								m[k] = true ;
+						}
+				}
+			}*/
+			codonOffset = 2 - (j - e) ;
+		}
+		
+		for (i = 1 ; i < size ; ++i)
+		{
+			if (exons[i].a > exons[i - 1].b + 1)	
+			{
+				ignoreNonExonDiff = true ;
+				break ;
+			}
+		}
 		return seqIdx ;
 	}	
 
@@ -1669,6 +1892,55 @@ public:
 		//		extendedOverlap.matchCnt);		
 		if (extendedOverlap.similarity < refSeqSimilarity)
 			ret = 0 ;
+		
+		if (ret && ignoreNonExonDiff)
+		{
+			AlignAlgo::GlobalAlignment( seq.consensus + extendedOverlap.seqStart, 
+					extendedOverlap.seqEnd - extendedOverlap.seqStart + 1,
+					r + extendedOverlap.readStart,
+					extendedOverlap.readEnd - extendedOverlap.readStart + 1, align) ;
+
+			const struct _validDiff *isValidDiff = seqs[extendedOverlap.seqIdx].isValidDiff ;
+			int matchCnt = 0 ;
+			int exonCnt = 0 ;
+			int refPos = extendedOverlap.seqStart ;
+			int readPos = extendedOverlap.readStart ;
+			for ( k = 0 ; align[k] != -1 ; ++k )
+			{
+				if (!ignoreNonExonDiff || isValidDiff[refPos].exon)
+				{
+					if ( align[k] == EDIT_MATCH )
+						++matchCnt ;
+					else if ( align[k] == EDIT_MISMATCH )
+					{
+						/*if (r[readPos] == 'N' || !isValidDiff[refPos].m[nucToNum[ r[readPos] ]] )
+							++mismatchCnt ;
+						else
+							++matchCnt ;*/
+						++mismatchCnt ;
+					}
+					else  
+						++indelCnt ;
+
+					++exonCnt ;
+				}
+				else
+					++matchCnt ;
+
+				if (align[k] != EDIT_INSERT)
+					++refPos ;
+				if (align[k] != EDIT_DELETE)
+					++readPos ;
+			}
+			//printf("%d %d %d %d\n", extendedOverlap.seqStart, extendedOverlap.seqEnd, 2 * matchCnt, exonCnt) ;
+			extendedOverlap.exonicMatchCnt = 2 * matchCnt ;
+			//extendedOverlap.similarity = (double)( 2 * matchCnt) /
+			//	( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;	
+		}
+		else
+		{
+			extendedOverlap.exonicMatchCnt = extendedOverlap.matchCnt ;
+		}
 
 		if (leftClip > 0 || rightClip > 0)
 		{		
@@ -1740,7 +2012,7 @@ public:
 		std::vector<struct _overlap> extendedOverlaps ;
 		struct _overlap eOverlap ;
 
-		char *align = new char[ 2 * len + 2 ] ;
+		char *align = new char[ 3 * len + 2 ] ;
 
 		int extendCnt = 0 ;
 		bool onlyConsiderClip = false ;
@@ -1761,14 +2033,14 @@ public:
 
 			if ( ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
 			{
-				//printf( "e0 %d-%d %d-%d %lf\n", eOverlap.readStart, eOverlap.readEnd,
-					//eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity) ;
+				//printf( "e0 %d-%d %d-%d %lf. %d %d\n", eOverlap.readStart, eOverlap.readEnd,
+				//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity, eOverlap.matchCnt, eOverlap.exonicMatchCnt) ;
 				extendedOverlaps.push_back(eOverlap) ;
 			}
 			else
 				onlyConsiderClip = true ;
 		}
-	
+
 		delete[] rc ;
 		delete[] align ;
 
@@ -1801,7 +2073,7 @@ public:
 		std::vector<struct _overlap> &overlaps = *pOverlaps1 ;
 		int overlapCnt = overlaps.size()  ;
 		
-		fragments.Reserve(overlapCnt) ;
+		fragments.Reserve(overlapCnt + 1) ;
 		if (pOverlaps2 == NULL)
 		{
 			for (i = 0 ; i < overlapCnt ; ++i)
@@ -1809,6 +2081,24 @@ public:
 				struct _pair nf ;
 				nf.a = i ;
 				nf.b = -1 ;
+				fragments.PushBack(nf) ;
+			}
+		}
+		else if (overlapCnt == 0 || pOverlaps2->size() == 0)
+		{
+			int overlapCnt2 = pOverlaps2->size() ;
+			for (i = 0 ; i < overlapCnt ; ++i)
+			{
+				struct _pair nf ;
+				nf.a = i ;
+				nf.b = -1 ;
+				fragments.PushBack(nf) ;
+			}
+			for (i = 0 ; i < overlapCnt2 ; ++i)
+			{
+				struct _pair nf ;
+				nf.a = -1 ;
+				nf.b = i ;
 				fragments.PushBack(nf) ;
 			}
 		}
@@ -1855,35 +2145,53 @@ public:
 		for (i = 0 ; i < fragmentCnt ; ++i)
 		{
 			struct _fragmentOverlap fragmentOverlap ;
-			struct _overlap &o = overlaps[fragments[i].a] ;
-
-			fragmentOverlap.matchCnt = o.matchCnt ;
-			fragmentOverlap.similarity = o.similarity ;
-			fragmentOverlap.seqIdx = o.seqIdx ;
-			fragmentOverlap.seqStart = o.seqStart ;
-			fragmentOverlap.seqEnd = o.seqEnd ;
-			fragmentOverlap.hasMatePair = false ;
-			fragmentOverlap.overlap1 = o ;
-			
-			if (fragments[i].b >= 0)
+			if (fragments[i].a >= 0)
 			{
-				struct _overlap &o2 = (*pOverlaps2)[fragments[i].b] ;
-				fragmentOverlap.matchCnt += o2.matchCnt ;
-				if (o.strand == 1)
-					fragmentOverlap.seqEnd = o2.seqEnd ;
-				else
-					fragmentOverlap.seqStart = o2.seqStart ;
+				struct _overlap &o = overlaps[fragments[i].a] ;
 
-				// TODO: there might be other better ways to combine the mate pairs.
-				fragmentOverlap.similarity = (double)fragmentOverlap.matchCnt / 
-					(o.readEnd - o.readStart + 1 + o2.readEnd - o2.readStart + 1 + 
-					 o.seqEnd - o.seqStart + 1 + o2.seqEnd - o2.seqStart + 1 
-					 + 2 * o.leftClip + 2 * o.rightClip + 2 * o2.leftClip + 2 * o2.rightClip) ;
-				//printf("%s: %d %d\n", seqs[fragmentOverlap.seqIdx].name, fragments[i].a, fragments[i].b) ;	
-				fragmentOverlap.hasMatePair = true ;
-				fragmentOverlap.overlap2 = o2 ;
+				fragmentOverlap.matchCnt = o.matchCnt ;
+				fragmentOverlap.similarity = o.similarity ;
+				fragmentOverlap.seqIdx = o.seqIdx ;
+				fragmentOverlap.seqStart = o.seqStart ;
+				fragmentOverlap.seqEnd = o.seqEnd ;
+				fragmentOverlap.hasMatePair = false ;
+				fragmentOverlap.overlap1 = o ;
+				fragmentOverlap.exonicMatchCnt = o.exonicMatchCnt ;
+
+				if (fragments[i].b >= 0)
+				{
+					struct _overlap &o2 = (*pOverlaps2)[fragments[i].b] ;
+					fragmentOverlap.matchCnt += o2.matchCnt ;
+					fragmentOverlap.exonicMatchCnt += o2.exonicMatchCnt ;
+					if (o.strand == 1)
+						fragmentOverlap.seqEnd = o2.seqEnd ;
+					else
+						fragmentOverlap.seqStart = o2.seqStart ;
+
+					// TODO: there might be other better ways to combine the mate pairs.
+					fragmentOverlap.similarity = (double)fragmentOverlap.matchCnt / 
+						(o.readEnd - o.readStart + 1 + o2.readEnd - o2.readStart + 1 + 
+						 o.seqEnd - o.seqStart + 1 + o2.seqEnd - o2.seqStart + 1 
+						 + 2 * o.leftClip + 2 * o.rightClip + 2 * o2.leftClip + 2 * o2.rightClip) ;
+					//printf("%s: %d %d\n", seqs[fragmentOverlap.seqIdx].name, fragments[i].a, fragments[i].b) ;	
+					fragmentOverlap.hasMatePair = true ;
+					fragmentOverlap.overlap2 = o2 ;
+				}
 			}	
-			
+			else if (fragments[i].b >= 0) // only happens in dangling cases
+			{
+				struct _overlap &o = (*pOverlaps2)[fragments[i].b] ;
+
+				fragmentOverlap.matchCnt = o.matchCnt ;
+				fragmentOverlap.similarity = o.similarity ;
+				fragmentOverlap.seqIdx = o.seqIdx ;
+				fragmentOverlap.seqStart = o.seqStart ;
+				fragmentOverlap.seqEnd = o.seqEnd ;
+				fragmentOverlap.hasMatePair = false ;
+				fragmentOverlap.exonicMatchCnt = o.exonicMatchCnt ;
+				fragmentOverlap.overlap1 = o ;
+			}
+
 			if (seqIdxToOverlapIdx.find(fragmentOverlap.seqIdx) != seqIdxToOverlapIdx.end())
 			{
 				// Note < here is for ranking, so smaller has higher rank
@@ -1941,6 +2249,14 @@ public:
 				assign[k].qual = 1 ;
 				++k ;
 			}
+			else if (ignoreNonExonDiff && assign[i].matchCnt >= bestAssign.matchCnt - 2 
+					&& assign[i].exonicMatchCnt == bestAssign.exonicMatchCnt)
+					//&& (pOverlaps2 != NULL && assign[0].hasMatePair == true)) // no dangling case
+			{
+				assign[k] = assign[i] ;
+				assign[k].qual = 1 ;
+				++k ;
+			}
 			/*else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 
 					&& bestAssign.overlap2.similarity == 1 
 						&& assign[i].overlap2.matchCnt >= bestAssign.overlap2.matchCnt - 2) 
@@ -1966,8 +2282,28 @@ public:
 			assign[bestAssignTag] = tmpAssign ;
 		}*/
 
+		// For the dangling case, more stringent filters.
+		if (assign.size() > 0 && pOverlaps2 != NULL && assign[0].hasMatePair == false)
+		{
+			assign.clear() ;
+			int size = assign.size() ;
+			for (i = 0 ; i < size ; ++i)
+			{
+				if (assign[i].similarity < 1 || IsSeparatorInRange(assign[i].seqStart, assign[i].seqEnd, assign[i].seqIdx))
+					break ;
+				int spanRange = 100 ;
+				if ((assign[i].overlap1.strand == 1 && assign[i].seqEnd + spanRange < seqs[assign[i].seqIdx].consensusLen)
+						|| (assign[i].overlap1.strand == -1 && assign[i].seqStart - spanRange >= 0))
+				{
+					break ;
+				}
+			}	
+			if (i < size)
+				assign.clear() ;
+		}
+
 		// Check whether there is better alignment but mate could not be aligned due to truncated reference gene (e.g. UTR).
-		if (assign.size() > 0 && pOverlaps2 != NULL)
+		if (assign.size() > 0 && pOverlaps2 != NULL && assign[0].hasMatePair)
 		{
 			struct _overlap representative ;
 			int size = assign.size() ;
