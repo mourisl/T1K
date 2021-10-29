@@ -2285,7 +2285,6 @@ public:
 		// For the dangling case, more stringent filters.
 		if (assign.size() > 0 && pOverlaps2 != NULL && assign[0].hasMatePair == false)
 		{
-			assign.clear() ;
 			int size = assign.size() ;
 			for (i = 0 ; i < size ; ++i)
 			{
