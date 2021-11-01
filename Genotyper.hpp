@@ -23,12 +23,20 @@ struct _alleleInfo
 
 	int equivalentClass ; // the class id for the alleles with the same set of read alignment
 	double ecAbundance ; // the abundance for the equivalent class.
+
+	int missingCoverage ;
 } ;
 
 struct _readGroupInfo
 {
 	double count ; // number of reads this group contains.
 } ;
+
+struct _ecInfo
+{
+	int length ;
+	int missingCoverage ;
+} ; // combining the information of allels 
 
 struct _readAssignment
 {
@@ -168,7 +176,7 @@ private:
 		//else if (similarity < 1)
 		//	ret = 0.5 ;
 		//if (pairedEndData && !o.hasMatePair)	
-		//	ret *= 0.5 ;
+		//	ret *= 0.9 ;
 
 		return ret ;
 	}
@@ -298,7 +306,7 @@ private:
 		return value;
 	}
 
-	double EMupdate(double *ecAbundance0, double *ecAbundance1, double *ecReadCount, const std::vector<std::vector<struct _pairID> > &readGroupToAlleleEc, const SimpleVector<struct _readGroupInfo> readGroupInfo, const double *ecLength)
+	double EMupdate(double *ecAbundance0, double *ecAbundance1, double *ecReadCount, const std::vector<std::vector<struct _pairID> > &readGroupToAlleleEc, const SimpleVector<struct _readGroupInfo> readGroupInfo, const struct _ecInfo *ecInfo)
 	{
 		int ecCnt = equivalentClassToAlleles.size() ;
 		int rgCnt = readGroupToAlleleEc.size() ;
@@ -312,19 +320,21 @@ private:
 			for (j = 0 ; j < size ; ++j)
 			{
 				int ecIdx = readGroupToAlleleEc[i][j].a ;
-				double qual = readGroupToAlleleEc[i][j].b ;
+				//double qual = readGroupToAlleleEc[i][j].b ;
 				//psum += ecAbundance0[ecIdx] / ecLength[ecIdx] * qual ;
 				//if (ecAbundance0[ecIdx] >= 0)
-				psum += ecAbundance0[ecIdx] * qual ;
+				double adjust = 1.0 / (ecInfo[ecIdx].missingCoverage + 1) ;
+				psum += ecAbundance0[ecIdx] * adjust ;
 			}
 			if (psum == 0)	
 				psum = 1 ;
 			for (j = 0 ; j < size ; ++j)
 			{
 				int ecIdx = readGroupToAlleleEc[i][j].a ;
-				double qual = readGroupToAlleleEc[i][j].b ;
+				//double qual = readGroupToAlleleEc[i][j].b ;
 				//ecReadCount[ecIdx] += readGroupInfo[i].count * (ecAbundance0[ecIdx] * qual / ecLength[ecIdx] / psum)  ;
-				ecReadCount[ecIdx] += readGroupInfo[i].count * (ecAbundance0[ecIdx] * qual /  psum)  ;
+				double adjust = 1.0 / (ecInfo[ecIdx].missingCoverage + 1) ;
+				ecReadCount[ecIdx] += readGroupInfo[i].count * (ecAbundance0[ecIdx] * adjust /  psum)  ;
 			}
 		}
 
@@ -332,11 +342,11 @@ private:
 		double diffSum = 0 ;
 		double normalization = 0 ;
 		for (i = 0 ; i < ecCnt ; ++i)
-			normalization += ecReadCount[i] / ecLength[i] ;
+			normalization += ecReadCount[i] / ecInfo[i].length ;
 
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
-			double tmp = ecReadCount[i] / ecLength[i] / normalization ;
+			double tmp = ecReadCount[i] / ecInfo[i].length / normalization ;
 			//printf("%d %s %d: %lf %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), tmp, ecReadCount[i], ecLength[i], ecAbundance[i]) ;
 
 			diffSum += ABS(tmp - ecAbundance0[i]) ;
@@ -399,6 +409,7 @@ private:
 	double filterCov ;
 	double crossGeneRate ;
 	double **geneSimilarity ;
+
 
 public:
 	SeqSet refSet ;
@@ -715,6 +726,12 @@ public:
 		}
 		
 		BuildAlleleEquivalentClass() ;
+		
+		for (i = 0 ; i < alleleCnt ; ++i)
+		{
+			alleleInfo[i].missingCoverage = refSet.GetSeqMissingBaseCoverage(i, 0.01) ;
+			//printf("%d %s %d\n", i, refSet.GetSeqName(i), alleleMissingCoverage[i]) ;
+		}
 		return ret ;
 	}
 
@@ -734,7 +751,7 @@ public:
 		return sum / cnt ;
 	}
 
-	void SetAlleleAbundance(double *ecReadCount, double *ecLength)
+	void SetAlleleAbundance(double *ecReadCount, struct _ecInfo *ecInfo)
 	{
 		int i, j, k ;
 		int ecCnt = equivalentClassToAlleles.size();
@@ -751,7 +768,7 @@ public:
 				//printf("%d %d %s %lf %d %d\n", i, k, refSet.GetSeqName(k), emEcReadCount[j][i], refSet.GetSeqConsensusLen(k),readsInAllele[k].size()) ;
 				abund += ecReadCount[i] ;
 				//printf("%lf\n", abund) ;
-				abund = abund / ecLength[i] * 1000.0 ; // FPK
+				abund = abund / ecInfo[i].length * 1000.0 ; // FPK
 				for (j = 0 ; j < size ; ++j)
 				{
 					k = equivalentClassToAlleles[i][j] ;
@@ -978,17 +995,21 @@ public:
 		double *ecAbundance2 = new double[ecCnt] ;
 		double *ecAbundance3 = new double[ecCnt] ;
 		double *ecReadCount = new double[ecCnt] ;
-		double *ecLength = new double[ecCnt] ; // the sequence length for equivalent class.
+		struct _ecInfo *ecInfo = new struct _ecInfo[ecCnt] ;
 
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
 			int size = equivalentClassToAlleles[i].size() ;
-			ecLength[i] = refSet.GetSeqEffectiveLen(equivalentClassToAlleles[i][0]) ;
+			ecInfo[i].length = refSet.GetSeqEffectiveLen(equivalentClassToAlleles[i][0]) ;
+			ecInfo[i].missingCoverage = alleleInfo[equivalentClassToAlleles[i][0]].missingCoverage ;
 			for (j = 1 ; j < size ; ++j)
 			{
 				int len = refSet.GetSeqEffectiveLen(equivalentClassToAlleles[i][j]) ;
-				if (len < ecLength[i])
-					ecLength[i] = len ;
+				if (len < ecInfo[i].length)
+					ecInfo[i].length = len ;
+				int missingCoverage = alleleInfo[equivalentClassToAlleles[i][j]].missingCoverage ;
+				if (missingCoverage < ecInfo[i].missingCoverage)
+					ecInfo[i].missingCoverage = missingCoverage ;
 			}
 		}
 		
@@ -1011,9 +1032,9 @@ public:
 		{
 			++ret ;
 			double diffSum = EMupdate(ecAbundance0, ecAbundance1, ecReadCount,
-					readGroupToAlleleEc, readGroupInfo, ecLength) ;
+					readGroupToAlleleEc, readGroupInfo, ecInfo) ;
 			diffSum = EMupdate(ecAbundance1, ecAbundance2, ecReadCount,
-					readGroupToAlleleEc, readGroupInfo, ecLength) ;
+					readGroupToAlleleEc, readGroupInfo, ecInfo) ;
 
 			double alpha = SQUAREMalpha(ecAbundance0, ecAbundance1, ecAbundance2, ecCnt) ;
 			//memcpy(ecAbundance0, ecAbundance1, sizeof(double) * ecCnt) ;
@@ -1045,7 +1066,7 @@ public:
 			}
 			else*/
 			EMupdate(ecAbundance3, ecAbundance1, ecReadCount,
-					readGroupToAlleleEc, readGroupInfo, ecLength	) ;
+					readGroupToAlleleEc, readGroupInfo, ecInfo) ;
 
 			diffSum = 0 ;
 			for (i = 0 ; i < ecCnt ; ++i)
@@ -1061,7 +1082,7 @@ public:
 			if (t > 0 && t % maskRound == 0)
 			{
 				// Filter the low abundant ones
-				SetAlleleAbundance(ecReadCount, ecLength) ;
+				SetAlleleAbundance(ecReadCount, ecInfo) ;
 
 				for (i = 0 ; i < alleleCnt ; ++i)			
 				{
@@ -1082,9 +1103,9 @@ public:
 			}
 		}
 
-		SetAlleleAbundance(ecReadCount, ecLength);
+		SetAlleleAbundance(ecReadCount, ecInfo);
 
-		delete[] ecLength ;	
+		delete[] ecInfo ;	
 		delete[] ecAbundance0 ;
 		delete[] ecAbundance1 ;
 		delete[] ecAbundance2 ;
@@ -1542,17 +1563,24 @@ public:
 						double abundanceSum = 0 ;
 						double abundanceJ = 0 ;
 						double abundanceK = 0 ;
+						int jMissingCoverage = -1 ;
+						int kMissingCoverage = -1 ;
 						for (l = 0 ; l < selectedAlleleCnt ; ++l)
 						{
+							int alleleIdx = selectedAlleles[i][l].a ;
 							if (selectedAlleles[i][l].b == j) 
 							{
-								abundanceSum += alleleInfo[selectedAlleles[i][l].a].abundance ;
-								abundanceJ += alleleInfo[selectedAlleles[i][l].a].abundance ;
+								abundanceSum += alleleInfo[alleleIdx].abundance ;
+								abundanceJ += alleleInfo[alleleIdx].abundance ;
+								if (jMissingCoverage == -1 || alleleInfo[alleleIdx].missingCoverage < jMissingCoverage)
+									jMissingCoverage = alleleInfo[alleleIdx].missingCoverage ;
 							}		
 							else if (selectedAlleles[i][l].b == k)
 							{
 								abundanceSum += alleleInfo[selectedAlleles[i][l].a].abundance ;
 								abundanceK += alleleInfo[selectedAlleles[i][l].a].abundance ;
+								if (kMissingCoverage == -1 || alleleInfo[alleleIdx].missingCoverage < kMissingCoverage)
+									kMissingCoverage = alleleInfo[alleleIdx].missingCoverage ;
 							}
 						}	
 						//coveredReadCnt += sqrt(abundanceJ) + sqrt(abundanceK) ;
@@ -1567,6 +1595,7 @@ public:
 								coveredReadCnt += sqrt(readAssignments[it->first][0].weight) * abundanceK / (abundanceJ + abundanceK); // the read must have some assignment to be here.*/
 							coveredReadCnt += readAssignments[it->first][0].adjustWeight ;
 						}
+						coveredReadCnt /= (1.0 + jMissingCoverage + kMissingCoverage) ;
 #ifdef DEBUG
 						printf("Further selection %s %s %lf %lf %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, coveredReadCnt) ;
 #endif

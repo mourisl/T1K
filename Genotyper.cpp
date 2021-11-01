@@ -267,7 +267,8 @@ int main(int argc, char *argv[])
 	genotyper.SetFilterCov(filterCov) ;
 	genotyper.SetCrossGeneRate(crossGeneRate) ;
 	refSet.SetRefSeqSimilarity(filterAlignmentSimilarity) ;
-
+	if (threadCnt > 1)
+		refSet.InitPthread() ;
 	int alleleCnt = refSet.Size() ;
 
 	//else

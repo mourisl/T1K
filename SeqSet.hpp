@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 #include <algorithm>
 #include <vector>
 #include <map>
@@ -32,6 +33,10 @@ struct _seqWrapper
 
 	std::vector<int> separator ; 
 	struct _validDiff *isValidDiff ;
+
+	pthread_mutex_t *lockBaseCoverage ;
+	int *baseCoverage ;
+
 	int weight ;
 	int barcode ; // transformed barcode. -1: no barcode
 
@@ -646,6 +651,13 @@ public:
 				free( seqs[i].name ) ;	
 			if ( seqs[i].isValidDiff != NULL )
 				delete[] seqs[i].isValidDiff ;
+			if ( seqs[i].baseCoverage != NULL )
+				delete[] seqs[i].baseCoverage ;
+			if ( seqs[i].lockBaseCoverage != NULL )
+			{
+				pthread_mutex_destroy( seqs[i].lockBaseCoverage ) ;
+				delete seqs[i].lockBaseCoverage ;
+			}
 		}
 	}
 
@@ -687,6 +699,17 @@ public:
 	void SetRefSeqSimilarity(double s)
 	{
 		refSeqSimilarity = s ;
+	}
+
+	void InitPthread()
+	{
+		int seqCnt = seqs.size() ;
+		int i ;
+		for (i = 0 ; i < seqCnt ; ++i)
+		{
+			seqs[i].lockBaseCoverage = new pthread_mutex_t ;
+			pthread_mutex_init( seqs[i].lockBaseCoverage, NULL ) ;	
+		}
 	}
 
 	// Input some baseline sequence to match against.
@@ -785,6 +808,10 @@ public:
 			np.b = seqLen - 1 ;
 			exons.push_back(np) ;
 		}
+
+		seqs[seqIdx].baseCoverage	= new int[seqLen] ;
+		memset(seqs[seqIdx].baseCoverage, 0, sizeof(int) * seqLen) ;
+		seqs[seqIdx].lockBaseCoverage = NULL ;
 
 		// Mark positions where we allow relaxed differences
 		seqs[seqIdx].isValidDiff	= new struct _validDiff[seqLen] ;
@@ -1893,7 +1920,7 @@ public:
 		if (extendedOverlap.similarity < refSeqSimilarity)
 			ret = 0 ;
 		
-		if (ret && ignoreNonExonDiff)
+		if (ret /*&& ignoreNonExonDiff*/)
 		{
 			AlignAlgo::GlobalAlignment( seq.consensus + extendedOverlap.seqStart, 
 					extendedOverlap.seqEnd - extendedOverlap.seqStart + 1,
@@ -1905,41 +1932,63 @@ public:
 			int exonCnt = 0 ;
 			int refPos = extendedOverlap.seqStart ;
 			int readPos = extendedOverlap.readStart ;
+			if (ignoreNonExonDiff)
+			{
+				for ( k = 0 ; align[k] != -1 ; ++k )
+				{
+					if (isValidDiff[refPos].exon)
+					{
+						if ( align[k] == EDIT_MATCH )
+							++matchCnt ;
+						else if ( align[k] == EDIT_MISMATCH )
+						{
+							/*if (r[readPos] == 'N' || !isValidDiff[refPos].m[nucToNum[ r[readPos] ]] )
+								++mismatchCnt ;
+								else
+								++matchCnt ;*/
+							++mismatchCnt ;
+						}
+						else  
+							++indelCnt ;
+
+						++exonCnt ;
+					}
+					else
+						++matchCnt ;
+
+					if (align[k] != EDIT_INSERT)
+						++refPos ;
+					if (align[k] != EDIT_DELETE)
+						++readPos ;
+				}
+				//printf("%d %d %d %d\n", extendedOverlap.seqStart, extendedOverlap.seqEnd, 2 * matchCnt, exonCnt) ;
+				extendedOverlap.exonicMatchCnt = 2 * matchCnt ;
+			}
+			else
+			{
+				extendedOverlap.exonicMatchCnt = extendedOverlap.matchCnt ;
+			}
+
+			// Mark the base coverage	
+			refPos = extendedOverlap.seqStart ;
+			readPos = extendedOverlap.readStart ;
+			if (seq.lockBaseCoverage != NULL)
+				pthread_mutex_lock(seq.lockBaseCoverage) ;
 			for ( k = 0 ; align[k] != -1 ; ++k )
 			{
-				if (!ignoreNonExonDiff || isValidDiff[refPos].exon)
-				{
-					if ( align[k] == EDIT_MATCH )
-						++matchCnt ;
-					else if ( align[k] == EDIT_MISMATCH )
-					{
-						/*if (r[readPos] == 'N' || !isValidDiff[refPos].m[nucToNum[ r[readPos] ]] )
-							++mismatchCnt ;
-						else
-							++matchCnt ;*/
-						++mismatchCnt ;
-					}
-					else  
-						++indelCnt ;
-
-					++exonCnt ;
-				}
-				else
-					++matchCnt ;
+				if ( align[k] == EDIT_MATCH )
+					++seq.baseCoverage[refPos] ;
 
 				if (align[k] != EDIT_INSERT)
 					++refPos ;
 				if (align[k] != EDIT_DELETE)
 					++readPos ;
 			}
-			//printf("%d %d %d %d\n", extendedOverlap.seqStart, extendedOverlap.seqEnd, 2 * matchCnt, exonCnt) ;
-			extendedOverlap.exonicMatchCnt = 2 * matchCnt ;
+			if (seq.lockBaseCoverage != NULL)
+				pthread_mutex_unlock(seq.lockBaseCoverage) ;
+
 			//extendedOverlap.similarity = (double)( 2 * matchCnt) /
 			//	( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;	
-		}
-		else
-		{
-			extendedOverlap.exonicMatchCnt = extendedOverlap.matchCnt ;
 		}
 
 		if (leftClip > 0 || rightClip > 0)
@@ -2296,6 +2345,11 @@ public:
 				{
 					break ;
 				}
+
+				/*if ((assign[i].overlap1.strand == 1 && !IsSeparatorInRange(assign[i].seqEnd,
+								assign[i].seqEnd + spanRange - 1, assign[i].seqIdx))
+						|| (assign[i].overlap1.strand == -1) && !IsSeparatorInRange(assign[i].seqStart - spanRange + 1, assign[i].seqStart, assign[i].seqIdx))
+					break ;*/
 			}	
 			if (i < size)
 				assign.clear() ;
@@ -2376,6 +2430,46 @@ public:
 			nameToIdx[s] = i ;
 		}
 		return seqCnt ;
+	}
+
+	int GetSeqMissingBaseCoverage(int seqIdx, double ratio)
+	{
+		int i ;
+		int len = seqs[seqIdx].consensusLen ;
+		const int *baseCoverage = seqs[seqIdx].baseCoverage ;
+		const struct _validDiff *isValidDiff = seqs[seqIdx].isValidDiff ;
+		int *exonBaseCoverage = new int[len] ;
+		int k = 0 ;
+		for (i = 0 ; i < len ; ++i)
+		{
+			if (isValidDiff[i].exon)
+			{
+				exonBaseCoverage[k] = baseCoverage[i] ;
+				++k ;
+			}
+		}
+		std::sort(exonBaseCoverage, exonBaseCoverage + k) ;
+		double cutoff = exonBaseCoverage[k / 2] * ratio ;
+		if (cutoff < 1)
+			cutoff = 1 ;
+		for (i = 0 ; i < k ; ++i)
+		{
+			if (exonBaseCoverage[i] >= cutoff)
+				break ;
+		}
+		/*if (1)//seqIdx == 341)
+		{
+			int i ;
+			for (i = 0 ; i < len ; ++i)
+				printf("%d %s %d %d %d %c\n", seqIdx, seqs[seqIdx].name, i, baseCoverage[i],
+						isValidDiff[i].exon, seqs[seqIdx].consensus[i]) ;
+			for (i = 0 ; i < k ; ++i)
+				printf("?? %d %d %d\n", seqIdx, i, exonBaseCoverage[i]) ;
+			printf("== %lf %d\n", cutoff, exonBaseCoverage[0]);
+		}
+		printf("=== %s %d\n", seqs[seqIdx].name, i);*/
+		delete[] exonBaseCoverage ;
+		return i ;
 	}
 }	;
 
