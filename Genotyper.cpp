@@ -279,6 +279,7 @@ int main(int argc, char *argv[])
 
 	// Read in the sequencing data	
 	i = 0;
+	int maxReadLength = 0 ;
 	while (reads.Next())
 	{
 		struct _genotypeRead nr ;
@@ -296,7 +297,8 @@ int main(int argc, char *argv[])
 		nr.umi = umi ;
 		nr.idx = i ;
 		nr.mate = 0 ;
-
+		if (strlen(nr.seq) > maxReadLength)
+			maxReadLength = strlen(nr.seq) ;
 		reads1.push_back(nr);		
 
 		if (hasMate)
@@ -312,10 +314,13 @@ int main(int argc, char *argv[])
 				mateR.qual = NULL;
 			mateR.idx = i ;	
 			mateR.mate = 1 ;
+			if (strlen(mateR.seq) > maxReadLength)
+				maxReadLength = strlen(mateR.seq) ;
 			reads2.push_back(mateR);			
 		}
 		++i;
 	}
+	genotyper.SetReadLength(maxReadLength) ;
 
 	int readCnt = reads1.size() ;
 	//std::vector<struct _fragmentOverlap> alleleAssignments ;

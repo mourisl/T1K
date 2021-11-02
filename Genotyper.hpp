@@ -324,6 +324,7 @@ private:
 				//psum += ecAbundance0[ecIdx] / ecLength[ecIdx] * qual ;
 				//if (ecAbundance0[ecIdx] >= 0)
 				double adjust = 1.0 / (ecInfo[ecIdx].missingCoverage + 1) ;
+				adjust = 1 ;
 				psum += ecAbundance0[ecIdx] * adjust ;
 			}
 			if (psum == 0)	
@@ -334,6 +335,7 @@ private:
 				//double qual = readGroupToAlleleEc[i][j].b ;
 				//ecReadCount[ecIdx] += readGroupInfo[i].count * (ecAbundance0[ecIdx] * qual / ecLength[ecIdx] / psum)  ;
 				double adjust = 1.0 / (ecInfo[ecIdx].missingCoverage + 1) ;
+				adjust = 1 ;
 				ecReadCount[ecIdx] += readGroupInfo[i].count * (ecAbundance0[ecIdx] * adjust /  psum)  ;
 			}
 		}
@@ -410,7 +412,7 @@ private:
 	double crossGeneRate ;
 	double **geneSimilarity ;
 
-
+	int readLength ;
 public:
 	SeqSet refSet ;
 	
@@ -429,6 +431,8 @@ public:
 		crossGeneRate = 0.005 ;
 
 		geneSimilarity = NULL ;
+
+		readLength = 0 ;
 	}
 
 	~Genotyper() 
@@ -455,6 +459,11 @@ public:
 	void SetFilterCov(double c)
 	{
 		filterCov = c ;
+	}
+	
+	void SetReadLength(int rl) 
+	{
+		readLength = rl ;
 	}
 
 	void SetCrossGeneRate(double r)
@@ -587,7 +596,7 @@ public:
 		allReadAssignments[readId].clear() ;
 		if (maxAssignCnt > 0 && assignmentCnt > maxAssignCnt)
 			return ;
-
+		
 		/*for (i = 1 ; i < assignmentCnt ; ++i)
 			if ( alleleInfo[assignment[i].seqIdx].geneIdx != alleleInfo[assignment[i - 1].seqIdx].geneIdx)
 				return ;*/
@@ -1553,7 +1562,7 @@ public:
 							for (r = 0 ; r < size ; ++r)
 								if (readCoverage[readsInAllele[alleleIdx][r].a] == 0
 										&& IsReadsInAlleleIdxOptimal(readsInAllele[alleleIdx], r))
-									coveredReads[readsInAllele[alleleIdx][r].a] |= 3 ;
+									coveredReads[readsInAllele[alleleIdx][r].a] |= 2 ;
 							alleleK = l ;
 						}
 
@@ -1587,6 +1596,8 @@ public:
 						abundanceSum = abundanceJ * abundanceK ;
 						
 						double coveredReadCnt = 0 ; //coveredReads.size() ;
+						double coveredReadCntJ = 0 ;
+						double coveredReadCntK = 0 ;
 						for (std::map<int ,int>::iterator it = coveredReads.begin(); it != coveredReads.end() ; ++it)
 						{
 							/*if (it->second & 1)
@@ -1594,10 +1605,30 @@ public:
 							if (it->second & 3)
 								coveredReadCnt += sqrt(readAssignments[it->first][0].weight) * abundanceK / (abundanceJ + abundanceK); // the read must have some assignment to be here.*/
 							coveredReadCnt += readAssignments[it->first][0].adjustWeight ;
+
+							/*if (it->second == 3)
+							{
+								coveredReadCntJ += readAssignments[it->first][0].adjustWeight * abundanceJ / (abundanceJ + abundanceK) / (1 + jMissingCoverage);
+								coveredReadCntK += readAssignments[it->first][0].adjustWeight * abundanceK / (abundanceJ + abundanceK) / (1 + kMissingCoverage);
+							}
+							else if (it->second == 1)
+							{
+								coveredReadCntJ += readAssignments[it->first][0].adjustWeight / (1 + jMissingCoverage);
+							}
+							else if (it->second == 2)
+							{
+								coveredReadCntK += readAssignments[it->first][0].adjustWeight / (1 + kMissingCoverage);
+							}*/
 						}
-						coveredReadCnt /= (1.0 + jMissingCoverage + kMissingCoverage) ;
+
+						if (alleleTypeCnt > 3)
+						{
+							coveredReadCnt = coveredReadCnt - jMissingCoverage * abundanceJ * readLength / 150.0
+								- kMissingCoverage * abundanceK * readLength / 150.0;
+						}
+						//coveredReadCnt = coveredReadCntJ + coveredReadCntK ;
 #ifdef DEBUG
-						printf("Further selection %s %s %lf %lf %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, coveredReadCnt) ;
+						printf("Further selection %s %s %lf %lf %d %d %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, jMissingCoverage, kMissingCoverage, coveredReadCnt) ;
 #endif
 						if (coveredReadCnt > maxCover
 								|| (coveredReadCnt == maxCover && abundanceSum > maxCoverAbundance))
