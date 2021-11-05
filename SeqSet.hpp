@@ -829,7 +829,7 @@ public:
 			int j, k ;
 			int s = exons[i].a ;
 			int e = exons[i].b ;
-			for (j = s ; j <= e ; ++j)
+			for (j = s ; j <= e && j < seqLen ; ++j) // because we do truncation in RNA-seq data
 			{
 				bool *m = seqs[seqIdx].isValidDiff[j].m ;
 				m[0] = m[1] = m[2] = m[3] = false ;
