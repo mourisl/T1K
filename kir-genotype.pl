@@ -356,11 +356,11 @@ if ( $stage <= 1 )
 	my @cols = split /\s/, $candidateFiles ;
 	if (scalar(@cols) > 1)
 	{
-		system_call("$WD/genotyper $genotyperArgs -t $threadCnt -f $refSeqFasta -1 ".$cols[0]." -2 ".$cols[1]." > ${prefix}_genotype.tsv") ;
+		system_call("$WD/genotyper $genotyperArgs -o $prefix -t $threadCnt -f $refSeqFasta -1 ".$cols[0]." -2 ".$cols[1]) ;
 	}
 	else
 	{
-		system_call("$WD/genotyper $genotyperArgs -t $threadCnt -f $refSeqFasta -u ".$cols[0]." > ${prefix}_genotype.tsv") ;
+		system_call("$WD/genotyper $genotyperArgs -o $prefix -t $threadCnt -f $refSeqFasta -u ".$cols[0]) ;
 	}
 }
 

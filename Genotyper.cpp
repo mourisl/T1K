@@ -19,9 +19,10 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"Optional:\n"
 		"\t-a STRING: path to the abundance file\n"
 		"\t-t INT: number of threads (default: 1)\n"
-		"\t-o STRING: output prefix (defult: kir)\n"
+		"\t-o STRING: output prefix (defult: t1k)\n"
 		"\t-n INT: maximal number of alleles per read (default: 2000)\n"
 		"\t-s FLOAT: filter alignments with alignment similarity less than specified value (defalut: 0.8)\n"
+		"\t--barcode "
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
 		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.02)\n"
@@ -111,7 +112,7 @@ void *AssignReads_Thread( void *pArg )
 {
 	struct _assignReadsThreadArg &arg = *( (struct _assignReadsThreadArg *)pArg ) ;
 	int start, end ;
-	int i ;
+	int i, j, k ;
 	int totalReadCnt = arg.pReads->size() ;
 	start = totalReadCnt / arg.threadCnt * arg.tid ;
 	end = totalReadCnt / arg.threadCnt * ( arg.tid + 1 ) ;
@@ -123,17 +124,20 @@ void *AssignReads_Thread( void *pArg )
 	std::vector< std::vector<struct _overlap> *> &readAssignments = *(arg.pReadAssignments);
 	SeqSet &refSet = *(arg.pRefSet) ;
 	std::vector<struct _overlap> *assignments = NULL ;
-
-	for ( i = start ; i < end ; ++i )
+	int weight = 0 ;
+	for ( i = start ; i < end ; )
 	{
-			if (i == start || strcmp(reads[i].seq, reads[i - 1].seq) != 0)
-			{
-				assignments = new std::vector<struct _overlap> ;
-				refSet.AssignRead(reads[i].seq, reads[i].barcode, *assignments) ;
-			}
+			for (j = i + 1 ; j < end ; ++j)
+				if (strcmp(reads[j].seq, reads[i].seq) != 0)
+					break ;
+			assignments = new std::vector<struct _overlap> ;
+			refSet.AssignRead(reads[i].seq, reads[i].barcode, j - i, *assignments) ;
 			//if (arg.tid == 0 && i % 10000 == 0)
 			//	printf("%d\n", i * arg.threadCnt) ;
-			readAssignments[i] = assignments ;
+			for (k = i ; k < j ; ++k)
+				readAssignments[k] = assignments ;
+
+			i = j ;
 	}
 	pthread_exit( NULL ) ;
 }
@@ -176,7 +180,7 @@ int main(int argc, char *argv[])
 		return 0 ;
 	}
 	
-	char outputPrefix[1024] = "kir" ;
+	char outputPrefix[1024] = "t1k" ;
 	
 	Genotyper genotyper(11) ;
 	ReadFiles reads ;
@@ -187,6 +191,7 @@ int main(int argc, char *argv[])
 	int threadCnt = 1 ;
 	int maxAssignCnt = 2000 ;
 	FILE *fpAbundance = NULL ;
+	FILE *fpOutput ;
 	double filterFrac = 0.15 ;
 	double filterCov = 1.0 ;
 	double crossGeneRate = 0.02 ;
@@ -345,12 +350,17 @@ int main(int argc, char *argv[])
 		std::vector<struct _overlap> *assignments = NULL ;
 		for (i = 0 ; i < allReadCnt ; ++i)
 		{
-			if (i == 0 || strcmp(allReads[i].seq, allReads[i - 1].seq) != 0)
-			{
-				assignments = new std::vector<struct _overlap> ;
-				refSet.AssignRead(allReads[i].seq, allReads[i].barcode, *assignments) ;
-			}
-			readAssignments[i] = assignments ;
+			for (j = i + 1 ; j < allReadCnt ; ++j)
+				if (strcmp(allReads[j].seq, allReads[i].seq) != 0)
+					break ;
+			assignments = new std::vector<struct _overlap> ;
+			refSet.AssignRead(allReads[i].seq, allReads[i].barcode, j - i, *assignments) ;
+			//if (arg.tid == 0 && i % 10000 == 0)
+			//	printf("%d\n", i * arg.threadCnt) ;
+			for (k = i ; k < j ; ++k)
+				readAssignments[k] = assignments ;
+
+			i = j ;
 		}
 	}
 	else
@@ -486,26 +496,31 @@ int main(int argc, char *argv[])
 
 	// Main function to do genotyping
 	genotyper.SelectAllelesForGenes() ;
-		
-	// Find the representative alleles
+	
 	// Output the genotype information
 	int geneCnt = genotyper.GetGeneCnt() ;
 	char *bufferAllele[2] ;
 	bufferAllele[0] = new char[20 * refSet.Size() + 40] ;
 	bufferAllele[1] = new char[20 * refSet.Size()+ 40] ;
+	sprintf(buffer, "%s_genotype.tsv", outputPrefix) ;
+	fpOutput = fopen(buffer, "w") ;	
 	for (i = 0 ; i < geneCnt ; ++i)
 	{
 		int calledAlleleCnt = genotyper.GetAlleleDescription(i, bufferAllele[0], bufferAllele[1]) ;
-		printf("%s\t%d", genotyper.GetGeneName(i), calledAlleleCnt) ;
+		fprintf(fpOutput, "%s\t%d", genotyper.GetGeneName(i), calledAlleleCnt) ;
 		for (j = 0 ; j < calledAlleleCnt ; ++j)
 		{
-			printf("\t%s", bufferAllele[j]);
+			fprintf(fpOutput, "\t%s", bufferAllele[j]);
 		}
-		printf("\n") ;	
+		fprintf(fpOutput, "\n") ;	
 	}
 	delete[] bufferAllele[0] ;
 	delete[] bufferAllele[1] ;
+	fclose(fpOutput) ;
 
+	// Find the representative alleles
+		
+	
 
 	for ( i = 0 ; i < readCnt ; ++i )
 	{
