@@ -1630,7 +1630,7 @@ public:
 #ifdef DEBUG
 						printf("Further selection %s %s %lf %lf %d %d %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, jMissingCoverage, kMissingCoverage, coveredReadCnt) ;
 #endif
-						if (coveredReadCnt > maxCover
+						if (bestTypes.Size() == 0 || coveredReadCnt > maxCover 
 								|| (coveredReadCnt == maxCover && abundanceSum > maxCoverAbundance))
 						{
 							maxCover = coveredReadCnt ;

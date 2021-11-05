@@ -2015,82 +2015,106 @@ public:
 			{
 				//printf( "e0 %d-%d %d-%d %lf. %d %d\n", eOverlap.readStart, eOverlap.readEnd,
 				//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity, eOverlap.matchCnt, eOverlap.exonicMatchCnt) ;
-				struct _seqWrapper &seq = seqs[overlaps[i].seqIdx] ;
-				AlignAlgo::GlobalAlignment( seq.consensus + eOverlap.seqStart, 
-						eOverlap.seqEnd - eOverlap.seqStart + 1,
-						r + eOverlap.readStart,
-						eOverlap.readEnd - eOverlap.readStart + 1, align) ;
-
-				const struct _validDiff *isValidDiff = seqs[eOverlap.seqIdx].isValidDiff ;
-				int matchCnt = 0 ;
-				int mismatchCnt = 0 ;
-				int indelCnt = 0 ;
-				int exonCnt = 0 ;
-				int refPos = eOverlap.seqStart ;
-				int readPos = eOverlap.readStart ;
-				if (ignoreNonExonDiff)
-				{
-					for ( k = 0 ; align[k] != -1 ; ++k )
-					{
-						if (isValidDiff[refPos].exon)
-						{
-							if ( align[k] == EDIT_MATCH )
-								++matchCnt ;
-							else if ( align[k] == EDIT_MISMATCH )
-							{
-								/*if (r[readPos] == 'N' || !isValidDiff[refPos].m[nucToNum[ r[readPos] ]] )
-									++mismatchCnt ;
-									else
-									++matchCnt ;*/
-								++mismatchCnt ;
-							}
-							else  
-								++indelCnt ;
-
-							++exonCnt ;
-						}
-						else
-							++matchCnt ;
-
-						if (align[k] != EDIT_INSERT)
-							++refPos ;
-						if (align[k] != EDIT_DELETE)
-							++readPos ;
-					}
-					//printf("%d %d %d %d\n", extendedOverlap.seqStart, extendedOverlap.seqEnd, 2 * matchCnt, exonCnt) ;
-					eOverlap.exonicMatchCnt = 2 * matchCnt ;
-				}
-				else
-				{
-					eOverlap.exonicMatchCnt = eOverlap.matchCnt ;
-				}
-
-				// Mark the base coverage	
-				if (weight > 0)
-				{
-					refPos = eOverlap.seqStart ;
-					readPos = eOverlap.readStart ;
-					if (seq.lockBaseCoverage != NULL)
-						pthread_mutex_lock(seq.lockBaseCoverage) ;
-					for ( k = 0 ; align[k] != -1 ; ++k )
-					{
-						if ( align[k] == EDIT_MATCH )
-							seq.baseCoverage[refPos] += weight;
-
-						if (align[k] != EDIT_INSERT)
-							++refPos ;
-						if (align[k] != EDIT_DELETE)
-							++readPos ;
-					}
-					if (seq.lockBaseCoverage != NULL)
-						pthread_mutex_unlock(seq.lockBaseCoverage) ;
-				}
-				//extendedOverlap.similarity = (double)( 2 * matchCnt) /
-				//	( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;	
 				extendedOverlaps.push_back(eOverlap) ;
 			}
 			else
 				onlyConsiderClip = true ;
+		}
+		
+		if (extendedOverlaps.size() > 0)
+		{
+			// Adding the exonic and base support for good overlaps
+			// The is a heurist to get good speed.
+			struct _overlap bestExtendedOverlap = extendedOverlaps[0];
+			int size = extendedOverlaps.size() ;
+			for (i = 0 ; i < size ; ++i)	
+				if (extendedOverlaps[i] < bestExtendedOverlap)
+					bestExtendedOverlap = extendedOverlaps[i] ;
+			for (i = 0 ; i < size ; ++i)
+			{
+				struct _overlap &eOverlap = extendedOverlaps[i] ;
+				if (eOverlap.matchCnt >= bestExtendedOverlap.matchCnt - 10)
+				{
+					struct _seqWrapper &seq = seqs[eOverlap.seqIdx] ;
+					AlignAlgo::GlobalAlignment( seq.consensus + eOverlap.seqStart, 
+							eOverlap.seqEnd - eOverlap.seqStart + 1,
+							r + eOverlap.readStart,
+							eOverlap.readEnd - eOverlap.readStart + 1, align) ;
+
+					const struct _validDiff *isValidDiff = seqs[eOverlap.seqIdx].isValidDiff ;
+					int matchCnt = 0 ;
+					int mismatchCnt = 0 ;
+					int indelCnt = 0 ;
+					int exonCnt = 0 ;
+					int refPos = eOverlap.seqStart ;
+					int readPos = eOverlap.readStart ;
+					if (ignoreNonExonDiff)
+					{
+						for ( k = 0 ; align[k] != -1 ; ++k )
+						{
+							if (isValidDiff[refPos].exon)
+							{
+								if ( align[k] == EDIT_MATCH )
+									++matchCnt ;
+								else if ( align[k] == EDIT_MISMATCH )
+								{
+									/*if (r[readPos] == 'N' || !isValidDiff[refPos].m[nucToNum[ r[readPos] ]] )
+										++mismatchCnt ;
+										else
+										++matchCnt ;*/
+									++mismatchCnt ;
+								}
+								else  
+									++indelCnt ;
+
+								++exonCnt ;
+							}
+							else
+								++matchCnt ;
+
+							if (align[k] != EDIT_INSERT)
+								++refPos ;
+							if (align[k] != EDIT_DELETE)
+								++readPos ;
+						}
+						//printf("%d %d %d %d\n", extendedOverlap.seqStart, extendedOverlap.seqEnd, 2 * matchCnt, exonCnt) ;
+						eOverlap.exonicMatchCnt = 2 * matchCnt ;
+					}
+					else
+					{
+						eOverlap.exonicMatchCnt = eOverlap.matchCnt ;
+					}
+
+					// Mark the base coverage	
+					if (weight > 0)
+					{
+						refPos = eOverlap.seqStart ;
+						readPos = eOverlap.readStart ;
+						if (seq.lockBaseCoverage != NULL)
+							pthread_mutex_lock(seq.lockBaseCoverage) ;
+						for ( k = 0 ; align[k] != -1 ; ++k )
+						{
+							if ( align[k] == EDIT_MATCH )
+								seq.baseCoverage[refPos] += weight;
+
+							if (align[k] != EDIT_INSERT)
+								++refPos ;
+							if (align[k] != EDIT_DELETE)
+								++readPos ;
+						}
+						if (seq.lockBaseCoverage != NULL)
+							pthread_mutex_unlock(seq.lockBaseCoverage) ;
+					}
+					//extendedOverlap.similarity = (double)( 2 * matchCnt) /
+					//	( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;	
+
+				}
+				else
+				{
+					// The assignment is very bad
+					eOverlap.exonicMatchCnt = 0 ;//eOverlap.matchCnt ;		
+				}
+			}
 		}
 
 		delete[] rc ;
