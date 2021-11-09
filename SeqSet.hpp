@@ -22,6 +22,16 @@ struct _validDiff
 	bool exon ;
 } ;
 
+struct _variant
+{
+	int seqIdx ;
+	int refStart, refEnd ;
+	char ref[10] ;
+	char var[10] ;
+	int allSupport ;
+	int varSupport ;
+} ;
+
 struct _seqWrapper
 {
 	char *name ;
@@ -29,13 +39,13 @@ struct _seqWrapper
 	int consensusLen ;
 	int effectiveLen ; // the length that should be used for abundance estimation
 	SimpleVector<struct _posWeight> posWeight ;
+	std::vector<struct _pair> exons ;
 	bool isRef ; // this is from reference.
 
 	std::vector<int> separator ; 
 	struct _validDiff *isValidDiff ;
 
 	pthread_mutex_t *lockBaseCoverage ;
-	int *baseCoverage ;
 
 	int weight ;
 	int barcode ; // transformed barcode. -1: no barcode
@@ -145,6 +155,7 @@ struct _fragmentOverlap
 	double similarity ;
 
 	bool hasMatePair ;
+	bool o1FromR2 ; // dangling case, whether overlap 1 is from read 2
 
 	struct _overlap overlap1 ; // for read 1
 	struct _overlap overlap2 ; // for read 2
@@ -623,6 +634,84 @@ private:
 			}
 		}
 	}
+
+	void SetSeqExonInfo(int seqIdx, const std::vector<struct _pair> &exons)
+	{
+		int i ;
+		int seqLen = seqs[seqIdx].consensusLen ;
+
+		seqs[seqIdx].exons = exons ;
+
+		seqs[seqIdx].posWeight.ExpandTo(seqLen) ;
+		seqs[seqIdx].posWeight.SetZero(0, seqLen) ;
+		
+		seqs[seqIdx].lockBaseCoverage = NULL ;
+
+		// Mark positions where we allow relaxed differences
+		seqs[seqIdx].isValidDiff	= new struct _validDiff[seqLen] ;
+		int size = exons.size() ;
+		for (i = 0 ; i < seqLen ; ++i)
+		{
+			bool *m = seqs[seqIdx].isValidDiff[i].m ;
+			m[0] = m[1] = m[2] = m[3] = true ;
+			seqs[seqIdx].isValidDiff[i].exon = false ;
+		}
+		//memset(seqs[seqIdx].isValidDiff, true, sizeof(struct _validDiff) * seqLen) ;
+		int codonOffset = 2;
+		for (i = 0 ; i < size ; ++i)
+		{
+			int j, k ;
+			int s = exons[i].a ;
+			int e = exons[i].b ;
+			for (j = s ; j <= e && j < seqLen ; ++j) // because we do truncation in RNA-seq data
+			{
+				bool *m = seqs[seqIdx].isValidDiff[j].m ;
+				m[0] = m[1] = m[2] = m[3] = false ;
+				seqs[seqIdx].isValidDiff[j].exon = true ;
+			}
+
+			/*for (j = s + codonOffset ; j <= e ; j += 3)
+				{
+				char a, b ;
+				if (j == s)
+				{
+				a = read[ exons[i - 1].b - 1] ;
+				b = read[ exons[i - 1].b] ;
+				}
+				else if ( j == s + 1)
+				{
+				a = read[ exons[i - 1].b] ;
+				b = read[j - 1] ;
+				}
+				else
+				{
+				a = read[j - 2] ;
+				b = read[j - 1] ;
+				}
+				bool *m = seqs[seqIdx].isValidDiff[j].m ;
+				if (a != 'N' && b != 'N' && read[j] != 'N')
+				{
+				char aa = DnaToAa(a, b, read[j]) ;
+				for (k = 0 ; k <= 3 ; ++k)
+				{
+				if (DnaToAa(a, b, numToNuc[k]) == aa)
+				m[k] = true ;
+				}
+				}
+				}*/
+			codonOffset = 2 - (j - e) ;
+		}
+
+		for (i = 1 ; i < size ; ++i)
+		{
+			if (exons[i].a > exons[i - 1].b + 1)	
+			{
+				ignoreNonExonDiff = true ;
+				break ;
+			}
+		}
+
+	}
 	
 public:
 	SeqSet( int kl ) 
@@ -651,8 +740,6 @@ public:
 				free( seqs[i].name ) ;	
 			if ( seqs[i].isValidDiff != NULL )
 				delete[] seqs[i].isValidDiff ;
-			if ( seqs[i].baseCoverage != NULL )
-				delete[] seqs[i].baseCoverage ;
 			if ( seqs[i].lockBaseCoverage != NULL )
 			{
 				pthread_mutex_destroy( seqs[i].lockBaseCoverage ) ;
@@ -746,8 +833,8 @@ public:
 			seqIndex.BuildIndexFromRead( kmerCode, sw.consensus, sw.consensusLen, id ) ;
 		}
 	}
-	
-	int InputRefSeq( char *id, char *read, int weight, char *comment = NULL )
+
+	int InputRefSeq( char *id, char *read, int weight, bool initExonInfo = false, char *comment = NULL )
 	{
 		struct _seqWrapper ns ;
 		int i ;
@@ -808,76 +895,19 @@ public:
 			np.b = seqLen - 1 ;
 			exons.push_back(np) ;
 		}
-
-		seqs[seqIdx].baseCoverage	= new int[seqLen] ;
-		memset(seqs[seqIdx].baseCoverage, 0, sizeof(int) * seqLen) ;
-		seqs[seqIdx].lockBaseCoverage = NULL ;
-
-		// Mark positions where we allow relaxed differences
-		seqs[seqIdx].isValidDiff	= new struct _validDiff[seqLen] ;
-		int size = exons.size() ;
-		for (i = 0 ; i < seqLen ; ++i)
-		{
-			bool *m = seqs[seqIdx].isValidDiff[i].m ;
-			m[0] = m[1] = m[2] = m[3] = true ;
-			seqs[seqIdx].isValidDiff[i].exon = false ;
-		}
-		//memset(seqs[seqIdx].isValidDiff, true, sizeof(struct _validDiff) * seqLen) ;
-		int codonOffset = 2;
-		for (i = 0 ; i < size ; ++i)
-		{
-			int j, k ;
-			int s = exons[i].a ;
-			int e = exons[i].b ;
-			for (j = s ; j <= e && j < seqLen ; ++j) // because we do truncation in RNA-seq data
-			{
-				bool *m = seqs[seqIdx].isValidDiff[j].m ;
-				m[0] = m[1] = m[2] = m[3] = false ;
-				seqs[seqIdx].isValidDiff[j].exon = true ;
-			}
-
-			/*for (j = s + codonOffset ; j <= e ; j += 3)
-			{
-				char a, b ;
-				if (j == s)
-				{
-					a = read[ exons[i - 1].b - 1] ;
-					b = read[ exons[i - 1].b] ;
-				}
-				else if ( j == s + 1)
-				{
-					a = read[ exons[i - 1].b] ;
-					b = read[j - 1] ;
-				}
-				else
-				{
-					a = read[j - 2] ;
-					b = read[j - 1] ;
-				}
-				bool *m = seqs[seqIdx].isValidDiff[j].m ;
-				if (a != 'N' && b != 'N' && read[j] != 'N')
-				{
-						char aa = DnaToAa(a, b, read[j]) ;
-						for (k = 0 ; k <= 3 ; ++k)
-						{
-							if (DnaToAa(a, b, numToNuc[k]) == aa)
-								m[k] = true ;
-						}
-				}
-			}*/
-			codonOffset = 2 - (j - e) ;
-		}
 		
-		for (i = 1 ; i < size ; ++i)
-		{
-			if (exons[i].a > exons[i - 1].b + 1)	
-			{
-				ignoreNonExonDiff = true ;
-				break ;
-			}
-		}
+		if (initExonInfo)
+			SetSeqExonInfo(seqIdx, exons) ;
+
 		return seqIdx ;
 	}	
+	
+	int InputRefSeq( char *id, char *read, int weight, const std::vector<struct _pair> &exons)
+	{
+		int seqIdx = InputRefSeq(id, read, weight) ;
+		SetSeqExonInfo(seqIdx, exons) ;
+		return seqIdx ;
+	}
 
 	void UpdateSeqWeight(int seqIdx, int update)
 	{
@@ -1961,6 +1991,7 @@ public:
 	
 	// Find the seq id this read belongs to.
 	// When weight the positive, modify the seq base coverage
+	// When weight==-1, no need to do the base level alignment
 	int AssignRead( char *read, int barcode, int weight, std::vector<struct _overlap> &assign )
 	{
 		assign.clear() ;
@@ -2021,7 +2052,7 @@ public:
 				onlyConsiderClip = true ;
 		}
 		
-		if (extendedOverlaps.size() > 0)
+		if (extendedOverlaps.size() > 0 && weight >= 0)
 		{
 			// Adding the exonic and base support for good overlaps
 			// The is a heurist to get good speed.
@@ -2095,7 +2126,7 @@ public:
 						for ( k = 0 ; align[k] != -1 ; ++k )
 						{
 							if ( align[k] == EDIT_MATCH )
-								seq.baseCoverage[refPos] += weight;
+								seq.posWeight[refPos].count[ nucToNum[r[readPos] - 'A']] += weight;
 
 							if (align[k] != EDIT_INSERT)
 								++refPos ;
@@ -2231,6 +2262,7 @@ public:
 				fragmentOverlap.seqStart = o.seqStart ;
 				fragmentOverlap.seqEnd = o.seqEnd ;
 				fragmentOverlap.hasMatePair = false ;
+				fragmentOverlap.o1FromR2 = false ;
 				fragmentOverlap.overlap1 = o ;
 				fragmentOverlap.exonicMatchCnt = o.exonicMatchCnt ;
 
@@ -2264,6 +2296,7 @@ public:
 				fragmentOverlap.seqStart = o.seqStart ;
 				fragmentOverlap.seqEnd = o.seqEnd ;
 				fragmentOverlap.hasMatePair = false ;
+				fragmentOverlap.o1FromR2 = true ;
 				fragmentOverlap.exonicMatchCnt = o.exonicMatchCnt ;
 				fragmentOverlap.overlap1 = o ;
 			}
@@ -2447,6 +2480,53 @@ public:
 		return assign.size() ;
 	}
 
+	void UpdatePosWeightFromOverlap(char *read, double weight, struct _overlap o)
+	{
+		if (o.seqIdx == -1)
+			return ;
+		int i, k ;
+		int readLen = strlen(read)	;
+		char *r = read ;
+		if (o.strand == -1)
+		{
+			r = strdup(read) ;
+			ReverseComplement(r, read, readLen) ;
+		}
+
+		char *align = new char[ 3 * readLen + 2 ] ;
+		struct _seqWrapper &seq = seqs[o.seqIdx] ;
+		AlignAlgo::GlobalAlignment( seq.consensus + o.seqStart, 
+				o.seqEnd - o.seqStart + 1,
+				r + o.readStart,
+				o.readEnd - o.readStart + 1, align) ;
+
+		const struct _validDiff *isValidDiff = seqs[o.seqIdx].isValidDiff ;
+		int refPos = o.seqStart ;
+		int readPos = o.readStart ;
+
+		refPos = o.seqStart ;
+		readPos = o.readStart ;
+		if (seq.lockBaseCoverage != NULL)
+			pthread_mutex_lock(seq.lockBaseCoverage) ;
+		for ( k = 0 ; align[k] != -1 ; ++k )
+		{
+			if ( align[k] == EDIT_MATCH || align[k] == EDIT_MISMATCH)
+				seq.posWeight[refPos].count[ nucToNum[r[readPos] - 'A']] += weight;
+			//TODO: handle indels
+
+			if (align[k] != EDIT_INSERT)
+				++refPos ;
+			if (align[k] != EDIT_DELETE)
+				++readPos ;
+		}
+		if (seq.lockBaseCoverage != NULL)
+			pthread_mutex_unlock(seq.lockBaseCoverage) ;
+
+		if (o.strand == -1)
+			free(r);
+		free(align) ;
+	}
+
 	int GetSeqNameToIdxMap(std::map<std::string, int>& nameToIdx)
 	{
 		int seqCnt = seqs.size() ;
@@ -2463,7 +2543,7 @@ public:
 	{
 		int i ;
 		int len = seqs[seqIdx].consensusLen ;
-		const int *baseCoverage = seqs[seqIdx].baseCoverage ;
+		const SimpleVector<struct _posWeight> &posWeight = seqs[seqIdx].posWeight ;
 		const struct _validDiff *isValidDiff = seqs[seqIdx].isValidDiff ;
 		int *exonBaseCoverage = new int[len] ;
 		int k = 0 ;
@@ -2471,7 +2551,7 @@ public:
 		{
 			if (isValidDiff[i].exon)
 			{
-				exonBaseCoverage[k] = baseCoverage[i] ;
+				exonBaseCoverage[k] = posWeight[i].count[nucToNum[seqs[seqIdx].consensus[i]-'A']] ;
 				++k ;
 			}
 		}
@@ -2497,6 +2577,45 @@ public:
 		printf("=== %s %d\n", seqs[seqIdx].name, i);*/
 		delete[] exonBaseCoverage ;
 		return i ;
+	}
+
+	int GetSeqExonVariants(int seqIdx, std::vector<struct _variant> &variants)
+	{
+		int i, j, k ;
+		const struct _seqWrapper &seq = seqs[seqIdx] ;
+		k = 0 ;
+		for (i = 0 ; i < seq.consensusLen ; ++i)
+		{
+			// major allele 
+			if (!seq.isValidDiff[i].exon)
+				continue ;
+			double max = seq.posWeight[i].count[0];
+			int maxTag = 0 ;
+			for (j = 1 ; j < 4 ; ++j)
+			{
+				if (seq.posWeight[i].count[j] > max)
+				{
+					max = seq.posWeight[i].count[j] ;
+					maxTag = j ;
+				}
+			}
+
+			if (numToNuc[j] != seq.consensus[i])
+			{
+				// Variation happens
+				struct _variant nv ;
+				nv.seqIdx = seqIdx ;
+				nv.refStart = k ;
+				nv.refEnd = k ;
+				nv.ref[0] = seq.consensus[i] ;
+				nv.ref[1] = '\0' ;
+				nv.var[0] = numToNuc[j] ;
+				nv.var[1] = '\0' ;
+				nv.allSupport = seq.posWeight[i].Sum() ;
+				nv.varSupport = max ;
+			}
+			++k ;
+		}
 	}
 }	;
 

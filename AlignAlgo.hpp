@@ -20,7 +20,7 @@
 
 struct _posWeight
 {
-	int count[4] ;
+	double count[4] ;
 
 	struct _posWeight &operator+=( const struct _posWeight &rhs )
 	{

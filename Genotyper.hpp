@@ -371,7 +371,6 @@ private:
 		return -sqrt(sqrSumR) / sqrt(sqrSumV) ;
 	}
 
-
 	int readCnt ;
 	int totalReadCnt ;
 	int maxAssignCnt ;
@@ -470,28 +469,10 @@ public:
 	{
 		crossGeneRate = r ;
 	}
-
-	void InitRefSet(char *filename)
+	
+	void InitAlleleInfo()
 	{
 		int i, j ;
-
-		//refSet.InputRefFa(filename) ;
-		std::map<std::string, int> usedSeq ;
-		ReadFiles fa ;
-		fa.AddReadFile( filename, false ) ;
-		while ( fa.Next() )
-		{
-			std::string seq( fa.seq );
-			if (usedSeq.find(seq) != usedSeq.end())
-			{
-				refSet.UpdateSeqWeight( usedSeq[seq], 1) ;
-			}
-			else 
-			{
-				usedSeq[seq] = refSet.InputRefSeq(fa.id, fa.seq, 1, fa.comment);
-			}
-		}
-
 		alleleCnt = refSet.Size() ;
 		alleleInfo.ExpandTo(alleleCnt) ;
 		
@@ -568,6 +549,55 @@ public:
 			}
 		}
 		delete[] kmerProfiles ;
+
+	}
+
+	void InitRefSet(char *filename)
+	{
+		int i, j ;
+
+		//refSet.InputRefFa(filename) ;
+		std::map<std::string, int> usedSeq ;
+		ReadFiles fa ;
+		fa.AddReadFile( filename, false ) ;
+		while ( fa.Next() )
+		{
+			std::string seq( fa.seq );
+			if (usedSeq.find(seq) != usedSeq.end())
+			{
+				refSet.UpdateSeqWeight( usedSeq[seq], 1) ;
+			}
+			else 
+			{
+				usedSeq[seq] = refSet.InputRefSeq(fa.id, fa.seq, 1, true, fa.comment);
+			}
+		}
+
+		InitAlleleInfo() ;
+	}
+
+	void InitRefSet(char *filename, const std::map<std::string, int> &selectedAllele)
+	{
+		int i, j ;
+
+		//refSet.InputRefFa(filename) ;
+		std::map<std::string, int> usedSeq ;
+		ReadFiles fa ;
+		fa.AddReadFile( filename, false ) ;
+		while ( fa.Next() )
+		{
+			std::string seq( fa.seq );
+			if (usedSeq.find(seq) != usedSeq.end())
+			{
+				refSet.UpdateSeqWeight( usedSeq[seq], 1) ;
+			}
+			else 
+			{
+				usedSeq[seq] = refSet.InputRefSeq(fa.id, fa.seq, 1, true, fa.comment);
+			}
+		}
+
+		InitAlleleInfo() ;
 	}
 
 	void InitReadAssignments(int totalReadCnt, int maxAssignCnt)
@@ -1777,6 +1807,33 @@ public:
 		delete[] geneAbundances ;
 	}
 
+	void UpdatePosWeightFromFragmentOverlap(char *r1, char *r2, const std::vector<struct _fragmentOverlap> fragmentOverlap)
+	{
+		int i, j ;
+		double psum = 0 ; 
+		int size = fragmentOverlap.size() ;
+		for (i = 0 ; i < size ; ++i)
+			psum += alleleInfo[fragmentOverlap[i].seqIdx].abundance ;
+		
+		for (i = 0 ; i < size ; ++i)
+		{
+			double p =  alleleInfo[fragmentOverlap[i].seqIdx].abundance ;
+			
+			if (fragmentOverlap[i].hasMatePair)
+			{
+				refSet.UpdatePosWeightFromOverlap(r1, p / psum, fragmentOverlap[i].overlap1) ;
+				refSet.UpdatePosWeightFromOverlap(r2, p / psum, fragmentOverlap[i].overlap2) ;
+			}
+			else
+			{
+				if (!fragmentOverlap[i].o1FromR2)
+					refSet.UpdatePosWeightFromOverlap(r1, p / psum, fragmentOverlap[i].overlap1) ;
+				else
+					refSet.UpdatePosWeightFromOverlap(r2, p / psum, fragmentOverlap[i].overlap2) ;
+			}
+		}
+	}
+
 	int GetGeneCnt()
 	{
 		return geneCnt ;
@@ -1838,6 +1895,56 @@ public:
 				sprintf(buffer + strlen(buffer), "\t%lf\t%d", abundance, qualities[type]) ;
 		}
 		return ret ;
+	}
+
+	void OutputRepresentativeAlleles(char *filename)
+	{
+		int i, j ;
+		FILE *fp = fopen(filename, "w") ;
+		for (i = 0 ; i < geneCnt ; ++i)
+		{
+			int size = selectedAlleles[i].size() ;
+			int representatives[2] = {-1, -1} ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				int tag = selectedAlleles[i][j].b ;
+				if (tag > 1 || alleleInfo[selectedAlleles[i][j].a].genotypeQuality < 1)
+					continue ;
+				if (representatives[tag] == -1 ||
+						alleleInfo[representatives[tag]].ecAbundance < alleleInfo[selectedAlleles[i][j].a].ecAbundance
+						|| (alleleInfo[representatives[tag]].ecAbundance == alleleInfo[selectedAlleles[i][j].a].ecAbundance
+								&& representatives[tag] > selectedAlleles[i][j].a))
+				{
+					representatives[tag] = selectedAlleles[i][j].a ;
+				}
+			}
+			for (j = 0 ; j < 2 ; ++j)
+			{
+				if (representatives[j] != -1)
+					fprintf(fp, "%s %d\n", refSet.GetSeqName(representatives[j]), alleleInfo[representatives[j]].genotypeQuality) ;
+			}
+		}
+		fclose(fp) ;
+	}
+
+	void OutputAlleleVCF(char *filename)
+	{
+		FILE *fp = fopen(filename, "w") ;
+		int i, j ;
+		for (i = 0 ; i < alleleCnt ; ++i)
+		{
+			std::vector<struct _variant> variants ;
+			refSet.GetSeqExonVariants(i, variants) ;
+			int size = variants.size() ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				fprintf(fp, "%s %d . %s %s 60 PASS %d %d\n", 
+						refSet.GetSeqName(i), variants[j].refStart + 1,
+						variants[j].ref, variants[j].var, 
+						variants[j].varSupport, variants[j].allSupport) ;
+			}
+		}
+		fclose(fp) ;
 	}
 } ;
 

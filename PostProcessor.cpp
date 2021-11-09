@@ -13,19 +13,16 @@
 char usage[] = "./genotyper [OPTIONS]:\n"
 		"Required:\n"
 		"\t-f STRING: fasta file containing the reference genome sequence\n"
+		"\t-a STRING: selected alleles list file\n"
 		"\t[Read file]\n"
 		"\t-u STRING: path to single-end read file\n"
 		"\t-1 STRING -2 STRING: path to paired-end files\n" 
 		"Optional:\n"
-		"\t-a STRING: path to the abundance file\n"
 		"\t-t INT: number of threads (default: 1)\n"
 		"\t-o STRING: output prefix (defult: t1k)\n"
 		"\t-n INT: maximal number of alleles per read (default: 2000)\n"
 		"\t-s FLOAT: filter alignments with alignment similarity less than specified value (defalut: 0.8)\n"
 		"\t--barcode STRING: path to the barcode file\n"
-		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
-		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
-		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.02)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -37,9 +34,6 @@ char numToNuc[4] = {'A', 'C', 'G', 'T'} ;
 
 static const char *short_options = "f:a:u:1:2:o:t:n:s:" ;
 static struct option long_options[] = {
-	{ "frac", required_argument, 0, 10000 },
-	{ "cov", required_argument, 0, 10001 },
-	{ "crossGeneRate", required_argument, 0, 10002},
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -92,6 +86,7 @@ struct _readAssignmentToFragmentAssignmentThreadArg
 	std::vector<struct _genotypeRead> *pReads1 ;
 	std::vector<struct _genotypeRead> *pReads2 ;	
 	std::vector< std::vector<struct _overlap> *> *pReadAssignments ;
+	std::vector< std::vector<struct _fragmentOverlap> > *pFragmentAssignments ;
 } ;
 
 char buffer[10241] = "" ;
@@ -132,7 +127,7 @@ void *AssignReads_Thread( void *pArg )
 				if (strcmp(reads[j].seq, reads[i].seq) != 0)
 					break ;
 			assignments = new std::vector<struct _overlap> ;
-			refSet.AssignRead(reads[i].seq, reads[i].barcode, j - i, *assignments) ;
+			refSet.AssignRead(reads[i].seq, reads[i].barcode, -1, *assignments) ;
 			//if (arg.tid == 0 && i % 10000 == 0)
 			//	printf("%d\n", i * arg.threadCnt) ;
 			for (k = i ; k < j ; ++k)
@@ -156,8 +151,9 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 	std::vector<struct _genotypeRead> &reads2 = *(arg.pReads2) ;
 	std::vector< std::vector<struct _overlap> *> &readAssignments = *(arg.pReadAssignments);
 	SeqSet &refSet = *(arg.pRefSet) ;
-	std::vector<struct _fragmentOverlap > fragmentAssignment ;
+	std::vector< std::struct _fragmentOverlap > &fragmentAssignments = *(arg.pFragmentAssignments);
 	
+	std::vector<struct _fragmentOverlap > fragmentAssignment ;
 	//for (i = start ; i < end ; ++i)
 	for (i = arg.tid + arg.start ; i < arg.end ; i += arg.threadCnt)
 	{
@@ -169,6 +165,7 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 		arg.pGenotyper->SetReadAssignments(i, fragmentAssignment ) ;	
 		if (fragmentAssignment.size() > 0)
 			reads1[i].fragmentAssigned = true ;
+		fragmentAssignments[i] = fragmentAssignment ;
 	}
 }
 
@@ -193,13 +190,17 @@ int main(int argc, char *argv[])
 	std::vector<struct _genotypeRead> reads2 ;
 	int threadCnt = 1 ;
 	int maxAssignCnt = 2000 ;
-	FILE *fpAbundance = NULL ;
+	FILE *fp = NULL ;
 	FILE *fpOutput ;
 	double filterFrac = 0.15 ;
 	double filterCov = 1.0 ;
 	double crossGeneRate = 0.02 ;
 	double filterAlignmentSimilarity = 0.8 ;
 	
+	char refFile[1025] = "" ;
+	char alleleFile[1025] = "" ;
+	char alleleName[1025] = "" ;
+
 	while (1)	
 	{
 		c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
@@ -209,12 +210,11 @@ int main(int argc, char *argv[])
 
 		if ( c == 'f' )
 		{
-			//seqSet.InputRefFa( optarg ) ;
-			genotyper.InitRefSet( optarg ) ;
+			strcpy(refFile, optarg) ;
 		}
 		else if ( c == 'a' )
 		{
-			fpAbundance = fopen( optarg, "r" ) ; 
+			strcpy(alleleFile, optarg) ;
 		}
 		else if ( c == 'u' )
 		{
@@ -245,35 +245,36 @@ int main(int argc, char *argv[])
 		{
 			filterAlignmentSimilarity = atof(optarg) ;
 		}
-		else if ( c == 10000 ) // --frac
-		{
-			filterFrac = atof(optarg) ;
-		}
-		else if ( c == 10001 ) // --cov
-		{
-			filterCov = atof(optarg) ;
-		}
-		else if ( c == 10002 ) // --crossGeneRate
-		{
-			crossGeneRate = atof(optarg) ;
-		}
 		else
 		{
 			fprintf( stderr, "%s", usage ) ;
 			return EXIT_FAILURE ;
 		}
 	}
-	SeqSet &refSet = genotyper.refSet ;
 
-	if ( refSet.Size() == 0 )
+	if ( strlen(refFile) == 0 )
 	{
 		fprintf( stderr, "Need to use -f to specify the reference sequences.\n" );
 		return EXIT_FAILURE;
 	}
+	if ( strlen(alleleFile) == 0 )
+	{
+		fprintf( stderr, "Need to use -a to specify selected allele ids.\n" );
+		return EXIT_FAILURE;
+	}
 
-	genotyper.SetFilterFrac(filterFrac) ;
-	genotyper.SetFilterCov(filterCov) ;
-	genotyper.SetCrossGeneRate(crossGeneRate) ;
+	std::map<std::string, int> selectedAlleles ;
+	fp = fopen(alleleFile, "r") ;
+	while (fgets(buffer, sizeof(buffer), fp) != NULL)
+	{
+		sscanf(buffer, "%s", alleleName) ;
+		std::string s(alleleName) ;
+		selectedAlleles[s] = 1 ;
+	}
+	fclose(fp) ;
+	genotyper.Input
+
+	SeqSet &refSet = genotyper.refSet ;
 	refSet.SetRefSeqSimilarity(filterAlignmentSimilarity) ;
 	if (threadCnt > 1)
 		refSet.InitPthread() ;
@@ -344,9 +345,9 @@ int main(int argc, char *argv[])
 	
 	int allReadCnt = allReads.size() ; 
 	int alignedFragmentCnt = 0 ;
-	//std::vector< std::vector<struct _fragmentOverlap> > fragmentAssignments ;
+	std::vector< std::vector<struct _fragmentOverlap> > fragmentAssignments ;
 	readAssignments.resize(allReadCnt) ;
-	//fragmentAssignments.resize(readCnt) ;
+	fragmentAssignments.resize(readCnt) ;
 
 	if (threadCnt <= 1)
 	{
@@ -357,7 +358,7 @@ int main(int argc, char *argv[])
 				if (strcmp(allReads[j].seq, allReads[i].seq) != 0)
 					break ;
 			assignments = new std::vector<struct _overlap> ;
-			refSet.AssignRead(allReads[i].seq, allReads[i].barcode, j - i, *assignments) ;
+			refSet.AssignRead(allReads[i].seq, allReads[i].barcode, -1, *assignments) ;
 			//if (arg.tid == 0 && i % 10000 == 0)
 			//	printf("%d\n", i * arg.threadCnt) ;
 			for (k = i ; k < j ; ++k)
@@ -429,6 +430,7 @@ int main(int argc, char *argv[])
 			genotyper.SetReadAssignments(i, fragmentAssignment ) ;	
 			if (fragmentAssignment.size() > 0)
 				reads1[i].fragmentAssigned = true ;
+			fragmentAssignments[i] = fragmentAssignment ;
 
 			if (i > 0 && i % coalesceSize == 0)
 			{
@@ -497,64 +499,27 @@ int main(int argc, char *argv[])
 		int emIterCnt = genotyper.QuantifyAlleleEquivalentClass() ;
 		PrintLog( "Finish allele quantification in %d EM iterations.", emIterCnt) ;
 	}
-	genotyper.RemoveLowLikelihoodAlleleInEquivalentClass() ;
 
-	// Main function to do genotyping
-	genotyper.SelectAllelesForGenes() ;
-	
-	// Output the genotype information
-	int geneCnt = genotyper.GetGeneCnt() ;
-	char *bufferAllele[2] ;
-	bufferAllele[0] = new char[20 * refSet.Size() + 40] ;
-	bufferAllele[1] = new char[20 * refSet.Size()+ 40] ;
-	sprintf(buffer, "%s_genotype.tsv", outputPrefix) ;
-	fpOutput = fopen(buffer, "w") ;	
-	for (i = 0 ; i < geneCnt ; ++i)
+	// Base level variation identification
+	// Obtain the alignment
+	if (1)
 	{
-		int calledAlleleCnt = genotyper.GetAlleleDescription(i, bufferAllele[0], bufferAllele[1]) ;
-		fprintf(fpOutput, "%s\t%d", genotyper.GetGeneName(i), calledAlleleCnt) ;
-		for (j = 0 ; j < calledAlleleCnt ; ++j)
+		for (i = 0 ; i < readCnt ; ++i) 
 		{
-			fprintf(fpOutput, "\t%s", bufferAllele[j]);
+			if (!reads1[i].fragmentAssigned)
+				continue ;
+			if (hasMate)
+				genotyper.UpdatePosWeightFromFragmentOverlap(reads1[i].seq, reads2[i].seq, fragmentOverlaps[i]) ;
+			else
+				genotyper.UpdatePosWeightFromFragmentOverlap(reads1[i].seq, NULL, fragmentOverlaps[i]) ;
 		}
-		fprintf(fpOutput, "\n") ;	
 	}
-	delete[] bufferAllele[0] ;
-	delete[] bufferAllele[1] ;
-	fclose(fpOutput) ;
-	
-	// Output the representative alleles
-	sprintf(buffer, "%s_allele.tsv", outputPrefix) ;
-	genotyper.OutputRepresentativeAlleles(buffer) ;
-
-	// Output the read that got assigned
-	if (hasMate)
-		sprintf(buffer, "%s_aligned_1.fa", outputPrefix) ;
 	else
-		sprintf(buffer, "%s_aligned.fa", outputPrefix) ;
-	fpOutput = fopen(buffer, "w") ;
-	for (i = 0 ; i < readCnt ; ++i)	
 	{
-		if (reads1[i].fragmentAssigned)
-		{
-			fprintf(fpOutput, ">%s\n%s\n", reads1[i].id, reads1[i].seq) ;
-		}
 	}
-	fclose(fpOutput) ;
-
-	if (hasMate)
-	{
-		sprintf(buffer, "%s_aligned_2.fa", outputPrefix) ;
-		fpOutput = fopen(buffer, "w") ;
-		for (i = 0 ; i < readCnt ; ++i)	
-		{
-			if (reads1[i].fragmentAssigned)
-			{
-				fprintf(fpOutput, ">%s\n%s\n", reads2[i].id, reads2[i].seq) ;
-			}
-		}
-		fclose(fpOutput) ;
-	}
+	sprintf(buffer, "%s_allele.vcf", outputPrefix) ;
+	genotyper.OutputAlleleVCF(buffer) ;
+	// Handling barcode
 
 	for ( i = 0 ; i < readCnt ; ++i )
 	{
