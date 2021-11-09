@@ -151,7 +151,7 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 	std::vector<struct _genotypeRead> &reads2 = *(arg.pReads2) ;
 	std::vector< std::vector<struct _overlap> *> &readAssignments = *(arg.pReadAssignments);
 	SeqSet &refSet = *(arg.pRefSet) ;
-	std::vector< std::struct _fragmentOverlap > &fragmentAssignments = *(arg.pFragmentAssignments);
+	std::vector< std::vector<struct _fragmentOverlap> > &fragmentAssignments = *(arg.pFragmentAssignments);
 	
 	std::vector<struct _fragmentOverlap > fragmentAssignment ;
 	//for (i = start ; i < end ; ++i)
@@ -272,7 +272,7 @@ int main(int argc, char *argv[])
 		selectedAlleles[s] = 1 ;
 	}
 	fclose(fp) ;
-	genotyper.Input
+	genotyper.InitRefSet(refFile, selectedAlleles) ;
 
 	SeqSet &refSet = genotyper.refSet ;
 	refSet.SetRefSeqSimilarity(filterAlignmentSimilarity) ;
@@ -463,6 +463,7 @@ int main(int argc, char *argv[])
 				args[i].start = start ;
 				args[i].end = end + 1 ;  // the thread part is [begin, end)
 				args[i].pReadAssignments = &readAssignments ;
+				args[i].pFragmentAssignments = &fragmentAssignments ;
 				args[i].hasMate = hasMate ;
 				pthread_create( &threads[i], &attr, ReadAssignmentToFragmentAssignment_Thread, (void *)( args + i ) ) ;
 			}
@@ -492,13 +493,8 @@ int main(int argc, char *argv[])
 
 	// Get some global abundance information, 
 	// need for allele selection.
-	if (fpAbundance)
-		genotyper.InitAlleleAbundance(fpAbundance) ;			
-	else
-	{
-		int emIterCnt = genotyper.QuantifyAlleleEquivalentClass() ;
-		PrintLog( "Finish allele quantification in %d EM iterations.", emIterCnt) ;
-	}
+	int emIterCnt = genotyper.QuantifyAlleleEquivalentClass() ;
+	PrintLog( "Finish allele quantification in %d EM iterations.", emIterCnt) ;
 
 	// Base level variation identification
 	// Obtain the alignment
@@ -509,9 +505,9 @@ int main(int argc, char *argv[])
 			if (!reads1[i].fragmentAssigned)
 				continue ;
 			if (hasMate)
-				genotyper.UpdatePosWeightFromFragmentOverlap(reads1[i].seq, reads2[i].seq, fragmentOverlaps[i]) ;
+				genotyper.UpdatePosWeightFromFragmentOverlap(reads1[i].seq, reads2[i].seq, fragmentAssignments[i]) ;
 			else
-				genotyper.UpdatePosWeightFromFragmentOverlap(reads1[i].seq, NULL, fragmentOverlaps[i]) ;
+				genotyper.UpdatePosWeightFromFragmentOverlap(reads1[i].seq, NULL, fragmentAssignments[i]) ;
 		}
 	}
 	else

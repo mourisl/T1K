@@ -1943,6 +1943,7 @@ public:
 		extendedOverlap.matchCnt = 2 * matchCnt + overlap.matchCnt ;
 		extendedOverlap.similarity = (double)( 2 * matchCnt + overlap.matchCnt ) / 
 			( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;
+		extendedOverlap.exonicMatchCnt = extendedOverlap.matchCnt ;
 		extendedOverlap.leftClip = leftClip ;
 		extendedOverlap.rightClip = rightClip ;	
 		//printf("%d %d %d %d. %d\n", extendedOverlap.readStart, extendedOverlap.readEnd, extendedOverlap.seqStart, extendedOverlap.seqEnd,
@@ -2524,7 +2525,7 @@ public:
 
 		if (o.strand == -1)
 			free(r);
-		free(align) ;
+		delete[] align ;
 	}
 
 	int GetSeqNameToIdxMap(std::map<std::string, int>& nameToIdx)

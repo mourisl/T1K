@@ -576,7 +576,7 @@ public:
 		InitAlleleInfo() ;
 	}
 
-	void InitRefSet(char *filename, const std::map<std::string, int> &selectedAllele)
+	void InitRefSet(char *filename, const std::map<std::string, int> &selectedAlleles)
 	{
 		int i, j ;
 
@@ -586,6 +586,9 @@ public:
 		fa.AddReadFile( filename, false ) ;
 		while ( fa.Next() )
 		{
+			if (selectedAlleles.find(fa.id) == selectedAlleles.end())
+				continue ;
+
 			std::string seq( fa.seq );
 			if (usedSeq.find(seq) != usedSeq.end())
 			{
@@ -1829,7 +1832,7 @@ public:
 				if (!fragmentOverlap[i].o1FromR2)
 					refSet.UpdatePosWeightFromOverlap(r1, p / psum, fragmentOverlap[i].overlap1) ;
 				else
-					refSet.UpdatePosWeightFromOverlap(r2, p / psum, fragmentOverlap[i].overlap2) ;
+					refSet.UpdatePosWeightFromOverlap(r2, p / psum, fragmentOverlap[i].overlap1) ;
 			}
 		}
 	}

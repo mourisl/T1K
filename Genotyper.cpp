@@ -305,6 +305,7 @@ int main(int argc, char *argv[])
 		nr.umi = umi ;
 		nr.idx = i ;
 		nr.mate = 0 ;
+		nr.fragmentAssigned = false ;
 		if (strlen(nr.seq) > maxReadLength)
 			maxReadLength = strlen(nr.seq) ;
 		reads1.push_back(nr);		
@@ -322,6 +323,7 @@ int main(int argc, char *argv[])
 				mateR.qual = NULL;
 			mateR.idx = i ;	
 			mateR.mate = 1 ;
+			mateR.fragmentAssigned = false ;
 			if (strlen(mateR.seq) > maxReadLength)
 				maxReadLength = strlen(mateR.seq) ;
 			reads2.push_back(mateR);			
