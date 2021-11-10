@@ -5,12 +5,12 @@ LINKFLAGS = -lpthread -lz
 DEBUG=
 OBJECTS = 
 
-all: fastq-extractor bam-extractor genotyper postprocessor
+all: fastq-extractor bam-extractor genotyper analyzer
 
 genotyper: Genotyper.o
 	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
 
-postprocessor: PostProcessor.o
+analyzer: Analyzer.o
 	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
 
 bam-extractor: BamExtractor.o
@@ -25,10 +25,10 @@ fastq-extractor: FastqExtractor.o
 
 
 Genotyper.o: Genotyper.cpp Genotyper.hpp AlignAlgo.hpp ReadFiles.hpp kseq.h SeqSet.hpp KmerIndex.hpp SimpleVector.hpp defs.h KmerCode.hpp KmerCount.hpp
-PostProcessor.o: PostProcessor.cpp Genotyper.hpp AlignAlgo.hpp ReadFiles.hpp kseq.h SeqSet.hpp KmerIndex.hpp SimpleVector.hpp defs.h KmerCode.hpp KmerCount.hpp
+Analyzer.o: Analyzer.cpp Genotyper.hpp AlignAlgo.hpp ReadFiles.hpp kseq.h SeqSet.hpp KmerIndex.hpp SimpleVector.hpp defs.h KmerCode.hpp KmerCount.hpp
 BamExtractor.o: BamExtractor.cpp alignments.hpp defs.h SeqSet.hpp
 FastqExtractor.o: FastqExtractor.cpp ReadFiles.hpp defs.h SeqSet.hpp BarcodeCorrector.hpp SimpleVector.hpp
 #Alignment.o: Alignment.cpp Alignment.h SimpleVector.h defs.h StatsTests.h KmerTree.h ReadSet.h KmerIndex.h poa.h
 
 clean:
-	rm -f *.o *.gch genotyper postprocessor bam-extractor fastq-extractor
+	rm -f *.o *.gch genotyper analyzer bam-extractor fastq-extractor
