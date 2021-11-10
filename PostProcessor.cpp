@@ -169,6 +169,34 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 	}
 }
 
+void *UpdatePosWeightFromFragmentOverlap_Thread(void *pArg)
+{
+	struct _readAssignmentToFragmentAssignmentThreadArg &arg = *((struct _readAssignmentToFragmentAssignmentThreadArg *)pArg) ;
+	int i ;
+	int totalReadCnt = arg.pReads1->size() ;
+	//if ( arg.tid == arg.threadCnt - 1 )
+	//	end = totalReadCnt ;
+	struct _overlap assign ;
+	
+	std::vector<struct _genotypeRead> &reads1 = *(arg.pReads1) ;
+	std::vector<struct _genotypeRead> &reads2 = *(arg.pReads2) ;
+	std::vector< std::vector<struct _overlap> *> &readAssignments = *(arg.pReadAssignments);
+	SeqSet &refSet = *(arg.pRefSet) ;
+	std::vector< std::vector<struct _fragmentOverlap> > &fragmentAssignments = *(arg.pFragmentAssignments);
+	
+	std::vector<struct _fragmentOverlap > fragmentAssignment ;
+	//for (i = start ; i < end ; ++i)
+	for (i = arg.tid + arg.start ; i < arg.end ; i += arg.threadCnt)
+	{
+		if (!reads1[i].fragmentAssigned)
+			continue ;
+		if (arg.hasMate)
+			arg.pGenotyper->UpdatePosWeightFromFragmentOverlap(reads1[i].seq, reads2[i].seq, fragmentAssignments[i]) ;
+		else
+			arg.pGenotyper->UpdatePosWeightFromFragmentOverlap(reads1[i].seq, NULL, fragmentAssignments[i]) ;
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int i, j, k ;
@@ -348,11 +376,10 @@ int main(int argc, char *argv[])
 	std::vector< std::vector<struct _fragmentOverlap> > fragmentAssignments ;
 	readAssignments.resize(allReadCnt) ;
 	fragmentAssignments.resize(readCnt) ;
-
 	if (threadCnt <= 1)
 	{
 		std::vector<struct _overlap> *assignments = NULL ;
-		for (i = 0 ; i < allReadCnt ; ++i)
+		for (i = 0 ; i < allReadCnt ; )
 		{
 			for (j = i + 1 ; j < allReadCnt ; ++j)
 				if (strcmp(allReads[j].seq, allReads[i].seq) != 0)
@@ -363,7 +390,7 @@ int main(int argc, char *argv[])
 			//	printf("%d\n", i * arg.threadCnt) ;
 			for (k = i ; k < j ; ++k)
 				readAssignments[k] = assignments ;
-
+				
 			i = j ;
 		}
 	}
@@ -419,8 +446,10 @@ int main(int argc, char *argv[])
 			if (!hasMate)	
 				refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, fragmentAssignment) ;
 			else
+			{
 				refSet.ReadAssignmentToFragmentAssignment( readAssignments[reads1[i].info], readAssignments[reads2[i].info],
 						reads1[i].barcode, fragmentAssignment) ;
+			}
 #ifdef DEBUG
 			std::vector<struct _fragmentOverlap> &assignments = fragmentAssignment ;
 			for (int j = 0 ; j < assignments.size() ; ++j)
@@ -496,9 +525,8 @@ int main(int argc, char *argv[])
 	int emIterCnt = genotyper.QuantifyAlleleEquivalentClass() ;
 	PrintLog( "Finish allele quantification in %d EM iterations.", emIterCnt) ;
 
-	// Base level variation identification
 	// Obtain the alignment
-	if (1)
+	if (threadCnt <= 1)
 	{
 		for (i = 0 ; i < readCnt ; ++i) 
 		{
@@ -512,7 +540,43 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
+		pthread_t *threads = new pthread_t[ threadCnt ] ;
+		struct _readAssignmentToFragmentAssignmentThreadArg *args = new struct _readAssignmentToFragmentAssignmentThreadArg[threadCnt] ;
+		pthread_attr_t attr ;
+
+		pthread_attr_init( &attr ) ;
+		pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_JOINABLE ) ;
+		int start, end ;
+		for (start = 0 ; start < readCnt ; start += coalesceSize)
+		{
+			end = start + coalesceSize - 1 <= (readCnt - 1) ? start + coalesceSize - 1 : (readCnt - 1) ;
+			for ( i = 0 ; i < threadCnt ; ++i )
+			{
+				args[i].tid = i ;
+				args[i].threadCnt = threadCnt ;
+				args[i].pRefSet = &refSet ;
+				args[i].pGenotyper = &genotyper ;
+				args[i].pReads1 = &reads1 ;
+				args[i].pReads2 = &reads2 ;
+				args[i].start = start ;
+				args[i].end = end + 1 ;  // the thread part is [begin, end)
+				args[i].pReadAssignments = &readAssignments ;
+				args[i].pFragmentAssignments = &fragmentAssignments ;
+				args[i].hasMate = hasMate ;
+				pthread_create( &threads[i], &attr, UpdatePosWeightFromFragmentOverlap_Thread, (void *)( args + i ) ) ;
+			}
+
+			for ( i = 0 ; i < threadCnt ; ++i )
+				pthread_join( threads[i], NULL ) ;
+
+			alignedFragmentCnt += genotyper.CoalesceReadAssignments(start, end) ;
+		}
+		pthread_attr_destroy(&attr);
+		delete[] threads ;
+		delete[] args ;
 	}
+	
+	// Base level variation identification
 	sprintf(buffer, "%s_allele.vcf", outputPrefix) ;
 	genotyper.OutputAlleleVCF(buffer) ;
 	// Handling barcode

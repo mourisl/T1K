@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
 	if (threadCnt <= 1)
 	{
 		std::vector<struct _overlap> *assignments = NULL ;
-		for (i = 0 ; i < allReadCnt ; ++i)
+		for (i = 0 ; i < allReadCnt ; )
 		{
 			for (j = i + 1 ; j < allReadCnt ; ++j)
 				if (strcmp(allReads[j].seq, allReads[i].seq) != 0)

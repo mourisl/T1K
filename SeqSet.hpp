@@ -2600,7 +2600,8 @@ public:
 					maxTag = j ;
 				}
 			}
-
+			//printf("%lf %lf %lf %lf\n", seq.posWeight[i].count[0],
+			//		seq.posWeight[i].count[1], seq.posWeight[i].count[2], seq.posWeight[i].count[3]) ;
 			if (numToNuc[j] != seq.consensus[i])
 			{
 				// Variation happens
