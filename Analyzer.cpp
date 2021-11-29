@@ -127,7 +127,7 @@ void *AssignReads_Thread( void *pArg )
 				if (strcmp(reads[j].seq, reads[i].seq) != 0)
 					break ;
 			assignments = new std::vector<struct _overlap> ;
-			refSet.AssignRead(reads[i].seq, reads[i].barcode, -1, *assignments) ;
+			refSet.AssignRead(reads[i].seq, reads[i].barcode, 0, *assignments) ;
 			//if (arg.tid == 0 && i % 10000 == 0)
 			//	printf("%d\n", i * arg.threadCnt) ;
 			for (k = i ; k < j ; ++k)
@@ -169,7 +169,7 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 	}
 }
 
-void *UpdatePosWeightFromFragmentOverlap_Thread(void *pArg)
+void *AddFragmentAlignmentInfo_Thread(void *pArg)
 {
 	struct _readAssignmentToFragmentAssignmentThreadArg &arg = *((struct _readAssignmentToFragmentAssignmentThreadArg *)pArg) ;
 	int i ;
@@ -191,9 +191,9 @@ void *UpdatePosWeightFromFragmentOverlap_Thread(void *pArg)
 		if (!reads1[i].fragmentAssigned)
 			continue ;
 		if (arg.hasMate)
-			arg.pGenotyper->UpdatePosWeightFromFragmentOverlap(reads1[i].seq, reads2[i].seq, fragmentAssignments[i]) ;
+			refSet.AddFragmentAlignmentInfo(reads1[i].seq, reads2[i].seq, fragmentAssignments[i]) ;
 		else
-			arg.pGenotyper->UpdatePosWeightFromFragmentOverlap(reads1[i].seq, NULL, fragmentAssignments[i]) ;
+			refSet.AddFragmentAlignmentInfo(reads1[i].seq, NULL, fragmentAssignments[i]) ;
 	}
 }
 
@@ -453,8 +453,10 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
 			std::vector<struct _fragmentOverlap> &assignments = fragmentAssignment ;
 			for (int j = 0 ; j < assignments.size() ; ++j)
-				printf("%s\t%d\t%s\t%d\t%lf. %d %d\n", reads1[i].id, assignments[j].seqIdx, refSet.GetSeqName(assignments[j].seqIdx),
-						assignments[j].matchCnt, assignments[j].similarity, assignments[j].overlap1.matchCnt, assignments[j].overlap2.matchCnt);
+				printf("%s\t%d\t%s\t%d\t%lf. %d %d. %d %d. %d %d\n", reads1[i].id, assignments[j].seqIdx, refSet.GetSeqName(assignments[j].seqIdx),
+						assignments[j].matchCnt, assignments[j].similarity, assignments[j].overlap1.matchCnt, assignments[j].overlap2.matchCnt, 
+						assignments[j].overlap1.seqStart, assignments[j].overlap1.seqEnd,
+						assignments[j].overlap2.seqStart, assignments[j].overlap2.seqEnd);
 #endif
 			genotyper.SetReadAssignments(i, fragmentAssignment ) ;	
 			if (fragmentAssignment.size() > 0)
@@ -533,9 +535,9 @@ int main(int argc, char *argv[])
 			if (!reads1[i].fragmentAssigned)
 				continue ;
 			if (hasMate)
-				genotyper.UpdatePosWeightFromFragmentOverlap(reads1[i].seq, reads2[i].seq, fragmentAssignments[i]) ;
+				refSet.AddFragmentAlignmentInfo(reads1[i].seq, reads2[i].seq, fragmentAssignments[i]) ;
 			else
-				genotyper.UpdatePosWeightFromFragmentOverlap(reads1[i].seq, NULL, fragmentAssignments[i]) ;
+				refSet.AddFragmentAlignmentInfo(reads1[i].seq, NULL, fragmentAssignments[i]) ;
 		}
 	}
 	else
@@ -563,13 +565,11 @@ int main(int argc, char *argv[])
 				args[i].pReadAssignments = &readAssignments ;
 				args[i].pFragmentAssignments = &fragmentAssignments ;
 				args[i].hasMate = hasMate ;
-				pthread_create( &threads[i], &attr, UpdatePosWeightFromFragmentOverlap_Thread, (void *)( args + i ) ) ;
+				pthread_create( &threads[i], &attr, AddFragmentAlignmentInfo_Thread, (void *)( args + i ) ) ;
 			}
 
 			for ( i = 0 ; i < threadCnt ; ++i )
 				pthread_join( threads[i], NULL ) ;
-
-			alignedFragmentCnt += genotyper.CoalesceReadAssignments(start, end) ;
 		}
 		pthread_attr_destroy(&attr);
 		delete[] threads ;
@@ -578,7 +578,7 @@ int main(int argc, char *argv[])
 	
 	// Base level variation identification
 	sprintf(buffer, "%s_allele.vcf", outputPrefix) ;
-	genotyper.OutputAlleleVCF(buffer) ;
+	//genotyper.OutputAlleleVCF(buffer) ;
 	// Handling barcode
 
 	for ( i = 0 ; i < readCnt ; ++i )

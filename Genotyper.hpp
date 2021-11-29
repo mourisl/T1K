@@ -368,6 +368,8 @@ private:
 			sqrSumR += (t1[i] - t0[i]) * (t1[i] - t0[i]) ;
 			sqrSumV += (t2[i] - 2 * t1[i] + t0[i]) * (t2[i] - 2 * t1[i] + t0[i]) ;
 		}
+		if (sqrSumV == 0)
+			return -1 ;
 		return -sqrt(sqrSumR) / sqrt(sqrSumV) ;
 	}
 
@@ -1115,7 +1117,7 @@ public:
 			{
 				diffSum += ABS(ecAbundance1[i] - ecAbundance0[i]) ;
 				ecAbundance0[i] = ecAbundance1[i] ;
-				//printf("%d %s %d: %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), ecReadCount[i], ecLength[i], ecAbundance0[i]) ;
+				//printf("%d %s %d: %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), ecReadCount[i], ecInfo[i].length, ecAbundance0[i]) ;
 			}
 
 			if (diffSum < 1e-5 && t < maxEMIterations - 2)
@@ -1153,7 +1155,9 @@ public:
 		delete[] ecAbundance2 ;
 		delete[] ecAbundance3 ;
 		delete[] ecReadCount ;
-
+		
+		//for (int alleleIdx = 0 ; alleleIdx < alleleCnt ; ++alleleIdx)
+		//	printf("%d %s %lf\n", alleleIdx, refSet.GetSeqName(alleleIdx), alleleInfo[alleleIdx].ecAbundance ) ;
 		return ret ;
 	}
 
@@ -1810,32 +1814,6 @@ public:
 		delete[] geneAbundances ;
 	}
 
-	void UpdatePosWeightFromFragmentOverlap(char *r1, char *r2, const std::vector<struct _fragmentOverlap> fragmentOverlap)
-	{
-		int i, j ;
-		double psum = 0 ; 
-		int size = fragmentOverlap.size() ;
-		for (i = 0 ; i < size ; ++i)
-			psum += alleleInfo[fragmentOverlap[i].seqIdx].abundance ;
-		
-		for (i = 0 ; i < size ; ++i)
-		{
-			double p =  alleleInfo[fragmentOverlap[i].seqIdx].abundance ;
-			
-			if (fragmentOverlap[i].hasMatePair)
-			{
-				refSet.UpdatePosWeightFromOverlap(r1, p / psum, fragmentOverlap[i].overlap1) ;
-				refSet.UpdatePosWeightFromOverlap(r2, p / psum, fragmentOverlap[i].overlap2) ;
-			}
-			else
-			{
-				if (!fragmentOverlap[i].o1FromR2)
-					refSet.UpdatePosWeightFromOverlap(r1, p / psum, fragmentOverlap[i].overlap1) ;
-				else
-					refSet.UpdatePosWeightFromOverlap(r2, p / psum, fragmentOverlap[i].overlap1) ;
-			}
-		}
-	}
 
 	int GetGeneCnt()
 	{
@@ -1930,24 +1908,9 @@ public:
 		fclose(fp) ;
 	}
 
-	void OutputAlleleVCF(char *filename)
+	double GetAlleleAbundance(int alleleIdx)
 	{
-		FILE *fp = fopen(filename, "w") ;
-		int i, j ;
-		for (i = 0 ; i < alleleCnt ; ++i)
-		{
-			std::vector<struct _variant> variants ;
-			refSet.GetSeqExonVariants(i, variants) ;
-			int size = variants.size() ;
-			for (j = 0 ; j < size ; ++j)
-			{
-				fprintf(fp, "%s %d . %s %s 60 PASS %d %d\n", 
-						refSet.GetSeqName(i), variants[j].refStart + 1,
-						variants[j].ref, variants[j].var, 
-						variants[j].varSupport, variants[j].allSupport) ;
-			}
-		}
-		fclose(fp) ;
+		return alleleInfo[alleleIdx].abundance ;
 	}
 } ;
 

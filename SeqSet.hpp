@@ -22,16 +22,6 @@ struct _validDiff
 	bool exon ;
 } ;
 
-struct _variant
-{
-	int seqIdx ;
-	int refStart, refEnd ;
-	char ref[10] ;
-	char var[10] ;
-	int allSupport ;
-	int varSupport ;
-} ;
-
 struct _seqWrapper
 {
 	char *name ;
@@ -101,6 +91,8 @@ struct _overlap
 	double similarity ;
 	int leftClip, rightClip ;
 	int exonicMatchCnt ; // the number of matches in exon and does not change residue
+
+	char *align ;
 	
 	bool operator<( const struct _overlap &b ) const
 	{
@@ -878,13 +870,23 @@ public:
 			}
 			if (n)
 				nums.PushBack(n) ;
-
+			
 			int size = nums.Size() ;
-			for (i = 1 ; i < size ; i += 2)
+			if (size > 0)
+			{
+				for (i = 1 ; i < size ; i += 2)
+				{
+					struct _pair np ;
+					np.a = nums[i] ;
+					np.b = nums[i + 1] ;
+					exons.push_back(np) ;
+				}
+			}
+			else
 			{
 				struct _pair np ;
-				np.a = nums[i] ;
-				np.b = nums[i + 1] ;
+				np.a = 0 ;
+				np.b = seqLen - 1 ;
 				exons.push_back(np) ;
 			}
 		} 
@@ -1945,7 +1947,8 @@ public:
 			( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;
 		extendedOverlap.exonicMatchCnt = extendedOverlap.matchCnt ;
 		extendedOverlap.leftClip = leftClip ;
-		extendedOverlap.rightClip = rightClip ;	
+		extendedOverlap.rightClip = rightClip ;
+		extendedOverlap.align = NULL ;	
 		//printf("%d %d %d %d. %d\n", extendedOverlap.readStart, extendedOverlap.readEnd, extendedOverlap.seqStart, extendedOverlap.seqEnd,
 		//		extendedOverlap.matchCnt);		
 		if (extendedOverlap.similarity < refSeqSimilarity)
@@ -2481,7 +2484,7 @@ public:
 		return assign.size() ;
 	}
 
-	void UpdatePosWeightFromOverlap(char *read, double weight, struct _overlap o)
+	void AddOverlapAlignmentInfo(char *read, struct _overlap &o)
 	{
 		if (o.seqIdx == -1)
 			return ;
@@ -2501,31 +2504,15 @@ public:
 				r + o.readStart,
 				o.readEnd - o.readStart + 1, align) ;
 
-		const struct _validDiff *isValidDiff = seqs[o.seqIdx].isValidDiff ;
-		int refPos = o.seqStart ;
-		int readPos = o.readStart ;
-
-		refPos = o.seqStart ;
-		readPos = o.readStart ;
-		if (seq.lockBaseCoverage != NULL)
-			pthread_mutex_lock(seq.lockBaseCoverage) ;
-		for ( k = 0 ; align[k] != -1 ; ++k )
-		{
-			if ( align[k] == EDIT_MATCH || align[k] == EDIT_MISMATCH)
-				seq.posWeight[refPos].count[ nucToNum[r[readPos] - 'A']] += weight;
-			//TODO: handle indels
-
-			if (align[k] != EDIT_INSERT)
-				++refPos ;
-			if (align[k] != EDIT_DELETE)
-				++readPos ;
-		}
-		if (seq.lockBaseCoverage != NULL)
-			pthread_mutex_unlock(seq.lockBaseCoverage) ;
-
 		if (o.strand == -1)
 			free(r);
-		delete[] align ;
+		o.align = align ;
+	}
+
+
+	bool IsPosInExon(int seqIdx, int pos) 
+	{
+		return seqs[seqIdx].isValidDiff[pos].exon ;
 	}
 
 	int GetSeqNameToIdxMap(std::map<std::string, int>& nameToIdx)
@@ -2580,45 +2567,55 @@ public:
 		return i ;
 	}
 
-	int GetSeqExonVariants(int seqIdx, std::vector<struct _variant> &variants)
+
+	void AddFragmentAlignmentInfo(char *r1, char *r2, std::vector<struct _fragmentOverlap> &fragmentOverlap)
 	{
-		int i, j, k ;
-		const struct _seqWrapper &seq = seqs[seqIdx] ;
-		k = 0 ;
-		for (i = 0 ; i < seq.consensusLen ; ++i)
+		int i ;
+		int size = fragmentOverlap.size() ;
+		
+		for (i = 0 ; i < size ; ++i)
 		{
-			// major allele 
-			if (!seq.isValidDiff[i].exon)
-				continue ;
-			double max = seq.posWeight[i].count[0];
-			int maxTag = 0 ;
-			for (j = 1 ; j < 4 ; ++j)
+			if (fragmentOverlap[i].hasMatePair)
 			{
-				if (seq.posWeight[i].count[j] > max)
-				{
-					max = seq.posWeight[i].count[j] ;
-					maxTag = j ;
-				}
+				AddOverlapAlignmentInfo(r1, fragmentOverlap[i].overlap1) ;
+				AddOverlapAlignmentInfo(r2, fragmentOverlap[i].overlap2) ;
 			}
-			//printf("%lf %lf %lf %lf\n", seq.posWeight[i].count[0],
-			//		seq.posWeight[i].count[1], seq.posWeight[i].count[2], seq.posWeight[i].count[3]) ;
-			if (numToNuc[j] != seq.consensus[i])
+			else
 			{
-				// Variation happens
-				struct _variant nv ;
-				nv.seqIdx = seqIdx ;
-				nv.refStart = k ;
-				nv.refEnd = k ;
-				nv.ref[0] = seq.consensus[i] ;
-				nv.ref[1] = '\0' ;
-				nv.var[0] = numToNuc[j] ;
-				nv.var[1] = '\0' ;
-				nv.allSupport = seq.posWeight[i].Sum() ;
-				nv.varSupport = max ;
+				if (!fragmentOverlap[i].o1FromR2)
+					AddOverlapAlignmentInfo(r1, fragmentOverlap[i].overlap1) ;
+				else
+					AddOverlapAlignmentInfo(r2, fragmentOverlap[i].overlap1) ;
 			}
-			++k ;
 		}
 	}
+
+	/*void UpdateBaseVariantFromFragmentOverlap(char *r1, char *r2, const std::vector<struct _fragmentOverlap> &fragmentOverlap)
+	{
+		int i, j ;
+		double psum = 0 ; 
+		int size = fragmentOverlap.size() ;
+		for (i = 0 ; i < size ; ++i)
+			psum += alleleInfo[fragmentOverlap[i].seqIdx].abundance ;
+		
+		for (i = 0 ; i < size ; ++i)
+		{
+			double p =  alleleInfo[fragmentOverlap[i].seqIdx].abundance ;
+			
+			if (fragmentOverlap[i].hasMatePair)
+			{
+				refSet.UpdateBaseVariantFromOverlap(r1, p / psum, fragmentOverlap[i].overlap1) ;
+				refSet.UpdateBaseVariantFromOverlap(r2, p / psum, fragmentOverlap[i].overlap2) ;
+			}
+			else
+			{
+				if (!fragmentOverlap[i].o1FromR2)
+					refSet.UpdateBaseVariantFromOverlap(r1, p / psum, fragmentOverlap[i].overlap1) ;
+				else
+					refSet.UpdateBaseVariantFromOverlap(r2, p / psum, fragmentOverlap[i].overlap1) ;
+			}
+		}
+	}*/
 }	;
 
 
