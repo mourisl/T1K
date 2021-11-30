@@ -9,6 +9,7 @@
 #include <pthread.h>
 
 #include "Genotyper.hpp"
+#include "VariantCaller.hpp"
 
 char usage[] = "./genotyper [OPTIONS]:\n"
 		"Required:\n"

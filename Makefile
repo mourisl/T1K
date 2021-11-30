@@ -25,7 +25,7 @@ fastq-extractor: FastqExtractor.o
 
 
 Genotyper.o: Genotyper.cpp Genotyper.hpp AlignAlgo.hpp ReadFiles.hpp kseq.h SeqSet.hpp KmerIndex.hpp SimpleVector.hpp defs.h KmerCode.hpp KmerCount.hpp
-Analyzer.o: Analyzer.cpp Genotyper.hpp AlignAlgo.hpp ReadFiles.hpp kseq.h SeqSet.hpp KmerIndex.hpp SimpleVector.hpp defs.h KmerCode.hpp KmerCount.hpp
+Analyzer.o: Analyzer.cpp Genotyper.hpp AlignAlgo.hpp ReadFiles.hpp kseq.h SeqSet.hpp KmerIndex.hpp SimpleVector.hpp defs.h KmerCode.hpp KmerCount.hpp VariantCaller.hpp
 BamExtractor.o: BamExtractor.cpp alignments.hpp defs.h SeqSet.hpp
 FastqExtractor.o: FastqExtractor.cpp ReadFiles.hpp defs.h SeqSet.hpp BarcodeCorrector.hpp SimpleVector.hpp
 #Alignment.o: Alignment.cpp Alignment.h SimpleVector.h defs.h StatsTests.h KmerTree.h ReadSet.h KmerIndex.h poa.h
