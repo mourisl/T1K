@@ -579,9 +579,22 @@ int main(int argc, char *argv[])
 	
 	// Base level variation identification
 	sprintf(buffer, "%s_allele.vcf", outputPrefix) ;
-	//genotyper.OutputAlleleVCF(buffer) ;
+	VariantCaller variantCaller(refSet) ;
+	variantCaller.SetSeqAbundance(genotyper) ;
+	std::vector<char *> read1seq ;
+	std::vector<char *> read2seq ;
+	for (i = 0 ; i < readCnt ; ++i)
+	{
+		read1seq.push_back(reads1[i].seq) ;
+		if (hasMate)
+			read2seq.push_back(reads2[i].seq) ;
+	}	
+	variantCaller.ComputeVariant(read1seq, read2seq, fragmentAssignments) ;
+	variantCaller.OutputAlleleVCF(buffer) ;
+	
+	
 	// Handling barcode
-
+	
 	for ( i = 0 ; i < readCnt ; ++i )
 	{
 		free( reads1[i].id ) ;

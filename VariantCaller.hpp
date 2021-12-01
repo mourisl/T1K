@@ -469,14 +469,14 @@ public:
 		if (depth == vars.Size())
 		{
 			SimpleVector<bool> fragCovered ;
-			int fragCnt = fragIdx.Size() ;
+			int fragCnt = fragIds.Size() ;
 			int varCnt = vars.Size() ;
 			
-			fragCovered.ExpandTo(fragCoveredi ;
+			fragCovered.ExpandTo(fragCnt) ;
 			fragCovered.SetZero(0, fragCnt) ;
 			for (i = 0 ; i < varCnt ; ++i)
 			{
-				p = adjVar[ vars[i] ].next ;
+				int p = adjVar[ vars[i] ].next ;
 				while (p != -1)
 				{
 					int fragIdx = adjVar[p].fragIdx ;
@@ -506,7 +506,7 @@ public:
 		for (i = 0 ; i < 4 ; ++i)
 		{
 			choices[depth] = numToNuc[i] ;
-			EnumerateVariants(depth + 1, choices, result, fragIdx, vars, adjFrag, adjVar) ;
+			EnumerateVariants(depth + 1, choices, result, fragIds, vars, adjFrag, adjVar) ;
 		}
 	}
 
@@ -514,30 +514,30 @@ public:
 	{
 		int i ;
 		SimpleVector<char> choices ;
-		int varCnt = vars.size() ;
-		choices.ExpandTo(var.size()) ;
+		int varCnt = vars.Size() ;
 		struct _enumVarResult result ;
 		SimpleVector<int> fragIds ;
 		std::map<int, int> fragUsed ;
 		
+		choices.ExpandTo(varCnt) ;
 		// Obtain related fragments
 		for (i = 0 ; i < varCnt ; ++i)
 		{
-			p = adjVar[ vars[i] ].next ;
+			int p = adjVar[ vars[i] ].next ;
 			while (p != -1)
 			{
 				int fragIdx = adjVar[p].fragIdx ;
 				if (fragUsed.find(fragIdx) == fragUsed.end())
 				{
 					fragUsed[fragIdx] = 1 ;
-					fragIdx.PushBack(fragIdx) ;
+					fragIds.PushBack(fragIdx) ;
 				}
 				p = adjVar[p].next ;
 			}
 		}
 		
 		result.bestCover = -1 ;	
-		EnumerateVariants(0, choices, result, fragIdx, vars, adjFrag, adjVar) ;
+		EnumerateVariants(0, choices, result, fragIds, vars, adjFrag, adjVar) ;
 
 		// Process the final results.
 		bool uniq = true ;
@@ -546,8 +546,8 @@ public:
 
 		for (i = 0 ; i < varCnt ; ++i)
 		{
-			int seqIdx = canadidateVariants[vars[i]].a ;
-			int refPos = canadidateVariants[vars[i]].b ;
+			int seqIdx = candidateVariants[vars[i]].a ;
+			int refPos = candidateVariants[vars[i]].b ;
 			if (!baseVariants[seqIdx][refPos].exon)
 				continue ;
 			char refNuc = refSet.GetSeqConsensus(seqIdx)[refPos] ;
@@ -711,15 +711,16 @@ public:
 		char buffer[10] = "PASS" ;	
 		for (i = 0 ; i < varCnt ; ++i)
 		{
-			if (variants[i].qual > 0)
+			struct _variant &variant = finalVariants[i] ;
+			if (variant.qual > 0)
 				strcpy(buffer, "PASS") ;
 			else
 				strcpy(buffer, "FAIL") ;
 			fprintf(fp, "%s %d . %s %s %s %lf %lf %lf\n", 
-					refSet.GetSeqName(variants[i].seqIdx), variants[i].refStart + 1, // the VCF file is 1-based
-					variants[i].ref, variants[i].var, buffer, 
-					variants[i].varSupport, variants[i].allSupport,
-					variants[i].varUniqSupport) ;
+					refSet.GetSeqName(variant.seqIdx), variant.refStart + 1, // the VCF file is 1-based
+					variant.ref, variant.var, buffer, 
+					variant.varSupport, variant.allSupport,
+					variant.varUniqSupport) ;
 		}
 		fclose(fp) ;
 	}
