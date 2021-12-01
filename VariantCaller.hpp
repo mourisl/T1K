@@ -13,6 +13,8 @@ struct _variant
 	double allSupport ;
 	double varSupport ;
 	double varUniqSupport ;
+	
+	int qual ;
 } ;
 
 struct _baseVariant
@@ -50,6 +52,13 @@ struct _adjBaseVariantToFragment
 	int next ;	
 } ;
 
+struct _enumVarResult
+{
+	double bestCover ; // the number of covered results
+	SimpleVector<char> bestEnumVariants ;
+	SimpleVector<char> equalBestEnumVariants ;
+} ;
+
 
 class VariantCaller
 {
@@ -59,7 +68,7 @@ private:
 	std::vector<double> seqAbundance ;
 	SimpleVector<struct _pair> candidateVariants ; // a: seqidx, b: refpos
 	SimpleVector<int> candidateVariantGroup ; // variant id to group id.
-
+	std::vector<struct _variant> finalVariants ; 
 	void UpdateBaseVariantFromOverlap(char *read, double weight, struct _overlap o)
 	{
 		if (o.seqIdx == -1)
@@ -453,8 +462,113 @@ public:
 			free(rc) ;
 		} // for k on read end selection
 	}	
+	
+	void EnumerateVariants(int depth, SimpleVector<char> &choices, struct _enumVarResult &result, SimpleVector<int> &fragIds, SimpleVector<int> &vars, SimpleVector<struct _adjFragmentToBaseVariant> &adjFrag, SimpleVector<struct _adjBaseVariantToFragment> &adjVar)
+	{
+		int i ;
+		if (depth == vars.Size())
+		{
+			SimpleVector<bool> fragCovered ;
+			int fragCnt = fragIdx.Size() ;
+			int varCnt = vars.Size() ;
+			
+			fragCovered.ExpandTo(fragCoveredi ;
+			fragCovered.SetZero(0, fragCnt) ;
+			for (i = 0 ; i < varCnt ; ++i)
+			{
+				p = adjVar[ vars[i] ].next ;
+				while (p != -1)
+				{
+					int fragIdx = adjVar[p].fragIdx ;
+					fragCovered[fragIdx] = true ;
+					p = adjVar[p].next ;
+				}
+			}
+			double covered = 0 ;
+			for (i = 0 ; i < fragCnt ; ++i)
+			{
+				if (fragCovered[i])
+					++covered ;
+			}
 
-	//void SolveVariantGroup()
+			if (covered > result.bestCover)
+			{
+				result.bestEnumVariants = choices ;
+				result.equalBestEnumVariants.Clear() ;
+			}
+			else if (covered == result.bestCover)
+			{
+				result.equalBestEnumVariants = choices ;
+			}
+			return ;	
+		}
+
+		for (i = 0 ; i < 4 ; ++i)
+		{
+			choices[depth] = numToNuc[i] ;
+			EnumerateVariants(depth + 1, choices, result, fragIdx, vars, adjFrag, adjVar) ;
+		}
+	}
+
+	void SolveVariantGroup(SimpleVector<int> vars, SimpleVector<struct _adjFragmentToBaseVariant> &adjFrag, SimpleVector<struct _adjBaseVariantToFragment> &adjVar)
+	{
+		int i ;
+		SimpleVector<char> choices ;
+		int varCnt = vars.size() ;
+		choices.ExpandTo(var.size()) ;
+		struct _enumVarResult result ;
+		SimpleVector<int> fragIds ;
+		std::map<int, int> fragUsed ;
+		
+		// Obtain related fragments
+		for (i = 0 ; i < varCnt ; ++i)
+		{
+			p = adjVar[ vars[i] ].next ;
+			while (p != -1)
+			{
+				int fragIdx = adjVar[p].fragIdx ;
+				if (fragUsed.find(fragIdx) == fragUsed.end())
+				{
+					fragUsed[fragIdx] = 1 ;
+					fragIdx.PushBack(fragIdx) ;
+				}
+				p = adjVar[p].next ;
+			}
+		}
+		
+		result.bestCover = -1 ;	
+		EnumerateVariants(0, choices, result, fragIdx, vars, adjFrag, adjVar) ;
+
+		// Process the final results.
+		bool uniq = true ;
+		if (result.equalBestEnumVariants.Size() > 0)
+			uniq = false ;
+
+		for (i = 0 ; i < varCnt ; ++i)
+		{
+			int seqIdx = canadidateVariants[vars[i]].a ;
+			int refPos = canadidateVariants[vars[i]].b ;
+			if (!baseVariants[seqIdx][refPos].exon)
+				continue ;
+			char refNuc = refSet.GetSeqConsensus(seqIdx)[refPos] ;
+			char varNuc = result.bestEnumVariants[i] ;
+			if (refNuc == varNuc)
+				continue ;
+
+			struct _variant nv ;
+			nv.seqIdx = seqIdx ;
+			nv.refStart = refPos ;
+			nv.refEnd = refPos ;
+			nv.ref[0] = refNuc ;
+			nv.ref[1] = '\0' ;
+			nv.var[0] = varNuc ;
+			nv.var[1] = '\0' ;
+			nv.allSupport = baseVariants[seqIdx][refPos].AllCountSum() ;
+			nv.varSupport = baseVariants[seqIdx][refPos].count[ nucToNum[varNuc - 'A'] ] ;
+			nv.varUniqSupport = baseVariants[seqIdx][refPos].uniqCount[ nucToNum[varNuc - 'A'] ] ;
+			finalVariants.push_back(nv) ;
+		}
+	}
 
 	void ComputeVariant(std::vector<char *> &read1, std::vector<char *> &read2, std::vector< std::vector<struct _fragmentOverlap> > &fragmentAssignments)
 	{
@@ -524,6 +638,27 @@ public:
 				BuildFragmentCandidateVarGraph(read1[i], NULL, i, 
 						fragmentAssignments[i], seqCandidateVarAccuCount, adjFrag, adjVar) ;	
 		}
+
+		// Group variants
+		std::map<int, int> reducedCandidateVarGroup ; // father to a number.
+		std::vector< SimpleVector<int> > candidateVarGroup ;
+		for (i = 0 ; i < candidateVarCnt ; ++i)
+		{
+			int gid = GetCandidateVariantGroup(i) ;
+			if (reducedCandidateVarGroup.find(gid) == reducedCandidateVarGroup.end())
+			{
+				reducedCandidateVarGroup[gid] = candidateVarGroup.size() ;
+				SimpleVector<int> nv ;
+				candidateVarGroup.push_back(nv) ;
+			}
+			int reducedGid = reducedCandidateVarGroup[gid] ;
+			candidateVarGroup[reducedGid].PushBack(i) ;
+		}
+
+		// Solve each group
+		int reducedGroupCnt = candidateVarGroup.size() ;
+		for ( i = 0 ; i < reducedGroupCnt ; ++i)
+			SolveVariantGroup(candidateVarGroup[i], adjFrag, adjVar) ;
 	}
 
 	/*int GetSeqExonVariants(int seqIdx, std::vector<struct _variant> &variants)
@@ -566,28 +701,28 @@ public:
 			}
 			++k ;
 		}
-	}
+	}*/
 	
 	void OutputAlleleVCF(char *filename)
 	{
 		FILE *fp = fopen(filename, "w") ;
-		int i, j ;
-		for (i = 0 ; i < alleleCnt ; ++i)
+		int i ;
+		int varCnt = finalVariants.size() ;	
+		char buffer[10] = "PASS" ;	
+		for (i = 0 ; i < varCnt ; ++i)
 		{
-			std::vector<struct _variant> variants ;
-			refSet.GetSeqExonVariants(i, variants) ;
-			int size = variants.size() ;
-			for (j = 0 ; j < size ; ++j)
-			{
-				fprintf(fp, "%s %d . %s %s 60 PASS %lf %lf %lf\n", 
-						refSet.GetSeqName(i), variants[j].refStart + 1, // the VCF file is 1-based
-						variants[j].ref, variants[j].var, 
-						variants[j].varSupport, variants[j].allSupport,
-						variants[j].varUniqSupport) ;
-			}
+			if (variants[i].qual > 0)
+				strcpy(buffer, "PASS") ;
+			else
+				strcpy(buffer, "FAIL") ;
+			fprintf(fp, "%s %d . %s %s %s %lf %lf %lf\n", 
+					refSet.GetSeqName(variants[i].seqIdx), variants[i].refStart + 1, // the VCF file is 1-based
+					variants[i].ref, variants[i].var, buffer, 
+					variants[i].varSupport, variants[i].allSupport,
+					variants[i].varUniqSupport) ;
 		}
 		fclose(fp) ;
-	}*/
+	}
 } ;
 
 #endif
