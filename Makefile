@@ -5,6 +5,13 @@ LINKFLAGS = -lpthread -lz
 DEBUG=
 OBJECTS = 
 
+#asan=1
+ifneq ($(asan),)
+	CXXFLAGS+=-fsanitize=address
+	LDFLAGS+=-fsanitize=address -ldl
+endif
+
+
 all: fastq-extractor bam-extractor genotyper analyzer
 
 genotyper: Genotyper.o
