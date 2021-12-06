@@ -522,8 +522,11 @@ public:
 				int p = adjVar[ vars[i] ].next ;
 				while (p != -1)
 				{
-					int fragIdx = adjVar[p].fragIdx ;
-					fragCovered[fragIdx] = true ;
+					if (adjVar[p].nuc[0] == choices[i])
+					{
+						int fragIdx = adjVar[p].fragIdx ;
+						fragCovered[fragIdx] = true ;
+					}
 					p = adjVar[p].next ;
 				}
 			}
@@ -536,6 +539,7 @@ public:
 
 			if (covered > result.bestCover)
 			{
+				result.bestCover = covered ;
 				result.bestEnumVariants = choices ;
 				result.equalBestEnumVariants.Clear() ;
 			}
@@ -562,15 +566,15 @@ public:
 		SimpleVector<int> fragIds ;
 		std::map<int, int> fragUsed ;
 		
-		/*for (i = 0 ; i < varCnt ; ++i)
+		for (i = 0 ; i < varCnt ; ++i)
 		{
 			int seqIdx = candidateVariants[vars[i]].a ;
 			int refPos = candidateVariants[vars[i]].b ;
 			if (baseVariants[seqIdx][refPos].exon)
 				break ;
 		}
-		if (i >= varCnt)
-			return ;*/
+		if (i >= varCnt) // only compute for exons
+			return ;
 		choices.ExpandTo(varCnt) ;
 		// Obtain related fragments
 		for (i = 0 ; i < varCnt ; ++i)
@@ -618,6 +622,10 @@ public:
 			nv.allSupport = baseVariants[seqIdx][refPos].AllCountSum() ;
 			nv.varSupport = baseVariants[seqIdx][refPos].count[ nucToNum[varNuc - 'A'] ] ;
 			nv.varUniqSupport = baseVariants[seqIdx][refPos].uniqCount[ nucToNum[varNuc - 'A'] ] ;
+			if (uniq == false)
+				nv.qual = 0 ;
+			else
+				nv.qual = 60 ;
 			finalVariants.push_back(nv) ;
 		}
 	}
@@ -721,7 +729,10 @@ public:
 		// Solve each group
 		int reducedGroupCnt = candidateVarGroup.size() ;
 		for ( i = 0 ; i < reducedGroupCnt ; ++i)
+		{
 			SolveVariantGroup(candidateVarGroup[i], adjFrag, adjVar) ;
+			//break ;
+		}
 	}
 
 	/*int GetSeqExonVariants(int seqIdx, std::vector<struct _variant> &variants)
@@ -765,6 +776,11 @@ public:
 			++k ;
 		}
 	}*/
+
+	void ConvertVariantsToExonCoord()
+	{
+		
+	}
 	
 	void OutputAlleleVCF(char *filename)
 	{
