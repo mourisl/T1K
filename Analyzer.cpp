@@ -337,6 +337,7 @@ int main(int argc, char *argv[])
 		nr.mate = 0 ;
 		if (strlen(nr.seq) > maxReadLength)
 			maxReadLength = strlen(nr.seq) ;
+		nr.fragmentAssigned = false ;
 		reads1.push_back(nr);		
 
 		if (hasMate)
@@ -590,6 +591,7 @@ int main(int argc, char *argv[])
 			read2seq.push_back(reads2[i].seq) ;
 	}	
 	variantCaller.ComputeVariant(read1seq, read2seq, fragmentAssignments) ;
+	
 	variantCaller.OutputAlleleVCF(buffer) ;
 	
 	

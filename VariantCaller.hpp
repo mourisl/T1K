@@ -21,6 +21,8 @@ struct _baseVariant
 {
 	double count[4] ;
 	double uniqCount[4] ;
+	double unweightedCount[4] ;
+	struct _pairIntDouble alignInfo[4] ; // information for best alignment. 
 	bool exon ;
 	int candidateId ; // -1: not a variant candidate. 
 
@@ -32,6 +34,20 @@ struct _baseVariant
 	double UniqCountSum()
 	{
 		return uniqCount[0] + uniqCount[1] + uniqCount[2] + uniqCount[3] ;
+	}
+
+	double UnweightedCountSum()
+	{
+		return unweightedCount[0] + unweightedCount[1] + unweightedCount[2] + unweightedCount[3] ;
+	}
+
+	double IsGoodAssignment(int matchCnt, double similarity)
+	{
+		int i ;
+		for (i = 0 ; i < 4 ; ++i)
+			if (matchCnt < alignInfo[i].a - 4) 
+				return false ;
+		return true ;
 	}
 } ;
 
@@ -52,9 +68,19 @@ struct _adjBaseVariantToFragment
 	int next ;	
 } ;
 
+// used to determine how to group variants
+struct _adjBaseVariantToBaseVariant 
+{
+	int varIdx ;
+	double weight ;
+	bool rootCandidate ; // whether this variant is inferred from read coverage.
+	int next ;
+} ;
+
 struct _enumVarResult
 {
 	double bestCover ; // the number of covered results
+	int usedVarCnt ; // the number of introduced variant
 	SimpleVector<char> bestEnumVariants ;
 	SimpleVector<char> equalBestEnumVariants ;
 } ;
@@ -67,7 +93,7 @@ private:
 	std::vector< SimpleVector<struct _baseVariant> > baseVariants ;
 	std::vector<double> seqAbundance ;
 	SimpleVector<struct _pair> candidateVariants ; // a: seqidx, b: refpos
-	SimpleVector<int> candidateVariantGroup ; // variant id to group id.
+	SimpleVector<int> candidateVariantGroupId ; // variant id to group id.
 	std::vector<struct _variant> finalVariants ; 
 	void UpdateBaseVariantFromOverlap(char *read, double weight, struct _overlap o)
 	{
@@ -81,8 +107,6 @@ private:
 			r = strdup(read) ;
 			refSet.ReverseComplement(r, read, readLen) ;
 		}
-
-		//char *align = new char[ 3 * readLen + 2 ] ;
 		char *align = o.align ;
 		if (align == NULL)
 		{
@@ -102,9 +126,22 @@ private:
 		{
 			if ( align[k] == EDIT_MATCH || align[k] == EDIT_MISMATCH)
 			{
+				int nucIdx = nucToNum[r[readPos] - 'A'] ;
 				if (weight == 1)
-					baseVariants[o.seqIdx][refPos].uniqCount[nucToNum[r[readPos] - 'A']] += weight ;
-				baseVariants[o.seqIdx][refPos].count[ nucToNum[r[readPos] - 'A']] += weight;
+					baseVariants[o.seqIdx][refPos].uniqCount[nucIdx] += weight ;
+				baseVariants[o.seqIdx][refPos].count[ nucIdx ] += weight;
+				baseVariants[o.seqIdx][refPos].unweightedCount[ nucIdx ] += 1 ;
+
+				if (o.matchCnt > baseVariants[o.seqIdx][refPos].alignInfo[nucIdx].a )
+				{
+					baseVariants[o.seqIdx][refPos].alignInfo[nucIdx].a = o.matchCnt ;
+					baseVariants[o.seqIdx][refPos].alignInfo[nucIdx].b = o.similarity ;
+				}
+				else if (o.matchCnt == baseVariants[o.seqIdx][refPos].alignInfo[nucIdx].a 
+						&& o.similarity > baseVariants[o.seqIdx][refPos].alignInfo[nucIdx].b)
+				{
+					baseVariants[o.seqIdx][refPos].alignInfo[nucIdx].b = o.similarity ;
+				}
 			}
 			//TODO: handle indels
 			//if (isValidDiff[refPos].exon && (align[k] == EDIT_DELETE) )
@@ -114,17 +151,18 @@ private:
 			if (align[k] != EDIT_DELETE)
 				++readPos ;
 		}
+		//char *align = new char[ 3 * readLen + 2 ] ;
 
 		if (o.strand == -1)
 			free(r);
 	}
 
-	int GetCandidateVariantGroup(int gid)
+	/*int GetCandidateVariantGroup(int gid)
 	{
-		if (candidateVariantGroup[gid] != gid)
+		if (candidateVariantGroupId[gid] != gid)
 			return candidateVariantGroup[gid] = GetCandidateVariantGroup(candidateVariantGroup[gid]) ;
 		return gid ;
-	}
+	}*/
 	
 	bool containCandidateVar(int start, int end, SimpleVector<int> &candidateVarAccuCount)
 	{
@@ -209,13 +247,11 @@ public:
 		double totalWeight = 0 ;
 		for (i = 0 ; i < assignCnt ; ++i)
 			totalWeight += seqAbundance[fragmentAssignment[i].seqIdx] ;
-	
 		for (i = 0 ; i < assignCnt ; ++i)
 		{
 			struct _fragmentOverlap &fragOverlap = fragmentAssignment[i] ;
 			int seqIdx = fragOverlap.seqIdx ;
 			double weight = seqAbundance[seqIdx] / totalWeight ;
-
 			if (fragOverlap.hasMatePair)
 			{
 				UpdateBaseVariantFromOverlap(read1, weight, fragOverlap.overlap1) ;
@@ -247,7 +283,7 @@ public:
 				for (k = 0 ; k < 4 ; ++k)
 				{
 					if (baseVariants[i][j].count[k] >= countThreshold 
-							&& baseVariants[i][j].count[k] >= baseVariants[i][j].count[ nucToNum[ s[j] - 'A' ]]
+							&& baseVariants[i][j].count[k] >= baseVariants[i][j].count[ nucToNum[ s[j] - 'A' ]] * 0.5
 							&& k != nucToNum[s[j] - 'A'])
 					{
 						int id = candidateVariants.Size() ;
@@ -256,7 +292,7 @@ public:
 						np.b = j ;	
 						candidateVariants.PushBack(np) ;
 						baseVariants[i][j].candidateId = id ;
-						candidateVariantGroup.PushBack(id) ;
+						candidateVariantGroupId.PushBack(-1) ;
 						//printf("%lf %lf\n", baseVariants[i][j].AllCountSum(), baseVariants[i][j].count[k]) ;
 						break ;
 					}
@@ -265,7 +301,7 @@ public:
 		}
 	}
 
-	void ExpandCandidateVariantsFromFragmentOverlap(char *read1, char *read2, std::vector<struct _fragmentOverlap> &fragmentAssignment, std::vector<SimpleVector<int> > &seqCandidateAccuCount)
+	void ExpandCandidateVariantsFromFragmentOverlap(char *read1, char *read2, std::vector<struct _fragmentOverlap> &fragmentAssignment, SimpleVector<struct _adjBaseVariantToBaseVariant> &adjVarToVar, std::vector<SimpleVector<int> > &seqCandidateAccuCount)
 	{
 		if (fragmentAssignment.size() <= 0)
 			return ;
@@ -274,6 +310,7 @@ public:
 
 		SimpleVector<int> refPos, readPos ;
 		SimpleVector<int> alignIdx ;
+		SimpleVector<bool> validAssignment ; // check whether the overlap can be used for candidate variant expansion
 		SimpleVector<char *> r ;
 		int assignCnt = fragmentAssignment.size() ;
 
@@ -281,6 +318,7 @@ public:
 		readPos.ExpandTo(assignCnt) ;
 		r.ExpandTo(assignCnt) ;
 		alignIdx.ExpandTo(assignCnt) ;
+		validAssignment.ExpandTo(assignCnt) ;
 		for (k = 0 ; k <= 1 ; ++k) // 0-read1, 1-read2
 		{
 			// Check whether there is variants in the alignment region
@@ -327,6 +365,14 @@ public:
 				for (i = 0 ; i < assignCnt ; ++i)
 				{
 					struct _overlap o = SelectOverlapFromFragmentOverlap(k, fragmentAssignment[i]) ;
+					validAssignment[i] = baseVariants[o.seqIdx][refPos[i]].IsGoodAssignment(o.matchCnt, o.similarity) ;
+				}
+
+				for (i = 0 ; i < assignCnt ; ++i)
+				{
+					if (!validAssignment[i])
+						continue ;
+					struct _overlap o = SelectOverlapFromFragmentOverlap(k, fragmentAssignment[i]) ;
 					if (refPos[i] < refSet.GetSeqConsensusLen(o.seqIdx) && baseVariants[o.seqIdx][refPos[i]].candidateId != -1)
 					{
 						firstCandidateId = baseVariants[o.seqIdx][refPos[i]].candidateId ;
@@ -334,16 +380,30 @@ public:
 						break ;
 					}
 				}
+				
+				/*if (!strcmp("AGTGTCGTTAAATGTCCCCTCTCTGTGCAGAAGGAAGTGCTCAAACCTGACATCTGACCAACATTGCAGGATGACTGTCTCTTCTGATTTCACCAGGGGACCTGGGTGGGCCAGGAGGGAAGGTTTTCTGTGGACTCCTAGGAAGAGAGG", read1))
+				{
+					if (refPos[1] == 1052)
+					{
+						for (i = 0 ; i < assignCnt ; ++i)
+						{
+							struct _overlap o = SelectOverlapFromFragmentOverlap(k, fragmentAssignment[i]) ;
+							printf("### %d %s %d %d. %d\n", fragmentAssignment[i].seqIdx, refSet.GetSeqName(fragmentAssignment[i].seqIdx), refPos[i], baseVariants[2][1052].candidateId, o.matchCnt) ;
+						}
+					}
+				}*/
 
 				if (firstCandidateId != -1)
 				{
 					// contains candidate varivants
 					for (i = 0 ; i < assignCnt ; ++i)
 					{
+						if (!validAssignment[i])
+							continue ;
 						struct _overlap o = SelectOverlapFromFragmentOverlap(k, fragmentAssignment[i]) ;
-						if (baseVariants[o.seqIdx][refPos[i]].candidateId == -1
-								&& (o.align[alignIdx[i]] != -1 
-									&& (o.align[ alignIdx[i] ] == EDIT_MATCH || o.align[ alignIdx[i] ] == EDIT_MISMATCH)))
+						if (baseVariants[o.seqIdx][refPos[i]].candidateId == -1)
+								//&& (o.align[alignIdx[i]] != -1 
+								//	&& (o.align[ alignIdx[i] ] == EDIT_MATCH || o.align[ alignIdx[i] ] == EDIT_MISMATCH)))
 						{
 							int cid = candidateVariants.Size() ;
 							struct _pair np ;
@@ -351,9 +411,11 @@ public:
 							np.b = refPos[i] ;
 							candidateVariants.PushBack(np) ;
 							baseVariants[o.seqIdx][refPos[i]].candidateId = cid ;
-							candidateVariantGroup.PushBack(cid) ;
-
-							/*if (GetCandidateVariantGroup(firstCandidateId) == 0 )
+							adjVarToVar[cid].varIdx = cid ;
+							adjVarToVar[cid].rootCandidate = false ;
+							adjVarToVar[cid].next = -1 ;
+							candidateVariantGroupId.PushBack(-1) ;
+							/*if (np.b == 1052)
 							{
 								printf("strange %d %d %d %d %d: %s %s\n", o.seqIdx, refPos[i], cid, k, o.strand, read1, read2) ;
 
@@ -380,9 +442,54 @@ public:
 							}*/
 						}
 						int cid = baseVariants[o.seqIdx][refPos[i]].candidateId ;
-						if (cid != -1)
-							candidateVariantGroup[cid] = GetCandidateVariantGroup(firstCandidateId) ;
+						//if (cid != -1)
+						//	candidateVariantGroup[cid] = GetCandidateVariantGroup(firstCandidateId) ;
+						candidateVariantGroupId[cid] = -1 ;
 					}
+
+					// Update the var to var abundance
+					for (i = 0 ; i < assignCnt ; ++i)
+					{	
+						if (!validAssignment[i])
+							continue ;
+						int l ;
+						for (l = 0 ; l < assignCnt ; ++l)
+						{
+							if (i == l || !validAssignment[l])
+								continue ;
+
+							struct _overlap oI = SelectOverlapFromFragmentOverlap(k, fragmentAssignment[i]) ;
+							struct _overlap oL = SelectOverlapFromFragmentOverlap(k, fragmentAssignment[l]) ;
+							int cidI = baseVariants[oI.seqIdx][refPos[i]].candidateId ;
+							int cidL = baseVariants[oL.seqIdx][refPos[l]].candidateId ;
+							if (cidI == -1 || cidL == -1)
+								continue ;
+							// add weight of i to j
+							int p ;
+							p = adjVarToVar[cidI].next ;
+							while (p != -1)
+							{
+								if (adjVarToVar[p].varIdx == cidL)
+								{
+									++adjVarToVar[p].weight ;
+									break ;
+								}
+								p = adjVarToVar[p].next ;
+							}
+
+							if (p == -1)
+							{
+								struct _adjBaseVariantToBaseVariant na ;
+								na.varIdx = cidL ;
+								na.weight = 1 ;
+								na.rootCandidate = false ;
+								na.next = adjVarToVar[cidI].next ;
+								
+								adjVarToVar[cidI].next = adjVarToVar.Size() ;
+								adjVarToVar.PushBack(na) ;
+							}
+						}
+					} // for i-assignCnt. update_var to var abundance
 				}
 
 				// Move to the next read position
@@ -405,6 +512,28 @@ public:
 				}
 			} // for j on read position
 		} // for k on read end selection
+	}
+
+	void BuildCandidateVariantGroup(int from, int tag, SimpleVector< struct _adjBaseVariantToBaseVariant > &adjVarToVar)
+	{
+		if (candidateVariantGroupId[from] != -1)
+			return ;
+		candidateVariantGroupId[from] = tag ;
+		int p = adjVarToVar[from].next ;
+		while (p != -1)
+		{
+			int to = adjVarToVar[p].varIdx ;
+			int fromSeqIdx = candidateVariants[from].a ;
+			int fromRefPos = candidateVariants[from].b ;
+			int toSeqIdx = candidateVariants[to].a ;
+			int toRefPos = candidateVariants[to].b ;
+			
+			//printf("%s %d %s %d %d %s %d %lf %lf\n", __func__, fromSeqIdx, refSet.GetSeqName(fromSeqIdx), fromRefPos, toSeqIdx, refSet.GetSeqName(toSeqIdx), toRefPos, adjVarToVar[p].weight, baseVariants[fromSeqIdx][fromRefPos].UnweightedCountSum()) ;
+			if (adjVarToVar[p].weight >= baseVariants[fromSeqIdx][fromRefPos].UnweightedCountSum() * 0.15 || adjVarToVar[p].weight >= baseVariants[toSeqIdx][toRefPos].UnweightedCountSum() * 0.15)
+				BuildCandidateVariantGroup(to, tag, adjVarToVar) ;
+
+			p = adjVarToVar[p].next ;
+		}
 	}
 
 	void BuildFragmentCandidateVarGraph(char *read1, char *read2, int fragIdx, std::vector<struct _fragmentOverlap> &fragmentAssignment, std::vector< SimpleVector<int> > &seqCandidateAccuCount, SimpleVector<struct _adjFragmentToBaseVariant> &adjFrag, SimpleVector<struct _adjBaseVariantToFragment> &adjVar)
@@ -452,7 +581,7 @@ public:
 				for (j = 0 ; align[j] != -1 ; ++j)
 				{
 					int cid = baseVariants[seqIdx][refPos].candidateId ;
-					if (cid != -1)
+					if (cid != -1 /*&& baseVariants[seqIdx][refPos].IsGoodAssignment(o.matchCnt, o.similarity)*/)
 					{
 						char var[5] ;
 						var[0] = r[readPos] ;
@@ -509,12 +638,12 @@ public:
 			SimpleVector<bool> fragCovered ;
 			int fragCnt = fragIds.Size() ;
 			int varCnt = vars.Size() ;
-			
+			int usedVarCnt = 0 ;	
 			int tmp = 0 ;
 			for (i = 0 ; i < fragCnt ; ++i)
 				if (fragIds[i] > tmp)
 					tmp = fragIds[i] ;
-
+			++tmp ;
 			fragCovered.ExpandTo(tmp) ;
 			fragCovered.SetZero(0, tmp) ;
 			for (i = 0 ; i < varCnt ; ++i)
@@ -537,13 +666,26 @@ public:
 					++covered ;
 			}
 
-			if (covered > result.bestCover)
+			for (i = 0 ; i < varCnt ; ++i)
+			{
+				int seqIdx = candidateVariants[ vars[i] ].a ;
+				int refPos = candidateVariants[ vars[i] ].b ;
+				if (refSet.GetSeqConsensus(seqIdx)[refPos] != choices[i])
+					++usedVarCnt ; 
+			}
+			/*if (vars[0] == 2)
+			{
+				printf("%lf %d\n", covered, usedVarCnt) ;
+			}*/
+			if (covered > result.bestCover
+					|| (covered == result.bestCover && usedVarCnt < result.usedVarCnt))
 			{
 				result.bestCover = covered ;
+				result.usedVarCnt = usedVarCnt ;
 				result.bestEnumVariants = choices ;
 				result.equalBestEnumVariants.Clear() ;
 			}
-			else if (covered == result.bestCover)
+			else if (covered == result.bestCover && usedVarCnt == result.usedVarCnt)
 			{
 				result.equalBestEnumVariants = choices ;
 			}
@@ -575,6 +717,22 @@ public:
 		}
 		if (i >= varCnt) // only compute for exons
 			return ;
+		
+		/*for (i = 0 ; i < varCnt ; ++i)
+		{
+			int seqIdx = candidateVariants[vars[i]].a ;
+			int refPos = candidateVariants[vars[i]].b ;
+			printf("%d %d %s %d %c %lf %lf %lf %lf %lf %lf %lf %lf\n", i, seqIdx, refSet.GetSeqName(seqIdx), refPos, refSet.GetSeqConsensus(seqIdx)[refPos],  
+					baseVariants[seqIdx][refPos].count[0],
+					baseVariants[seqIdx][refPos].count[1],
+					baseVariants[seqIdx][refPos].count[2],
+					baseVariants[seqIdx][refPos].count[3],
+					baseVariants[seqIdx][refPos].uniqCount[0],
+					baseVariants[seqIdx][refPos].uniqCount[1],
+					baseVariants[seqIdx][refPos].uniqCount[2],
+					baseVariants[seqIdx][refPos].uniqCount[3]
+					) ;
+		}*/
 		choices.ExpandTo(varCnt) ;
 		// Obtain related fragments
 		for (i = 0 ; i < varCnt ; ++i)
@@ -645,6 +803,7 @@ public:
 				UpdateBaseVariantFromFragmentOverlap(read1[i], NULL, fragmentAssignments[i]) ;
 		}
 		FindCandidateVariants() ;
+		int candidateVarCnt = candidateVariants.Size() ;
 		
 		/*for (i = 0 ; i < candidateVariants.Size() ; ++i)
 		{
@@ -654,10 +813,33 @@ public:
 		// Identity the candidate variants on other sequences aligned with preliminary
 		// candidate variants
 		std::vector< SimpleVector<int> > seqCandidateVarAccuCount ; // useful to quickly determine whether there is a overlap of the read and candidate variations.
+		SimpleVector<struct _adjBaseVariantToBaseVariant> adjVarToVar ; 
 		seqCandidateVarAccuCount.resize(seqCnt) ;		
+		int totalSeqLen = 0 ;
+		for (i = 0 ; i < seqCnt ; ++i)
+			totalSeqLen += refSet.GetSeqConsensusLen(i) ;
+		adjVarToVar.Reserve(totalSeqLen + 2 * candidateVarCnt) ;
+		adjVarToVar.Resize(totalSeqLen) ; // the first seqcount are used for the head nodes 
+
+		for (i = 0 ; i < totalSeqLen ; ++i)
+		{
+			adjVarToVar[i].varIdx = -1 ;
+			adjVarToVar[i].next = -1 ;
+		}
+		for (i = 0 ; i < candidateVarCnt ; ++i)
+		{
+			adjVarToVar[i].rootCandidate = true ;
+			adjVarToVar[i].varIdx = i ;
+			adjVarToVar[i].next = -1 ;
+		}
+
 		while (1) 
 		{	
-			int prevCandidateVarCount = candidateVariants.Size() ;
+			int prevCandidateVarCnt = candidateVariants.Size() ;
+			for (i = 0 ; i < prevCandidateVarCnt ; ++i) // reset the graph to recalculate the weight.
+				adjVarToVar[i].next = -1 ;
+			adjVarToVar.Resize(totalSeqLen) ;
+		
 			for (i = 0 ; i < seqCnt ; ++i)
 				ComputeCandidateVarAccuCount(i, seqCandidateVarAccuCount[i]) ;
 
@@ -665,22 +847,32 @@ public:
 			{
 				if (read2.size() > 0)
 					ExpandCandidateVariantsFromFragmentOverlap(read1[i], read2[i], 
-							fragmentAssignments[i], seqCandidateVarAccuCount ) ;
+							fragmentAssignments[i], adjVarToVar, seqCandidateVarAccuCount ) ;
 				else
 					ExpandCandidateVariantsFromFragmentOverlap(read1[i], NULL, 
-							fragmentAssignments[i], seqCandidateVarAccuCount ) ;
+							fragmentAssignments[i], adjVarToVar, seqCandidateVarAccuCount ) ;
 			}
-			if (prevCandidateVarCount == candidateVariants.Size())
+			if (prevCandidateVarCnt == candidateVariants.Size())
 				break ;
 		}
+		
 		
 		//for (i = 0 ; i < seqCnt ; ++i)
 		//	ComputeCandidateVarAccuCount(i, seqCandidateVarAccuCount[i]) ;
 
 		// Build the relation of fragments and variants
-		int candidateVarCnt = candidateVariants.Size() ;
+		candidateVarCnt = candidateVariants.Size() ;
 		//struct _adjFragmentToBaseVariant *adjFrag = (struct _adjFragmentToBaseVariant*)malloc(sizeof(struct _adjFragmentToBaseVariant) * fragCnt) ;
 		//struct _adjBaseVariantToFragment *adjVar = (struct _adjBaseVariantToFragment*)malloc(sizeof(_adjBaseVariantToFragment) * candidateVarCnt) ;
+		int groupCnt = 0 ;
+		for (i = 0 ; i < candidateVarCnt ; ++i)
+		{
+			if (adjVarToVar[i].rootCandidate && candidateVariantGroupId[i] == -1)
+			{
+				BuildCandidateVariantGroup(i, groupCnt, adjVarToVar) ;
+				++groupCnt ;
+			}
+		}
 
 		SimpleVector<struct _adjFragmentToBaseVariant> adjFrag ; 
 		SimpleVector<struct _adjBaseVariantToFragment> adjVar ; 
@@ -691,8 +883,7 @@ public:
 
 		/*for (i = 0 ; i < candidateVarCnt ; ++i)
 		{
-			printf("%d %d %s %d %d\n", i, candidateVariants[i].a, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b,
-					candidateVariantGroup[i]) ;
+			printf("%d %d %s %d %d %d\n", i, candidateVariants[i].a, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b, adjVarToVar[i].rootCandidate, candidateVariantGroupId[i]) ;
 		}*/
 		
 		for (i = 0 ; i < fragCnt ; ++i)
@@ -709,21 +900,16 @@ public:
 				BuildFragmentCandidateVarGraph(read1[i], NULL, i, 
 						fragmentAssignments[i], seqCandidateVarAccuCount, adjFrag, adjVar) ;	
 		}
-
+		
 		// Group variants
-		std::map<int, int> reducedCandidateVarGroup ; // father to a number.
 		std::vector< SimpleVector<int> > candidateVarGroup ;
+		candidateVarGroup.resize(groupCnt) ;
 		for (i = 0 ; i < candidateVarCnt ; ++i)
 		{
-			int gid = GetCandidateVariantGroup(i) ;
-			if (reducedCandidateVarGroup.find(gid) == reducedCandidateVarGroup.end())
-			{
-				reducedCandidateVarGroup[gid] = candidateVarGroup.size() ;
-				SimpleVector<int> nv ;
-				candidateVarGroup.push_back(nv) ;
-			}
-			int reducedGid = reducedCandidateVarGroup[gid] ;
-			candidateVarGroup[reducedGid].PushBack(i) ;
+			int gid = candidateVariantGroupId[i] ;
+			if (gid == -1)
+				continue ;
+			candidateVarGroup[gid].PushBack(i) ;
 		}
 
 		// Solve each group
@@ -779,7 +965,15 @@ public:
 
 	void ConvertVariantsToExonCoord()
 	{
-		
+		return ;
+		int i ;
+		int varCnt = finalVariants.size() ;
+		for (i = 0 ; i < varCnt ; ++i)
+		{
+			struct _variant &variant = finalVariants[i] ;
+			variant.refStart = refSet.GetExonicPosition(variant.seqIdx, variant.refStart) ;
+			variant.refEnd = refSet.GetExonicPosition(variant.seqIdx, variant.refEnd) ;
+		}		
 	}
 	
 	void OutputAlleleVCF(char *filename)
@@ -795,11 +989,12 @@ public:
 				strcpy(buffer, "PASS") ;
 			else
 				strcpy(buffer, "FAIL") ;
-			fprintf(fp, "%s %d . %s %s %s %lf %lf %lf\n", 
-					refSet.GetSeqName(variant.seqIdx), variant.refStart + 1, // the VCF file is 1-based
+			int exonRefStart = refSet.GetExonicPosition(variant.seqIdx, variant.refStart) ;
+			fprintf(fp, "%s %d . %s %s %s %lf %lf %lf %d\n", 
+					refSet.GetSeqName(variant.seqIdx), exonRefStart + 1, // the VCF file is 1-based
 					variant.ref, variant.var, buffer, 
 					variant.varSupport, variant.allSupport,
-					variant.varUniqSupport) ;
+					variant.varUniqSupport, variant.refStart) ;
 		}
 		fclose(fp) ;
 	}

@@ -2616,6 +2616,29 @@ public:
 			}
 		}
 	}*/
+
+	// return: -1 not in exon, otherwise-
+	int GetExonicPosition(int seqIdx, int pos)
+	{
+		if (!IsPosInExon(seqIdx, pos))
+			return -1 ;
+		struct _seqWrapper &seq = seqs[seqIdx]	;
+		int i ;
+		int exonCnt = seq.exons.size() ;
+		int psum = 0;
+		for (i = 0 ; i < exonCnt ; ++i)
+		{
+			if (pos >= seq.exons[i].a && pos <= seq.exons[i].b)
+			{
+				return psum + pos - seq.exons[i].a ;
+			}
+			else
+			{
+				psum += seq.exons[i].b - seq.exons[i].a + 1 ;
+			}
+		}	
+	}
+
 }	;
 
 

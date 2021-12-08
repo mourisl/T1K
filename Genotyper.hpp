@@ -1912,6 +1912,11 @@ public:
 	{
 		return alleleInfo[alleleIdx].abundance ;
 	}
+
+	int GetAlleleGeneIdx(int alleleIdx)
+	{
+		return alleleInfo[alleleIdx].geneIdx ;
+	}
 } ;
 
 #endif
