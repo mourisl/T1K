@@ -94,6 +94,7 @@ private:
 	std::vector<double> seqAbundance ;
 	SimpleVector<struct _pair> candidateVariants ; // a: seqidx, b: refpos
 	SimpleVector<int> candidateVariantGroupId ; // variant id to group id.
+	SimpleVector<int> seqCopy ; // 1-homozygous, 2-heterzygous
 	std::vector<struct _variant> finalVariants ; 
 	void UpdateBaseVariantFromOverlap(char *read, double weight, struct _overlap o)
 	{
@@ -237,6 +238,13 @@ public:
 		seqAbundance.resize(seqCnt) ;
 		for (i = 0 ; i < seqCnt ; ++i)
 			seqAbundance[i] = genotyper.GetAlleleAbundance(i) ;
+
+		std::map<int, int> geneAlleleCount ;
+		for (i = 0 ; i < seqCnt ; ++i)
+			geneAlleleCount[ genotyper.GetAlleleGeneIdx(i) ] += 1 ;
+		seqCopy.ExpandTo(seqCnt) ;
+		for (i = 0 ; i < seqCnt ; ++i)
+			seqCopy[i] = geneAlleleCount[ genotyper.GetAlleleGeneIdx(i)] ;
 	}
 
 	void UpdateBaseVariantFromFragmentOverlap(char *read1, char *read2, std::vector<struct _fragmentOverlap> &fragmentAssignment)
@@ -655,6 +663,17 @@ public:
 					{
 						int fragIdx = adjVar[p].fragIdx ;
 						fragCovered[fragIdx] = true ;
+					}
+					else if ( seqCopy[vars[i]] == 1 )
+					{
+						// We allow the original allele, if this allele is the only allele for the gene
+						int seqIdx = candidateVariants[vars[i]].a ;
+						int refPos = candidateVariants[vars[i]].b ;
+						if (refSet.GetSeqConsensus(seqIdx)[refPos] == adjVar[p].nuc[0])
+						{
+							int fragIdx = adjVar[p].fragIdx ;
+							fragCovered[fragIdx] = true ;
+						}
 					}
 					p = adjVar[p].next ;
 				}
