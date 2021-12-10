@@ -1009,7 +1009,7 @@ public:
 			else
 				strcpy(buffer, "FAIL") ;
 			int exonRefStart = refSet.GetExonicPosition(variant.seqIdx, variant.refStart) ;
-			fprintf(fp, "%s %d . %s %s %s %lf %lf %lf %d\n", 
+			fprintf(fp, "%s %d . %s %s . %s %lf %lf %lf %d\n", 
 					refSet.GetSeqName(variant.seqIdx), exonRefStart + 1, // the VCF file is 1-based
 					variant.ref, variant.var, buffer, 
 					variant.varSupport, variant.allSupport,

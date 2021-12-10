@@ -128,7 +128,7 @@ void *AssignReads_Thread( void *pArg )
 				if (strcmp(reads[j].seq, reads[i].seq) != 0)
 					break ;
 			assignments = new std::vector<struct _overlap> ;
-			refSet.AssignRead(reads[i].seq, reads[i].barcode, 0, *assignments) ;
+			refSet.AssignRead(reads[i].seq, reads[i].barcode, -1, *assignments) ;
 			//if (arg.tid == 0 && i % 10000 == 0)
 			//	printf("%d\n", i * arg.threadCnt) ;
 			for (k = i ; k < j ; ++k)
