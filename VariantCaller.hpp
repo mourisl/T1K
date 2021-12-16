@@ -660,7 +660,7 @@ public:
 		int i ;
 		if (depth == vars.Size())
 		{
-			SimpleVector<bool> fragCovered ;
+			SimpleVector<int> fragCovered ; // bit represtation of how the fragment is covered. Each variant has two bits, right bit: direct cover. left bit: homozygous adjustment 
 			int fragCnt = fragIds.Size() ;
 			int varCnt = vars.Size() ;
 			int usedVarCnt = 0 ;	
@@ -679,29 +679,65 @@ public:
 					if (adjVar[p].nuc[0] == choices[i])
 					{
 						int fragIdx = adjVar[p].fragIdx ;
-						fragCovered[fragIdx] = true ;
-					}
-					else if ( seqCopy[vars[i]] == 1 )
-					{
-						// We allow the original allele, if this allele is the only allele for the gene
-						int seqIdx = candidateVariants[vars[i]].a ;
-						int refPos = candidateVariants[vars[i]].b ;
-						if (refSet.GetSeqConsensus(seqIdx)[refPos] == adjVar[p].nuc[0])
-						{
-							int fragIdx = adjVar[p].fragIdx ;
-							fragCovered[fragIdx] = true ;
-						}
+						//if (candidateVariants[vars[0]].b==1007)
+						//	printf("%d %d\n", i, fragIdx);
+						fragCovered[fragIdx] = 1 ;
 					}
 					p = adjVar[p].next ;
 				}
 			}
+			
+			bool adjustHomozygous = true ;
+			if (varCnt > 1)
+				adjustHomozygous = false ;
+			for (i = 0 ; i < varCnt && adjustHomozygous ; ++i) 
+			{
+				if (seqCopy[ candidateVariants[vars[i]].a ] != 1)
+					continue ;
+				int refContribution = 0 ;
+				int altContribution = 0 ;
+				int seqIdx = candidateVariants[vars[i]].a ;
+				int refPos = candidateVariants[vars[i]].b ;
+			
+				if (choices[i] == refSet.GetSeqConsensus(seqIdx)[refPos])
+					continue ;
+
+				int p = adjVar[ vars[i] ].next ;
+				while (p != -1)
+				{
+					if (adjVar[p].nuc[0] == choices[i])
+						++altContribution ;
+					else if (refSet.GetSeqConsensus(seqIdx)[refPos] == adjVar[p].nuc[0])
+						++refContribution ;
+					p = adjVar[p].next ;
+				}	
+				
+				if (refContribution >= 2 && altContribution >= 2 &&
+						refContribution > 0.15 * altContribution &&
+						altContribution > 0.15 * refContribution)
+				{
+					// This homozygous site has variations on one copy
+					int p = adjVar[ vars[i] ].next ;
+					while (p != -1)
+					{
+						if (refSet.GetSeqConsensus(seqIdx)[refPos] == adjVar[p].nuc[0])
+						{
+							int fragIdx = adjVar[p].fragIdx ;
+							if (fragCovered[fragIdx] == 0)
+								fragCovered[fragIdx] = 2 ;
+						}
+						p = adjVar[p].next ;
+					}
+				}
+			}
+
 			double covered = 0 ;
 			for (i = 0 ; i < fragCnt ; ++i)
 			{
 				if (fragCovered[fragIds[i]])
 					++covered ;
 			}
-
+			
 			for (i = 0 ; i < varCnt ; ++i)
 			{
 				int seqIdx = candidateVariants[ vars[i] ].a ;
@@ -712,6 +748,10 @@ public:
 			/*if (vars[0] == 2)
 			{
 				printf("%lf %d\n", covered, usedVarCnt) ;
+			}*/
+			/*if (candidateVariants[vars[0]].b==1007)
+			{
+				printf("%lf %c %c\n", covered, choices[0], choices[1]) ;
 			}*/
 			if (covered > result.bestCover
 					|| (covered == result.bestCover && usedVarCnt < result.usedVarCnt))
@@ -851,8 +891,8 @@ public:
 		
 		/*for (i = 0 ; i < candidateVariants.Size() ; ++i)
 		{
-			printf("%d %s %d %d\n", i, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b,
-					candidateVariantGroup[i]) ;
+			printf("Init: %d %s %d %d\n", i, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b,
+					candidateVariantGroupId[i]) ;
 		}*/	
 		// Identity the candidate variants on other sequences aligned with preliminary
 		// candidate variants
