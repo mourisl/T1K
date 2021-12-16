@@ -62,6 +62,7 @@ my $prefix = "" ;
 my $bamExtractorArgs = "" ;
 my $fastqExtractorArgs = "" ;
 my $genotyperArgs = "" ;
+my $analyzerArgs = "" ;
 my $threadCnt = 1 ;
 my $stage = 0 ;
 my $noExtraction = 0 ;
@@ -76,6 +77,7 @@ my $refSeqFasta = "" ;
 #my $filterCov = 1.0 ;
 #my $crossGeneRate = 0.0005 ;
 my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0, "-s"=>0) ;
+my %analyzerArgNames = ("-s"=>0) ;
 print STDERR "[".localtime()."] $progName begins.\n" ;
 for ( $i = 0 ; $i < @ARGV ; ++$i )
 {
@@ -197,9 +199,17 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		$stage = $ARGV[$i + 1] ;
 		++$i ;
 	}
-	elsif ( defined( $genotyperArgNames{$ARGV[$i]} ) )
+	elsif ( defined( $genotyperArgNames{$ARGV[$i]} ) 
+		|| defined ($analyzerArgNames{$ARGV[$i]}))
 	{
-		$genotyperArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
+		if ( defined( $genotyperArgNames{$ARGV[$i]} ) ) 
+		{
+			$genotyperArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
+		}
+		if ( defined( $analyzerArgNames{$ARGV[$i]} ) )
+		{
+			$analyzerArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
+		}
 		++$i ;
 	}
 	else
@@ -361,6 +371,19 @@ if ( $stage <= 1 )
 	else
 	{
 		system_call("$WD/genotyper $genotyperArgs -o $prefix -t $threadCnt -f $refSeqFasta -u ".$cols[0]) ;
+	}
+}
+
+if ($stage <= 2)
+{
+	my @cols = split /\s/, $candidateFiles ;
+	if (scalar(@cols) > 1)
+	{
+		system_call("$WD/analyzer $analyzerArgs -o $prefix -t $threadCnt -f $refSeqFasta -a ${prefix}_allele.tsv -1 ${prefix}_aligned_1.fa -2 ${prefix}_aligned_2.fa") ;
+	}
+	else
+	{
+		system_call("$WD/analyzer $analyzerArgs -o $prefix -t $threadCnt -f $refSeqFasta -a ${prefix}_allele.tsv -u ${prefix}_aligned.fa") ;
 	}
 }
 

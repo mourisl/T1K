@@ -96,7 +96,7 @@ private:
 	SimpleVector<int> candidateVariantGroupId ; // variant id to group id.
 	SimpleVector<int> seqCopy ; // 1-homozygous, 2-heterzygous
 	std::vector<struct _variant> finalVariants ; 
-	void UpdateBaseVariantFromOverlap(char *read, double weight, struct _overlap o)
+	void UpdateBaseVariantFromOverlap(char *read, double weight, bool filterLowQual, struct _overlap o)
 	{
 		if (o.seqIdx == -1)
 			return ;
@@ -127,6 +127,13 @@ private:
 		{
 			if ( align[k] == EDIT_MATCH || align[k] == EDIT_MISMATCH)
 			{
+				/*if (weight > 0 
+						&& (o.seqIdx == 15 || o.seqIdx == 16)&& refPos == 3490)
+				{
+					printf("%d %d %lf %c %s\n", o.seqIdx, align[k], weight, r[readPos], read);
+				}*/
+				if (filterLowQual && !baseVariants[o.seqIdx][refPos].IsGoodAssignment(o.matchCnt, o.similarity))
+					continue ;
 				int nucIdx = nucToNum[r[readPos] - 'A'] ;
 				if (weight == 1)
 					baseVariants[o.seqIdx][refPos].uniqCount[nucIdx] += weight ;
@@ -237,8 +244,10 @@ public:
 		int i ;
 		seqAbundance.resize(seqCnt) ;
 		for (i = 0 ; i < seqCnt ; ++i)
+		{
 			seqAbundance[i] = genotyper.GetAlleleAbundance(i) ;
-
+			//printf("%d %s %lf\n", i, refSet.GetSeqName(i), seqAbundance[i]) ;
+		}
 		std::map<int, int> geneAlleleCount ;
 		for (i = 0 ; i < seqCnt ; ++i)
 			geneAlleleCount[ genotyper.GetAlleleGeneIdx(i) ] += 1 ;
@@ -246,31 +255,39 @@ public:
 		for (i = 0 ; i < seqCnt ; ++i)
 			seqCopy[i] = geneAlleleCount[ genotyper.GetAlleleGeneIdx(i)] ;
 	}
+	
 
-	void UpdateBaseVariantFromFragmentOverlap(char *read1, char *read2, std::vector<struct _fragmentOverlap> &fragmentAssignment)
+	// updateType: 0-weight, 1-alignInfo
+	void UpdateBaseVariantFromFragmentOverlap(char *read1, char *read2, int updateType, std::vector<struct _fragmentOverlap> &fragmentAssignment)
 	{
 		int i ;
 		int assignCnt = fragmentAssignment.size() ;
-		
+		bool filterLowQual = true ;
 		double totalWeight = 0 ;
 		for (i = 0 ; i < assignCnt ; ++i)
 			totalWeight += seqAbundance[fragmentAssignment[i].seqIdx] ;
+
 		for (i = 0 ; i < assignCnt ; ++i)
 		{
 			struct _fragmentOverlap &fragOverlap = fragmentAssignment[i] ;
 			int seqIdx = fragOverlap.seqIdx ;
 			double weight = seqAbundance[seqIdx] / totalWeight ;
+			if (updateType == 1)
+			{
+				filterLowQual = false ;
+				weight = 0 ;
+			}
 			if (fragOverlap.hasMatePair)
 			{
-				UpdateBaseVariantFromOverlap(read1, weight, fragOverlap.overlap1) ;
-				UpdateBaseVariantFromOverlap(read2, weight, fragOverlap.overlap2) ;
+				UpdateBaseVariantFromOverlap(read1, weight, filterLowQual, fragOverlap.overlap1) ;
+				UpdateBaseVariantFromOverlap(read2, weight, filterLowQual, fragOverlap.overlap2) ;
 			}
 			else
 			{
 				if (!fragOverlap.o1FromR2)
-					UpdateBaseVariantFromOverlap(read1, weight, fragOverlap.overlap1) ;
+					UpdateBaseVariantFromOverlap(read1, weight, filterLowQual, fragOverlap.overlap1) ;
 				else
-					UpdateBaseVariantFromOverlap(read2, weight, fragOverlap.overlap1) ;
+					UpdateBaseVariantFromOverlap(read2, weight, filterLowQual, fragOverlap.overlap1) ;
 			}
 		}
 	}
@@ -817,9 +834,17 @@ public:
 		for (i = 0 ; i < fragCnt ; ++i)	
 		{
 			if (read2.size() > 0)
-				UpdateBaseVariantFromFragmentOverlap(read1[i], read2[i], fragmentAssignments[i]) ;
+				UpdateBaseVariantFromFragmentOverlap(read1[i], read2[i], 1, fragmentAssignments[i]) ;
 			else
-				UpdateBaseVariantFromFragmentOverlap(read1[i], NULL, fragmentAssignments[i]) ;
+				UpdateBaseVariantFromFragmentOverlap(read1[i], NULL, 1, fragmentAssignments[i]) ;
+		}
+
+		for (i = 0 ; i < fragCnt ; ++i)	
+		{
+			if (read2.size() > 0)
+				UpdateBaseVariantFromFragmentOverlap(read1[i], read2[i], 0, fragmentAssignments[i]) ;
+			else
+				UpdateBaseVariantFromFragmentOverlap(read1[i], NULL, 0, fragmentAssignments[i]) ;
 		}
 		FindCandidateVariants() ;
 		int candidateVarCnt = candidateVariants.Size() ;
@@ -1009,11 +1034,15 @@ public:
 			else
 				strcpy(buffer, "FAIL") ;
 			int exonRefStart = refSet.GetExonicPosition(variant.seqIdx, variant.refStart) ;
+      char tmp[23] = "";
+      tmp[22] = '\0'; 
+      memcpy(tmp, refSet.GetSeqConsensus(variant.seqIdx) + variant.refStart - 10, 21);
 			fprintf(fp, "%s %d . %s %s . %s %lf %lf %lf %d\n", 
 					refSet.GetSeqName(variant.seqIdx), exonRefStart + 1, // the VCF file is 1-based
 					variant.ref, variant.var, buffer, 
 					variant.varSupport, variant.allSupport,
-					variant.varUniqSupport, variant.refStart) ;
+					variant.varUniqSupport, variant.refStart);
+					//, tmp) ;
 		}
 		fclose(fp) ;
 	}

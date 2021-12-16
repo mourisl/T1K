@@ -240,6 +240,13 @@ while (<FP>)
 				}
 				elsif ($mode eq "genome") 
 				{
+					for (my $i = 2 ; $i < scalar(@exons) ; $i += 2)
+					{
+						if ($exons[$i] <= $exons[$i - 1] + 1)
+						{
+							$partialAlleles{$allele} = 1;						
+						}
+					}
 					$outputSeq = $seq ;
 					@exonActualRegion = @exons ;
 				}

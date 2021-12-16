@@ -425,8 +425,10 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
 			std::vector<struct _fragmentOverlap> &assignments = fragmentAssignment ;
 			for (int j = 0 ; j < assignments.size() ; ++j)
-				printf("%s\t%d\t%s\t%d\t%lf. %d %d\n", reads1[i].id, assignments[j].seqIdx, refSet.GetSeqName(assignments[j].seqIdx),
-						assignments[j].matchCnt, assignments[j].similarity, assignments[j].overlap1.matchCnt, assignments[j].overlap2.matchCnt);
+				printf("%s\t%d\t%s\t%d\t%lf. %d %d. %d %d. %d %d\n", reads1[i].id, assignments[j].seqIdx, refSet.GetSeqName(assignments[j].seqIdx),
+						assignments[j].matchCnt, assignments[j].similarity, assignments[j].overlap1.matchCnt, assignments[j].overlap2.matchCnt, 
+						assignments[j].overlap1.seqStart, assignments[j].overlap1.seqEnd,
+						assignments[j].overlap2.seqStart, assignments[j].overlap2.seqEnd);
 #endif
 			genotyper.SetReadAssignments(i, fragmentAssignment ) ;	
 			if (fragmentAssignment.size() > 0)

@@ -90,7 +90,10 @@ struct _overlap
 	int matchCnt ; // The number of matched bases, count TWICE.
 	double similarity ;
 	int leftClip, rightClip ;
-	int exonicMatchCnt ; // the number of matches in exon and does not change residue
+	int relaxedMatchCnt ; // the number of matches regarding the intronic mismatch as all match
+	
+	int firstVar ; // the first and last variation on the reference part. 
+	int lastVar ; 
 
 	char *align ;
 	
@@ -143,7 +146,7 @@ struct _fragmentOverlap
 	int seqStart, seqEnd ;
 
 	int matchCnt ;
-	int exonicMatchCnt ; 
+	int relaxedMatchCnt ; 
 	double similarity ;
 
 	bool hasMatePair ;
@@ -778,6 +781,16 @@ public:
 	void SetRefSeqSimilarity(double s)
 	{
 		refSeqSimilarity = s ;
+	}
+
+	int GetOverlapSize( int s0, int e0, int s1, int e1 )
+	{
+		int s = -1, e = -1 ;
+		if ( e0 < s1 || s0 > e1 )
+			return 0 ;
+		s = s0 > s1 ? s0 : s1 ;
+		e = e0 < e1 ? e0 : e1 ;
+		return e - s + 1 ;
 	}
 
 	void InitPthread()
@@ -1945,7 +1958,7 @@ public:
 		extendedOverlap.matchCnt = 2 * matchCnt + overlap.matchCnt ;
 		extendedOverlap.similarity = (double)( 2 * matchCnt + overlap.matchCnt ) / 
 			( extendedOverlap.readEnd - extendedOverlap.readStart + 1 + extendedOverlap.seqEnd - extendedOverlap.seqStart + 1 ) ;
-		extendedOverlap.exonicMatchCnt = extendedOverlap.matchCnt ;
+		extendedOverlap.relaxedMatchCnt = extendedOverlap.matchCnt ;
 		extendedOverlap.leftClip = leftClip ;
 		extendedOverlap.rightClip = rightClip ;
 		extendedOverlap.align = NULL ;	
@@ -2049,7 +2062,7 @@ public:
 			if ( ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
 			{
 				//printf( "e0 %d-%d %d-%d %lf. %d %d\n", eOverlap.readStart, eOverlap.readEnd,
-				//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity, eOverlap.matchCnt, eOverlap.exonicMatchCnt) ;
+				//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity, eOverlap.matchCnt, eOverlap.relaxedMatchCnt) ;
 				extendedOverlaps.push_back(eOverlap) ;
 			}
 			else
@@ -2112,12 +2125,12 @@ public:
 							if (align[k] != EDIT_DELETE)
 								++readPos ;
 						}
-						//printf("%d %d %d %d\n", extendedOverlap.seqStart, extendedOverlap.seqEnd, 2 * matchCnt, exonCnt) ;
-						eOverlap.exonicMatchCnt = 2 * matchCnt ;
+						//printf("%d %d %d %d\n", eOverlap.seqStart, eOverlap.seqEnd, 2 * matchCnt, exonCnt) ;
+						eOverlap.relaxedMatchCnt = 2 * matchCnt ; //+ (eOverlap.leftClip + eOverlap.rightClip)*2 ;
 					}
 					else
 					{
-						eOverlap.exonicMatchCnt = eOverlap.matchCnt ;
+						eOverlap.relaxedMatchCnt = eOverlap.matchCnt ;
 					}
 
 					// Mark the base coverage	
@@ -2147,7 +2160,7 @@ public:
 				else
 				{
 					// The assignment is very bad
-					eOverlap.exonicMatchCnt = 0 ;//eOverlap.matchCnt ;		
+					eOverlap.relaxedMatchCnt = 0 ;//eOverlap.matchCnt ;		
 				}
 			}
 		}
@@ -2268,13 +2281,13 @@ public:
 				fragmentOverlap.hasMatePair = false ;
 				fragmentOverlap.o1FromR2 = false ;
 				fragmentOverlap.overlap1 = o ;
-				fragmentOverlap.exonicMatchCnt = o.exonicMatchCnt ;
+				fragmentOverlap.relaxedMatchCnt = o.relaxedMatchCnt ;
 
 				if (fragments[i].b >= 0)
 				{
 					struct _overlap &o2 = (*pOverlaps2)[fragments[i].b] ;
 					fragmentOverlap.matchCnt += o2.matchCnt ;
-					fragmentOverlap.exonicMatchCnt += o2.exonicMatchCnt ;
+					fragmentOverlap.relaxedMatchCnt += o2.relaxedMatchCnt ;
 					if (o.strand == 1)
 						fragmentOverlap.seqEnd = o2.seqEnd ;
 					else
@@ -2301,7 +2314,7 @@ public:
 				fragmentOverlap.seqEnd = o.seqEnd ;
 				fragmentOverlap.hasMatePair = false ;
 				fragmentOverlap.o1FromR2 = true ;
-				fragmentOverlap.exonicMatchCnt = o.exonicMatchCnt ;
+				fragmentOverlap.relaxedMatchCnt = o.relaxedMatchCnt ;
 				fragmentOverlap.overlap1 = o ;
 			}
 
@@ -2356,14 +2369,29 @@ public:
 		{
 			if (i == bestAssignTag)
 				bestAssignTag = k ;
+
+			int matchCntRelax = 2 ;
+			if (ignoreNonExonDiff && assign[i].hasMatePair && 
+					IsOverlapIntersect(assign[i].overlap1, assign[i].overlap2))
+			{
+				// If there is mismatch in intron, and the two read ends overlaps
+				// relaxed the overlap criteria.
+				if (assign[i].overlap1.matchCnt != assign[i].overlap1.relaxedMatchCnt
+						&& assign[i].overlap2.matchCnt != assign[i].overlap2.relaxedMatchCnt)
+				{
+					matchCntRelax = 2 ;
+				}
+			}
+			//printf("%d %d %d. %d %d\n", matchCntRelax, assign[i].overlap1.matchCnt, assign[i].overlap2.matchCnt, assign[i].overlap1.relaxedMatchCnt, assign[i].overlap2.relaxedMatchCnt) ;
+
 			if (assign[i].matchCnt == bestAssign.matchCnt && assign[i].similarity == bestAssign.similarity )
 			{
 				assign[k] = assign[i] ;
 				assign[k].qual = 1 ;
 				++k ;
 			}
-			else if (ignoreNonExonDiff && assign[i].matchCnt >= bestAssign.matchCnt - 2 
-					&& assign[i].exonicMatchCnt == bestAssign.exonicMatchCnt)
+			else if (ignoreNonExonDiff && assign[i].matchCnt >= bestAssign.matchCnt - matchCntRelax 
+					&& assign[i].relaxedMatchCnt == bestAssign.relaxedMatchCnt)
 					//&& (pOverlaps2 != NULL && assign[0].hasMatePair == true)) // no dangling case
 			{
 				assign[k] = assign[i] ;
@@ -2509,10 +2537,27 @@ public:
 		o.align = align ;
 	}
 
-
 	bool IsPosInExon(int seqIdx, int pos) 
 	{
 		return seqs[seqIdx].isValidDiff[pos].exon ;
+	}
+
+	// Return the number of bases of a overlap overlapping with the exon
+	int GetOverlapExonLength(struct _overlap &o)
+	{
+		if (o.seqIdx == -1)
+			return 0 ;
+		std::vector<struct _pair> &exons = seqs[o.seqIdx].exons ;
+		int i ;
+		int eCnt = exons.size() ;
+		int ret = 0 ;
+		for (i = 0 ; i < eCnt ; ++i)
+		{
+			if (o.seqEnd < exons[i].a)
+				break ;
+			ret += GetOverlapSize(o.seqStart, o.seqEnd, exons[i].a, exons[i].b) ;
+		}
+		return ret ;
 	}
 
 	int GetSeqNameToIdxMap(std::map<std::string, int>& nameToIdx)

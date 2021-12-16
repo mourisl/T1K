@@ -55,15 +55,30 @@ struct _readAssignment
 class Genotyper
 {
 private:
-	void ParseAlleleName(char *allele, char *gene, char *majorAllele)
+	// field length: 0 - default 
+	//							 1 - same exon size
+	void ParseAlleleName(char *allele, char *gene, char *majorAllele, int fieldsType = 0)
 	{
 		int i, j ;
-		int parseType = 1 ; // 1-first three; 2-colon(HLA)
+		int parseType = 1 ; // 1-first three (KIR); 2-colon(HLA)
+		int fieldsLength = 3 ;
 		strcpy(gene, allele) ;
 		strcpy(majorAllele, allele) ;
 		for (i = 0 ; allele[i] ; ++i)
 			if (allele[i] == ':')
 				parseType = 2 ;
+		
+		if (fieldsType == 0)
+		{
+			fieldsLength = 3 ;
+		}
+		else if (fieldsType >= 1)
+		{
+			if (parseType == 1)
+				fieldsLength = 5 ;
+			else if (parseType == 2)
+				fieldsLength = 3 ;
+		}
 
 		if (parseType == 1)
 		{
@@ -73,7 +88,7 @@ private:
 					break ;
 			}
 			gene[i] = '\0' ;
-			for (j = 0 ; j <= 3 && allele[i + j] ; ++j)
+			for (j = 0 ; j <= fieldsLength && allele[i + j] ; ++j)
 				;
 			majorAllele[i + j] = '\0' ;
 		}
@@ -91,12 +106,24 @@ private:
 				if (allele[j] == ':')	
 				{
 					++k ;
-					if (k >= 3)
+					if (k >= fieldsLength)
 						break ;
 				}
 			}
 			majorAllele[j] = '\0' ;
 		}
+	}
+
+	bool IsAlleleSameInExon(char *nameA, char *nameB)
+	{
+		char geneName[50];
+		char exonAlleleNameA[50];
+		char exonAlleleNameB[50];
+			
+		ParseAlleleName(nameA, geneName, exonAlleleNameA, 1) ;
+		ParseAlleleName(nameB, geneName, exonAlleleNameB, 1) ;
+		
+		return strcmp(exonAlleleNameA, exonAlleleNameB) == 0;
 	}
 	
 	static bool CompSortPairByBDec( const struct _pair &p1, const struct _pair &p2 )
@@ -1898,6 +1925,27 @@ public:
 				{
 					representatives[tag] = selectedAlleles[i][j].a ;
 				}
+			}
+			if (representatives[1] == -1 && representatives[0] != -1)
+			{
+				// Could be two alleles with the same major allele
+				double max = -1;
+				int maxAlleleIdx = -1;
+			 	for (j = 0 ; j < size ; ++j)
+				{
+					int tag = selectedAlleles[i][j].b ;
+					int alleleIdx = selectedAlleles[i][j].a ;
+					if (tag != 0 || alleleInfo[alleleIdx].equivalentClass == alleleInfo[representatives[0]].equivalentClass || IsAlleleSameInExon(refSet.GetSeqName(alleleIdx), refSet.GetSeqName(representatives[0])))
+						continue;
+					if (alleleInfo[alleleIdx].ecAbundance > max 
+							|| (alleleInfo[alleleIdx].ecAbundance == max && alleleIdx < maxAlleleIdx))
+					{
+						max = alleleInfo[alleleIdx].ecAbundance ;
+						maxAlleleIdx = alleleIdx ;
+					}
+				}
+				if (max != -1)
+					representatives[1] = maxAlleleIdx;
 			}
 			for (j = 0 ; j < 2 ; ++j)
 			{
