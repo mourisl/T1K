@@ -92,9 +92,6 @@ struct _overlap
 	int leftClip, rightClip ;
 	int relaxedMatchCnt ; // the number of matches regarding the intronic mismatch as all match
 	
-	int firstVar ; // the first and last variation on the reference part. 
-	int lastVar ; 
-
 	char *align ;
 	
 	bool operator<( const struct _overlap &b ) const
@@ -2376,10 +2373,10 @@ public:
 			{
 				// If there is mismatch in intron, and the two read ends overlaps
 				// relaxed the overlap criteria.
-				if (assign[i].overlap1.matchCnt != assign[i].overlap1.relaxedMatchCnt
-						&& assign[i].overlap2.matchCnt != assign[i].overlap2.relaxedMatchCnt)
+				if (assign[i].overlap1.matchCnt < assign[i].overlap1.relaxedMatchCnt
+						&& assign[i].overlap2.matchCnt < assign[i].overlap2.relaxedMatchCnt)
 				{
-					matchCntRelax = 2 ;
+					matchCntRelax = 4 ;
 				}
 			}
 			//printf("%d %d %d. %d %d\n", matchCntRelax, assign[i].overlap1.matchCnt, assign[i].overlap2.matchCnt, assign[i].overlap1.relaxedMatchCnt, assign[i].overlap2.relaxedMatchCnt) ;
