@@ -660,37 +660,45 @@ public:
 		int i ;
 		if (depth == vars.Size())
 		{
-			SimpleVector<int> fragCovered ; // bit represtation of how the fragment is covered. Each variant has two bits, right bit: direct cover. left bit: homozygous adjustment 
+			SimpleVector<int> fragCovered ; 
 			int fragCnt = fragIds.Size() ;
 			int varCnt = vars.Size() ;
 			int usedVarCnt = 0 ;	
-			int tmp = 0 ;
+			int maxFragIdx = 0 ;
 			for (i = 0 ; i < fragCnt ; ++i)
-				if (fragIds[i] > tmp)
-					tmp = fragIds[i] ;
-			++tmp ;
-			fragCovered.ExpandTo(tmp) ;
-			fragCovered.SetZero(0, tmp) ;
+				if (fragIds[i] > maxFragIdx)
+					maxFragIdx = fragIds[i] ;
+			++maxFragIdx ;
+			fragCovered.ExpandTo(maxFragIdx) ;
+			fragCovered.SetZero(0, maxFragIdx) ;
 			for (i = 0 ; i < varCnt ; ++i)
 			{
+				int seqIdx = candidateVariants[vars[i]].a ;
+				int refPos = candidateVariants[vars[i]].b ;
+				if (varCnt <= 1 && seqCopy[ candidateVariants[vars[i]].a ] <= 1
+						&& choices[i] != refSet.GetSeqConsensus(seqIdx)[refPos])
+					continue ;
 				int p = adjVar[ vars[i] ].next ;
 				while (p != -1)
 				{
-					if (adjVar[p].nuc[0] == choices[i])
+					int fragIdx = adjVar[p].fragIdx ;
+					if (fragIdx < maxFragIdx)
 					{
-						int fragIdx = adjVar[p].fragIdx ;
-						//if (candidateVariants[vars[0]].b==1007)
-						//	printf("%d %d\n", i, fragIdx);
-						fragCovered[fragIdx] = 1 ;
+						if (adjVar[p].nuc[0] == choices[i])
+						{
+							//if (candidateVariants[vars[0]].b==961)
+							//	printf("%d %d\n", i, fragIdx);
+							fragCovered[fragIdx] = 1 ;
+						}
 					}
 					p = adjVar[p].next ;
 				}
 			}
 			
-			bool adjustHomozygous = true ;
-			if (varCnt > 1)
-				adjustHomozygous = false ;
-			for (i = 0 ; i < varCnt && adjustHomozygous ; ++i) 
+			// We just want to test the contribution of the alternative nucleotide,
+			// if there is some noise support the reference nuc, it is fine, we don't report those.
+			// Only do this when the scenario is simple.
+			for (i = 0 ; i < varCnt && varCnt <= 1 ; ++i) 
 			{
 				if (seqCopy[ candidateVariants[vars[i]].a ] != 1)
 					continue ;
@@ -698,7 +706,7 @@ public:
 				int altContribution = 0 ;
 				int seqIdx = candidateVariants[vars[i]].a ;
 				int refPos = candidateVariants[vars[i]].b ;
-			
+
 				if (choices[i] == refSet.GetSeqConsensus(seqIdx)[refPos])
 					continue ;
 
@@ -711,23 +719,26 @@ public:
 						++refContribution ;
 					p = adjVar[p].next ;
 				}	
-				
-				if (refContribution >= 2 && altContribution >= 2 &&
-						refContribution > 0.15 * altContribution &&
+				//if (candidateVariants[vars[0]].b==1007)
+				//	printf("%d %s %d %d\n", i, refSet.GetSeqName(seqIdx), refContribution, altContribution) ;
+
+				bool includeAlt = false ;
+				if (altContribution >= 2 &&
 						altContribution > 0.15 * refContribution)
 				{
-					// This homozygous site has variations on one copy
-					int p = adjVar[ vars[i] ].next ;
-					while (p != -1)
+					includeAlt = true ;
+				}
+				p = adjVar[ vars[i] ].next ;
+				while (p != -1)
+				{
+					if (refSet.GetSeqConsensus(seqIdx)[refPos] == adjVar[p].nuc[0]
+							|| (choices[i] == adjVar[p].nuc[0] && includeAlt))
 					{
-						if (refSet.GetSeqConsensus(seqIdx)[refPos] == adjVar[p].nuc[0])
-						{
-							int fragIdx = adjVar[p].fragIdx ;
-							if (fragCovered[fragIdx] == 0)
-								fragCovered[fragIdx] = 2 ;
-						}
-						p = adjVar[p].next ;
+						int fragIdx = adjVar[p].fragIdx ;
+						if (fragCovered[fragIdx] == 0)
+							fragCovered[fragIdx] = 2 ;
 					}
+					p = adjVar[p].next ;
 				}
 			}
 
@@ -819,8 +830,25 @@ public:
 				int fragIdx = adjVar[p].fragIdx ;
 				if (fragUsed.find(fragIdx) == fragUsed.end())
 				{
-					fragUsed[fragIdx] = 1 ;
-					fragIds.PushBack(fragIdx) ;
+					int fragP = -1 ;
+					/*if (varCnt > 1)
+					{
+						fragP = adjFrag[fragIdx].next ;
+						while (fragP != -1)
+						{
+							int varIdx = baseVariants[adjFrag[fragP].seqIdx][adjFrag[fragP].refPos].candidateId ;
+							if (candidateVariantGroupId[varIdx] != candidateVariantGroupId[vars[0]])
+							{
+								break ;
+							}
+							fragP = adjFrag[fragP].next ;
+						}
+					}*/
+					if (fragP == -1)
+					{
+						fragUsed[fragIdx] = 1 ;
+						fragIds.PushBack(fragIdx) ;
+					}
 				}
 				p = adjVar[p].next ;
 			}
