@@ -130,7 +130,7 @@ void *AssignReads_Thread( void *pArg )
 				if (strcmp(reads[j].seq, reads[i].seq) != 0)
 					break ;
 			assignments = new std::vector<struct _overlap> ;
-			refSet.AssignRead(reads[i].seq, reads[i].barcode, 0, *assignments) ;
+			refSet.AssignRead(reads[i].seq, -1, 0, *assignments) ;
 			//if (arg.tid == 0 && i % 10000 == 0)
 			//	printf("%d\n", i * arg.threadCnt) ;
 			for (k = i ; k < j ; ++k)
@@ -284,6 +284,7 @@ int main(int argc, char *argv[])
 		}
 		else if ( c == 10000 )
 		{
+			barcodeFile.AddReadFile(optarg, false) ;
 			hasBarcode = true ;
 		}
 		else
@@ -421,7 +422,7 @@ int main(int argc, char *argv[])
 				if (strcmp(allReads[j].seq, allReads[i].seq) != 0)
 					break ;
 			assignments = new std::vector<struct _overlap> ;
-			refSet.AssignRead(allReads[i].seq, allReads[i].barcode, 0, *assignments) ;
+			refSet.AssignRead(allReads[i].seq, -1, 0, *assignments) ;
 			//if (arg.tid == 0 && i % 10000 == 0)
 			//	printf("%d\n", i * arg.threadCnt) ;
 			for (k = i ; k < j ; ++k)
@@ -657,6 +658,17 @@ int main(int argc, char *argv[])
 			free( reads2[i].seq ) ;
 			if ( reads2[i].qual != NULL )
 				free( reads2[i].qual ) ;
+		}
+
+		if (reads1[i].fragmentAssigned)
+		{
+			int assignCnt = fragmentAssignments[i].size() ;
+			for (j = 0 ; j < assignCnt ; ++j)
+			{
+				delete[] fragmentAssignments[i][j].overlap1.align ;
+				if (fragmentAssignments[i][j].hasMatePair)
+					delete[] fragmentAssignments[i][j].overlap2.align ;
+			}
 		}
 	}
 	PrintLog("Post analysis finishes.") ;

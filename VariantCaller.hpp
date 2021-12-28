@@ -393,7 +393,10 @@ public:
 				for (i = 0 ; i < assignCnt ; ++i)
 				{
 					struct _overlap o = SelectOverlapFromFragmentOverlap(k, fragmentAssignment[i]) ;
-					validAssignment[i] = baseVariants[o.seqIdx][refPos[i]].IsGoodAssignment(o.matchCnt, o.similarity) ;
+					if (refPos[i] < refSet.GetSeqConsensusLen(o.seqIdx)) 
+						validAssignment[i] = baseVariants[o.seqIdx][refPos[i]].IsGoodAssignment(o.matchCnt, o.similarity) ;
+					else
+						validAssignment[i] = false ;
 				}
 
 				for (i = 0 ; i < assignCnt ; ++i)
@@ -976,11 +979,11 @@ public:
 		FindCandidateVariants() ;
 		int candidateVarCnt = candidateVariants.Size() ;
 		
-		for (i = 0 ; i < candidateVariants.Size() ; ++i)
+		/*for (i = 0 ; i < candidateVariants.Size() ; ++i)
 		{
 			printf("Init: %d %s %d %d\n", i, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b,
 					candidateVariantGroupId[i]) ;
-		}	
+		}*/	
 		// Identity the candidate variants on other sequences aligned with preliminary
 		// candidate variants
 		std::vector< SimpleVector<int> > seqCandidateVarAccuCount ; // useful to quickly determine whether there is a overlap of the read and candidate variations.
@@ -1052,10 +1055,10 @@ public:
 		adjVar.Reserve(fragCnt + candidateVarCnt) ;
 		adjVar.Resize(candidateVarCnt) ;
 
-		for (i = 0 ; i < candidateVarCnt ; ++i)
+		/*for (i = 0 ; i < candidateVarCnt ; ++i)
 		{
 			printf("%d %d %s %d %d %d\n", i, candidateVariants[i].a, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b, adjVarToVar[i].rootCandidate, candidateVariantGroupId[i]) ;
-		}
+		}*/
 		
 		for (i = 0 ; i < fragCnt ; ++i)
 			adjFrag[i].next = -1 ;
@@ -1185,7 +1188,7 @@ public:
 		int i, j, k ;
 		int assignCnt = rawAssignments.size() ;
 		SimpleVector<double> changeScore ;
-		changeScore.Resize(assignCnt) ;
+		changeScore.ExpandTo(assignCnt) ;
 		changeScore.SetZero(0, assignCnt) ; 
 		
 		for (i = 0 ; i < assignCnt ; ++i)
@@ -1209,7 +1212,7 @@ public:
 				int readLen = strlen(r) ;
 				if (o.strand == -1)
 				{
-					char *rc = strdup(read) ;
+					rc = strdup(read) ;
 					refSet.ReverseComplement(rc, read, readLen) ;
 					r = rc ;
 				}

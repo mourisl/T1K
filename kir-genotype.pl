@@ -161,8 +161,6 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 			last if ($ARGV[$j] =~ /^-/) ;
 			push @barcodeFiles, glob($ARGV[$j]) ;
 		}
-		$genotyperArgs .= " --barcode ${prefix}_candidate_bc.fa" ;
-		$analyzerArgs .= " --barcode ${prefix}_aligned_bc.fa" ;
 		$i = $j - 1 ;
 	}
 	elsif ( $ARGV[$i] eq "--barcodeRange" )
@@ -359,6 +357,12 @@ if ( 0 ) # no long needed #$stage <= 1 )
 		system_call("perl $WD/ExtractBamHits.pl ${prefix}_bwa_aligned.sam ".$cols[0]."> $bwaRd") ;
 		$bwaReadFiles = "$bwaRd" ;
 	}
+}
+
+if ($hasBarcode == 1)
+{
+	$genotyperArgs .= " --barcode ${prefix}_candidate_bc.fa" ;
+	$analyzerArgs .= " --barcode ${prefix}_aligned_bc.fa" ;
 }
 
 # Obtain the genotype
