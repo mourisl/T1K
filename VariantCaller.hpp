@@ -14,6 +14,8 @@ struct _variant
 	double varSupport ;
 	double varUniqSupport ;
 	
+	int varGroupId ; 
+	int outputGroupId ; // 0-best variants, 1- equal best variants
 	int qual ;
 } ;
 
@@ -25,6 +27,7 @@ struct _baseVariant
 	struct _pairIntDouble alignInfo[4] ; // information for best alignment. 
 	bool exon ;
 	int candidateId ; // -1: not a variant candidate. 
+	std::vector<int> finalVariantIds ; // the id in the final variant table
 
 	double AllCountSum()
 	{
@@ -137,7 +140,7 @@ private:
 				int nucIdx = nucToNum[r[readPos] - 'A'] ;
 				if (weight == 1)
 					baseVariants[o.seqIdx][refPos].uniqCount[nucIdx] += weight ;
-				baseVariants[o.seqIdx][refPos].count[ nucIdx ] += weight;
+				baseVariants[o.seqIdx][refPos].count[ nucIdx ] += 1;
 				baseVariants[o.seqIdx][refPos].unweightedCount[ nucIdx ] += 1 ;
 
 				if (o.matchCnt > baseVariants[o.seqIdx][refPos].alignInfo[nucIdx].a )
@@ -884,11 +887,48 @@ public:
 			nv.allSupport = baseVariants[seqIdx][refPos].AllCountSum() ;
 			nv.varSupport = baseVariants[seqIdx][refPos].count[ nucToNum[varNuc - 'A'] ] ;
 			nv.varUniqSupport = baseVariants[seqIdx][refPos].uniqCount[ nucToNum[varNuc - 'A'] ] ;
+			nv.varGroupId = candidateVariantGroupId[vars[i]] ;
+			nv.outputGroupId = 0 ;
 			if (uniq == false)
 				nv.qual = 0 ;
 			else
 				nv.qual = 60 ;
 			finalVariants.push_back(nv) ;
+		}
+
+		if (uniq == false)
+		{
+			for (i = 0 ; i < varCnt ; ++i)
+			{
+				int seqIdx = candidateVariants[vars[i]].a ;
+				int refPos = candidateVariants[vars[i]].b ;
+				if (!baseVariants[seqIdx][refPos].exon)
+					continue ;
+				char refNuc = refSet.GetSeqConsensus(seqIdx)[refPos] ;
+				char varNuc = result.equalBestEnumVariants[i] ;
+				if (refNuc == varNuc)
+					continue ;
+
+				struct _variant nv ;
+				nv.seqIdx = seqIdx ;
+				nv.refStart = refPos ;
+				nv.refEnd = refPos ;
+				nv.ref[0] = refNuc ;
+				nv.ref[1] = '\0' ;
+				nv.var[0] = varNuc ;
+				nv.var[1] = '\0' ;
+				nv.allSupport = baseVariants[seqIdx][refPos].AllCountSum() ;
+				nv.varSupport = baseVariants[seqIdx][refPos].count[ nucToNum[varNuc - 'A'] ] ;
+				nv.varUniqSupport = baseVariants[seqIdx][refPos].uniqCount[ nucToNum[varNuc - 'A'] ] ;
+				nv.varGroupId = candidateVariantGroupId[vars[i]] ;
+				nv.outputGroupId = 1 ;
+				if (uniq == false)
+					nv.qual = 0 ;
+				else
+					nv.qual = 60 ;
+				finalVariants.push_back(nv) ;
+			}
+
 		}
 	}
 
@@ -914,14 +954,33 @@ public:
 			else
 				UpdateBaseVariantFromFragmentOverlap(read1[i], NULL, 0, fragmentAssignments[i]) ;
 		}
+		
+		/*for (i = 0 ; i < seqCnt ; ++i)
+		{
+			int seqIdx = i;
+			for (int refPos = 0 ; refPos < refSet.GetSeqConsensusLen(seqIdx) ; ++refPos )
+			{
+				printf("%d %s %d %d %c %lf %lf %lf %lf %lf %lf %lf %lf\n", seqIdx, refSet.GetSeqName(seqIdx), refPos, refSet.GetExonicPosition(seqIdx, refPos), refSet.GetSeqConsensus(seqIdx)[refPos],  
+						baseVariants[seqIdx][refPos].count[0],
+						baseVariants[seqIdx][refPos].count[1],
+						baseVariants[seqIdx][refPos].count[2],
+						baseVariants[seqIdx][refPos].count[3],
+						baseVariants[seqIdx][refPos].uniqCount[0],
+						baseVariants[seqIdx][refPos].uniqCount[1],
+						baseVariants[seqIdx][refPos].uniqCount[2],
+						baseVariants[seqIdx][refPos].uniqCount[3]
+						) ;
+			}
+		}*/
+
 		FindCandidateVariants() ;
 		int candidateVarCnt = candidateVariants.Size() ;
 		
-		/*for (i = 0 ; i < candidateVariants.Size() ; ++i)
+		for (i = 0 ; i < candidateVariants.Size() ; ++i)
 		{
 			printf("Init: %d %s %d %d\n", i, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b,
 					candidateVariantGroupId[i]) ;
-		}*/	
+		}	
 		// Identity the candidate variants on other sequences aligned with preliminary
 		// candidate variants
 		std::vector< SimpleVector<int> > seqCandidateVarAccuCount ; // useful to quickly determine whether there is a overlap of the read and candidate variations.
@@ -993,10 +1052,10 @@ public:
 		adjVar.Reserve(fragCnt + candidateVarCnt) ;
 		adjVar.Resize(candidateVarCnt) ;
 
-		/*for (i = 0 ; i < candidateVarCnt ; ++i)
+		for (i = 0 ; i < candidateVarCnt ; ++i)
 		{
 			printf("%d %d %s %d %d %d\n", i, candidateVariants[i].a, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b, adjVarToVar[i].rootCandidate, candidateVariantGroupId[i]) ;
-		}*/
+		}
 		
 		for (i = 0 ; i < fragCnt ; ++i)
 			adjFrag[i].next = -1 ;
@@ -1030,6 +1089,12 @@ public:
 		{
 			SolveVariantGroup(candidateVarGroup[i], adjFrag, adjVar) ;
 			//break ;
+		}
+
+		int finalVarCnt = finalVariants.size() ;
+		for (i = 0 ; i < finalVarCnt ; ++i)
+		{
+			baseVariants[finalVariants[i].seqIdx][finalVariants[i].refStart].finalVariantIds.push_back(i) ;
 		}
 	}
 
@@ -1105,14 +1170,98 @@ public:
       char tmp[23] = "";
       tmp[22] = '\0'; 
       memcpy(tmp, refSet.GetSeqConsensus(variant.seqIdx) + variant.refStart - 10, 21);
-			fprintf(fp, "%s %d . %s %s . %s %lf %lf %lf %d\n", 
+			fprintf(fp, "%s %d . %s %s . %s %lf %lf %lf %d %d\n", 
 					refSet.GetSeqName(variant.seqIdx), exonRefStart + 1, // the VCF file is 1-based
 					variant.ref, variant.var, buffer, 
 					variant.varSupport, variant.allSupport,
-					variant.varUniqSupport, variant.refStart);
+					variant.varUniqSupport, variant.refStart, variant.outputGroupId);
 					//, tmp) ;
 		}
 		fclose(fp) ;
+	}
+
+	std::vector<struct _fragmentOverlap> AdjustFragmentAssignment(char *read1, char *read2, std::vector<struct _fragmentOverlap> &rawAssignments)
+	{
+		int i, j, k ;
+		int assignCnt = rawAssignments.size() ;
+		SimpleVector<double> changeScore ;
+		changeScore.Resize(assignCnt) ;
+		changeScore.SetZero(0, assignCnt) ; 
+		
+		for (i = 0 ; i < assignCnt ; ++i)
+		{
+			for (k = 0 ; k < 2 ; ++k)
+			{
+				if (k == 1 && !rawAssignments[i].hasMatePair)
+					continue ;
+				char *read = read1 ;
+				if (k == 1 || (k == 0 && rawAssignments[i].o1FromR2))
+					read = read2 ;
+
+				struct _overlap o = rawAssignments[i].overlap1 ;
+				if (k == 1)
+					o = rawAssignments[i].overlap2 ;
+				if (o.align == NULL)
+					continue ;
+
+				char *r = read ;
+				char *rc = NULL ;
+				int readLen = strlen(r) ;
+				if (o.strand == -1)
+				{
+					char *rc = strdup(read) ;
+					refSet.ReverseComplement(rc, read, readLen) ;
+					r = rc ;
+				}
+				
+				char *align = o.align ;
+				int readPos = 0 ;
+				int refPos = o.seqStart ;
+				int seqIdx = o.seqIdx ;
+				for (j = 0 ; align[j] != -1 ; ++j)
+				{
+					if (align[j] == EDIT_MISMATCH)
+					{
+						int size = baseVariants[seqIdx][refPos].finalVariantIds.size() ;
+						if (size > 0)
+						{
+							int l ;
+							for (l = 0 ; l < size ; ++l)
+							{
+								int vid = baseVariants[seqIdx][refPos].finalVariantIds[l] ;
+								if (finalVariants[vid].var[0] == r[readPos])
+								{
+									++changeScore[i] ;
+									break ;
+								}
+							}
+						}
+					}
+					
+					if (align[k] != EDIT_INSERT)
+						++refPos ;
+					if (align[k] != EDIT_DELETE)
+						++readPos ;
+				}
+
+				if (rc != NULL)
+					free(rc) ;
+			}
+		}
+		
+		double maxScore = -1 ;
+		for (i = 0 ; i < assignCnt ; ++i)
+			if (changeScore[i] > maxScore)
+				maxScore = changeScore[i] ;
+		
+		std::vector<struct _fragmentOverlap> ret ;
+		for (i = 0 ; i < assignCnt ; ++i)
+		{
+			if (changeScore[i] == maxScore)
+				ret.push_back( rawAssignments[i] ) ;
+		}
+
+		return ret ;
 	}
 } ;
 

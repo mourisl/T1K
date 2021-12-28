@@ -35,11 +35,12 @@ char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2,
 
 char numToNuc[4] = {'A', 'C', 'G', 'T'} ;
 
-static const char *short_options = "f:a:u:1:2:o:t:n:s:" ;
+static const char *short_options = "f:a:u:1:2:o:t:n:s:b:" ;
 static struct option long_options[] = {
 	{ "frac", required_argument, 0, 10000 },
 	{ "cov", required_argument, 0, 10001 },
 	{ "crossGeneRate", required_argument, 0, 10002},
+	{ "barcode", required_argument, 0, 10003},
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -188,7 +189,10 @@ int main(int argc, char *argv[])
 	Genotyper genotyper(11) ;
 	ReadFiles reads ;
 	ReadFiles mateReads ;
+	ReadFiles barcodeFile ;
 	bool hasMate = false ;
+	bool hasBarcode = false ;
+	bool hasUmi = false ;
 	std::vector<struct _genotypeRead> reads1 ;
 	std::vector<struct _genotypeRead> reads2 ;
 	int threadCnt = 1 ;
@@ -199,7 +203,11 @@ int main(int argc, char *argv[])
 	double filterCov = 1.0 ;
 	double crossGeneRate = 0.02 ;
 	double filterAlignmentSimilarity = 0.8 ;
-	
+	bool keepMissingBarcode = false ;
+
+	std::map<std::string, int> barcodeStrToInt ;
+	std::vector<std::string> barcodeIntToStr ;
+
 	while (1)	
 	{
 		c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
@@ -257,6 +265,11 @@ int main(int argc, char *argv[])
 		{
 			crossGeneRate = atof(optarg) ;
 		}
+		else if ( c = 10003 )
+		{
+			barcodeFile.AddReadFile(optarg, false) ;
+			hasBarcode = true ;
+		}
 		else
 		{
 			fprintf( stderr, "%s", usage ) ;
@@ -294,6 +307,28 @@ int main(int argc, char *argv[])
 		struct _genotypeRead mateR ;
 		int barcode = -1 ;
 		int umi = -1 ;
+		
+		if ( hasBarcode )
+		{
+			barcodeFile.Next() ;
+			
+			if ( !strcmp( barcodeFile.seq, "missing_barcode" ) && !keepMissingBarcode )
+			{
+				if ( hasMate )
+					mateReads.Next() ;
+				continue ;
+			}
+
+			std::string s( barcodeFile.seq ) ;
+			if ( barcodeStrToInt.find( s ) != barcodeStrToInt.end() )
+				barcode = barcodeStrToInt[s] ;
+			else
+			{
+				barcode = barcodeIntToStr.size() ;
+				barcodeStrToInt[s] = barcode ;
+				barcodeIntToStr.push_back( s ) ;
+			}
+		}
 
 		nr.seq = strdup(reads.seq) ;
 		nr.id = strdup(reads.id) ;
@@ -558,6 +593,17 @@ int main(int argc, char *argv[])
 			}
 		}
 		fclose(fpOutput) ;
+	}
+
+  if (hasBarcode)
+	{
+		sprintf(buffer, "%s_aligned_bc.fa", outputPrefix) ;
+		fpOutput = fopen(buffer, "w") ;
+		for (i = 0 ; i < readCnt ; ++i)
+		{
+			if (reads1[i].fragmentAssigned)
+				fprintf(fpOutput, ">%s\n%s\n", reads1[i].id, barcodeIntToStr[reads1[i].barcode].c_str());
+		}
 	}
 
 	for ( i = 0 ; i < readCnt ; ++i )

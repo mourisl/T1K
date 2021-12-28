@@ -161,6 +161,8 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 			last if ($ARGV[$j] =~ /^-/) ;
 			push @barcodeFiles, glob($ARGV[$j]) ;
 		}
+		$genotyperArgs .= " --barcode ${prefix}_candidate_bc.fa" ;
+		$analyzerArgs .= " --barcode ${prefix}_aligned_bc.fa" ;
 		$i = $j - 1 ;
 	}
 	elsif ( $ARGV[$i] eq "--barcodeRange" )

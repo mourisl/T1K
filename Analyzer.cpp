@@ -10,8 +10,9 @@
 
 #include "Genotyper.hpp"
 #include "VariantCaller.hpp"
+#include "BarcodeSummary.hpp"
 
-char usage[] = "./genotyper [OPTIONS]:\n"
+char usage[] = "./analyzer [OPTIONS]:\n"
 		"Required:\n"
 		"\t-f STRING: fasta file containing the reference genome sequence\n"
 		"\t-a STRING: selected alleles list file\n"
@@ -35,6 +36,7 @@ char numToNuc[4] = {'A', 'C', 'G', 'T'} ;
 
 static const char *short_options = "f:a:u:1:2:o:t:n:s:" ;
 static struct option long_options[] = {
+	{"barcode", required_argument, 0, 10000},
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -214,7 +216,9 @@ int main(int argc, char *argv[])
 	Genotyper genotyper(11) ;
 	ReadFiles reads ;
 	ReadFiles mateReads ;
+	ReadFiles barcodeFile ;
 	bool hasMate = false ;
+	bool hasBarcode = false ;
 	std::vector<struct _genotypeRead> reads1 ;
 	std::vector<struct _genotypeRead> reads2 ;
 	int threadCnt = 1 ;
@@ -225,11 +229,15 @@ int main(int argc, char *argv[])
 	double filterCov = 1.0 ;
 	double crossGeneRate = 0.02 ;
 	double filterAlignmentSimilarity = 0.8 ;
+	bool keepMissingBarcode = false ;
 	
 	char refFile[1025] = "" ;
 	char alleleFile[1025] = "" ;
 	char alleleName[1025] = "" ;
 
+	std::map<std::string, int> barcodeStrToInt ;
+	std::vector<std::string> barcodeIntToStr ;
+	
 	while (1)	
 	{
 		c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
@@ -273,6 +281,10 @@ int main(int argc, char *argv[])
 		else if ( c == 's' )
 		{
 			filterAlignmentSimilarity = atof(optarg) ;
+		}
+		else if ( c == 10000 )
+		{
+			hasBarcode = true ;
 		}
 		else
 		{
@@ -324,6 +336,28 @@ int main(int argc, char *argv[])
 		struct _genotypeRead mateR ;
 		int barcode = -1 ;
 		int umi = -1 ;
+		
+		if ( hasBarcode )
+		{
+			barcodeFile.Next() ;
+			
+			if ( !strcmp( barcodeFile.seq, "missing_barcode" ) && !keepMissingBarcode )
+			{
+				if ( hasMate )
+					mateReads.Next() ;
+				continue ;
+			}
+
+			std::string s( barcodeFile.seq ) ;
+			if ( barcodeStrToInt.find( s ) != barcodeStrToInt.end() )
+				barcode = barcodeStrToInt[s] ;
+			else
+			{
+				barcode = barcodeIntToStr.size() ;
+				barcodeStrToInt[s] = barcode ;
+				barcodeIntToStr.push_back( s ) ;
+			}
+		}
 
 		nr.seq = strdup(reads.seq) ;
 		nr.id = strdup(reads.id) ;
@@ -594,9 +628,22 @@ int main(int argc, char *argv[])
 	
 	variantCaller.OutputAlleleVCF(buffer) ;
 	
-	
 	// Handling barcode
-	
+	if (hasBarcode)	
+	{
+		BarcodeSummary barcodeSummary(refSet) ;
+		for (i = 0 ; i < readCnt ; ++i)								
+		{
+			if (!reads1[i].fragmentAssigned)
+				continue ;
+			barcodeSummary.AddFragment(reads1[i].seq, hasMate?reads2[i].seq:NULL, reads1[i].barcode, &variantCaller, fragmentAssignments[i]) ;	
+		}
+		sprintf(buffer, "%s_barcode_expr.tsv", outputPrefix) ;
+		FILE *fp = fopen(buffer, "w") ;
+		barcodeSummary.Output(barcodeIntToStr, fp) ;
+		fclose(fp) ;
+	}
+
 	for ( i = 0 ; i < readCnt ; ++i )
 	{
 		free( reads1[i].id ) ;
@@ -612,7 +659,7 @@ int main(int argc, char *argv[])
 				free( reads2[i].qual ) ;
 		}
 	}
-	PrintLog("Genotyping finishes.") ;
+	PrintLog("Post analysis finishes.") ;
 	return 0;
 }
 
