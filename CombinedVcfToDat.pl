@@ -44,8 +44,8 @@ while (<FP1>)
 	next if (/^#/) ;
 	chomp ;
 	my @cols = split ;
-	$gene = (split /\*/, $cols[0])[0] ;
-	$interestedGeneName{$gene]}	= "." ;
+	my $gene = (split /\*/, $cols[0])[0] ;
+	$interestedGeneName{$gene}	= "." ;
 	push @{$vcf{$cols[0]}}, join("\t", @cols[1 .. $#cols ]) ;
 }
 close FP1 ;
@@ -63,6 +63,8 @@ while (<FP1>)
 	next if ( $cols[2] ne "exon" ) ;
 
 	my $tname ;	
+	my $gname = "-1" ;
+	my @range ;
 	if ( $cols[8] =~ /transcript_name \"(.*?)\"/ )
 	{
 		#print $1, "\n" ; 
@@ -76,7 +78,7 @@ while (<FP1>)
 	if ( $tname ne $prevTname )
 	{
 		if ( (defined $interestedGeneName{ $gname } ) && 
-			&& $interestedGeneName{$gname} eq "." && @range > 0 )
+			 $interestedGeneName{$gname} eq "." && scalar(@range) > 0 )
 		{
 			$interestedGeneName{$gname}	= $strand ;
 			@{$exons{$gname}} = @range ;
@@ -138,12 +140,12 @@ foreach my $allele (keys %vcf)
 		}
 		elsif ($cols[3] eq '.' && $cols[4] ne '.') # insertion
 		{
-			substr($seq, $cols[3] - $offsest, 0, $cols[4]) ;
+			substr($seq, $cols[3] - $offset, 0, $cols[4]) ;
 			$offset -= length($cols[4]) ;
 		}
 		elsif ($cols[3] ne '.' && $cols[4] eq '.')
 		{
-			substr($seq, $cols[3] - $offsest, length($cols[3]), "") ;
+			substr($seq, $cols[3] - $offset, length($cols[3]), "") ;
 			$offset += length($cols[3]) ; 
 		}
 	}
@@ -187,7 +189,7 @@ foreach my $allele (keys %vcf)
 	# Reverse
 	$seq = uc($seq) ;
 	my $len = length($seq) ;
-	if ($interestedGeneName{$ganme} eq '-')
+	if ($interestedGeneName{$gname} eq '-')
 	{
 		$seq = reverse($seq) ;
 		$seq =~ tr/ACGT/TGCA/ ;
@@ -200,14 +202,14 @@ foreach my $allele (keys %vcf)
 		
 		for ($i = 0 ; $i < scalar(@alleleExon) ; $i += 3)
 		{
-			$alleleExon[$i + 1], $alleleExon[$i + 2]) = ($len - 1 - $alleleExon[$i + 2], 
+			($alleleExon[$i + 1], $alleleExon[$i + 2]) = ($len - 1 - $alleleExon[$i + 2], 
 								$len - 1 - $alleleExon[$i + 1]) ;
 		}
 	}
 
 	# Output
 	print("ID   $allele\n")	;
-	print("FT   allele=$allele"\n) ;
+	print("FT   allele=$allele\n") ;
 	if ($alleleExon[0] > 0)
 	{
 		print("FT   UTR            1..".$alleleExon[0]."\n") ;
