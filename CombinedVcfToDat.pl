@@ -55,6 +55,8 @@ my %exons ;
 open FP1, $ARGV[1] ;
 my $prevTname = "-1" ;
 my $strand = "." ;
+my $gname = "-1" ;
+my @range ;
 while (<FP1>)
 {
 	next if ( /^#/ ) ;
@@ -63,8 +65,6 @@ while (<FP1>)
 	next if ( $cols[2] ne "exon" ) ;
 
 	my $tname ;	
-	my $gname = "-1" ;
-	my @range ;
 	if ( $cols[8] =~ /transcript_name \"(.*?)\"/ )
 	{
 		#print $1, "\n" ; 
@@ -77,10 +77,24 @@ while (<FP1>)
 
 	if ( $tname ne $prevTname )
 	{
+		#print($interestedGeneName{"CYP2D6"}, " ", scalar(@range), "\n");
 		if ( (defined $interestedGeneName{ $gname } ) && 
 			 $interestedGeneName{$gname} eq "." && scalar(@range) > 0 )
 		{
 			$interestedGeneName{$gname}	= $strand ;
+			# order the range in increasing order
+			if (@range > 3 && $range[1] > $range[4])
+			{
+				{
+					my $j ;
+					for ($i = 0, $j = scalar(@range) - 3 ; $i < $j ; $i += 3, $j -= 3)
+					{
+						($range[$i + 1], $range[$j + 1]) = ($range[$j + 1], $range[$i + 1]) ;
+						($range[$i + 2], $range[$j + 2]) = ($range[$j + 2], $range[$i + 2]) ;
+					}
+				}
+			}
+
 			@{$exons{$gname}} = @range ;
 		}
 
@@ -123,9 +137,8 @@ foreach my $allele (keys %vcf)
 	my $size = scalar(@alleleExon) ;
 	$start = 0 if ($start < 0) ;
 	my $end = $alleleExon[$size - 1] + $padding;
-	$end = $genome{$chr} - 1 if ($end >= length($genome{$chr})) ;
+	$end = length($genome{$chr}) - 1 if ($end >= length($genome{$chr})) ;
 	$seq = substr($genome{$chr}, $start, $end - $start + 1) ;
-	
 	my $offset = $start ;
 	my $firstOffset = $start ;
 	# Change the sequence according to the vcf.
@@ -133,19 +146,20 @@ foreach my $allele (keys %vcf)
 	{
 		my @cols = split /\t/, $v ;
 		my $pos = $cols[1] - 1 ;
+		next if ($pos >= length($seq)) ;
 		if ($cols[3] ne '.' && $cols[4] ne '.')
 		{
-			substr($seq, $cols[3] - $offset, length($cols[3]), $cols[4]) ;
+			substr($seq, $pos - $offset, length($cols[3]), $cols[4]) ;
 			$offset += (length($cols[3]) - length($cols[4])) ;
 		}
 		elsif ($cols[3] eq '.' && $cols[4] ne '.') # insertion
 		{
-			substr($seq, $cols[3] - $offset, 0, $cols[4]) ;
+			substr($seq, $pos - $offset, 0, $cols[4]) ;
 			$offset -= length($cols[4]) ;
 		}
 		elsif ($cols[3] ne '.' && $cols[4] eq '.')
 		{
-			substr($seq, $cols[3] - $offset, length($cols[3]), "") ;
+			substr($seq, $pos - $offset, length($cols[3]), "") ;
 			$offset += length($cols[3]) ; 
 		}
 	}
@@ -210,9 +224,9 @@ foreach my $allele (keys %vcf)
 	# Output
 	print("ID   $allele\n")	;
 	print("FT   allele=$allele\n") ;
-	if ($alleleExon[0] > 0)
+	if ($alleleExon[1] > 0)
 	{
-		print("FT   UTR            1..".$alleleExon[0]."\n") ;
+		print("FT   UTR            1..".$alleleExon[1]."\n") ;
 	}
 	for ($i = 0 ; $i < scalar(@alleleExon) ; $i += 3)
 	{
@@ -222,11 +236,11 @@ foreach my $allele (keys %vcf)
 			print("FT   intron        ".($alleleExon[$i + 2] + 2)."..".($alleleExon[$i + 4])."\n") ;
 		}
 	}
-	if ($alleleExon[-1] < $len)
+	if ($alleleExon[-1] < $len - 1)
 	{
 		print("FT   UTR            ".($alleleExon[-1] + 2)."..".$len."\n") ;
 	}
 	print("SQ  Sequence $len BP\n") ;
 	print("$seq $len\n") ;
-	print("//") ;
+	print("//\n") ;
 }

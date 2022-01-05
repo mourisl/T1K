@@ -300,18 +300,24 @@ public:
 		int i, j, k ;
 		candidateVariants.Clear() ;  		
 		int seqCnt = refSet.Size() ;
-		const int countThreshold = 2 ;
+		const int countThreshold = 5 ;
 
 		for (i = 0 ; i < seqCnt ; ++i)
 		{
 			int len = baseVariants[i].Size() ;
 			const char *s = refSet.GetSeqConsensus(i) ;
+			double factor = 0.5 ;
+			//if (seqCopy[i] <= 1)
+			//	factor = 0.25 ;
 			for (j = 0 ; j < len ; ++j)
 			{
+				double refCount = baseVariants[i][j].count[ nucToNum[ s[j] - 'A' ]] ;
 				for (k = 0 ; k < 4 ; ++k)
 				{
 					if (baseVariants[i][j].count[k] >= countThreshold 
-							&& baseVariants[i][j].count[k] >= baseVariants[i][j].count[ nucToNum[ s[j] - 'A' ]] * 0.5
+							//&& (baseVariants[i][j].count[k] >= sqrt(refCount) 
+							//		&& baseVariants[i][j].count[k] >= refCount - 6 * sqrt(refCount))
+							&& baseVariants[i][j].count[k] >= refCount * factor 
 							&& k != nucToNum[s[j] - 'A'])
 					{
 						int id = candidateVariants.Size() ;
@@ -983,7 +989,7 @@ public:
 		{
 			printf("Init: %d %s %d %d\n", i, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b,
 					candidateVariantGroupId[i]) ;
-		}*/	
+		}*/
 		// Identity the candidate variants on other sequences aligned with preliminary
 		// candidate variants
 		std::vector< SimpleVector<int> > seqCandidateVarAccuCount ; // useful to quickly determine whether there is a overlap of the read and candidate variations.
@@ -1057,7 +1063,7 @@ public:
 
 		/*for (i = 0 ; i < candidateVarCnt ; ++i)
 		{
-			printf("%d %d %s %d %d %d\n", i, candidateVariants[i].a, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b, adjVarToVar[i].rootCandidate, candidateVariantGroupId[i]) ;
+			printf("expand: %d %d %s %d %d %d\n", i, candidateVariants[i].a, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b, adjVarToVar[i].rootCandidate, candidateVariantGroupId[i]) ;
 		}*/
 		
 		for (i = 0 ; i < fragCnt ; ++i)
