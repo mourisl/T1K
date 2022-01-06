@@ -390,6 +390,15 @@ public:
 			}	
 			///free(rc) ;
 			
+			// They all should have the same start position in read position
+			for (i = 1 ; i < assignCnt ; ++i)
+			{
+				if (readPos[i] != readPos[0])
+					break ;
+			}
+			if (i < assignCnt)
+				continue ;
+			
 			alignIdx.SetZero(0, assignCnt) ;
 			for (j = 0 ; j < len ; ++j) // use the read pos as the anchor
 			{
@@ -438,9 +447,9 @@ public:
 						if (!validAssignment[i])
 							continue ;
 						struct _overlap o = SelectOverlapFromFragmentOverlap(k, fragmentAssignment[i]) ;
-						if (baseVariants[o.seqIdx][refPos[i]].candidateId == -1)
-								//&& (o.align[alignIdx[i]] != -1 
-								//	&& (o.align[ alignIdx[i] ] == EDIT_MATCH || o.align[ alignIdx[i] ] == EDIT_MISMATCH)))
+						if (baseVariants[o.seqIdx][refPos[i]].candidateId == -1
+								&& (o.align[alignIdx[i]] != -1 
+									&& (o.align[ alignIdx[i] ] == EDIT_MATCH || o.align[ alignIdx[i] ] == EDIT_MISMATCH)))
 						{
 							int cid = candidateVariants.Size() ;
 							struct _pair np ;
@@ -452,7 +461,7 @@ public:
 							adjVarToVar[cid].rootCandidate = false ;
 							adjVarToVar[cid].next = -1 ;
 							candidateVariantGroupId.PushBack(-1) ;
-							/*if (np.b == 1052)
+							/*if (np.b == 2814)
 							{
 								printf("strange %d %d %d %d %d: %s %s\n", o.seqIdx, refPos[i], cid, k, o.strand, read1, read2) ;
 
@@ -481,7 +490,8 @@ public:
 						int cid = baseVariants[o.seqIdx][refPos[i]].candidateId ;
 						//if (cid != -1)
 						//	candidateVariantGroup[cid] = GetCandidateVariantGroup(firstCandidateId) ;
-						candidateVariantGroupId[cid] = -1 ;
+						if (cid != -1)
+							candidateVariantGroupId[cid] = -1 ;
 					}
 
 					// Update the var to var abundance
@@ -1063,7 +1073,7 @@ public:
 
 		/*for (i = 0 ; i < candidateVarCnt ; ++i)
 		{
-			printf("expand: %d %d %s %d %d %d\n", i, candidateVariants[i].a, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b, adjVarToVar[i].rootCandidate, candidateVariantGroupId[i]) ;
+			printf("Expand: %d %d %s %d %d %d\n", i, candidateVariants[i].a, refSet.GetSeqName(candidateVariants[i].a), candidateVariants[i].b, adjVarToVar[i].rootCandidate, candidateVariantGroupId[i]) ;
 		}*/
 		
 		for (i = 0 ; i < fragCnt ; ++i)
