@@ -461,7 +461,7 @@ public:
 							adjVarToVar[cid].rootCandidate = false ;
 							adjVarToVar[cid].next = -1 ;
 							candidateVariantGroupId.PushBack(-1) ;
-							/*if (np.b == 2814)
+							/*if (np.a == 8 && np.b == 703)
 							{
 								printf("strange %d %d %d %d %d: %s %s\n", o.seqIdx, refPos[i], cid, k, o.strand, read1, read2) ;
 
@@ -816,15 +816,24 @@ public:
 		struct _enumVarResult result ;
 		SimpleVector<int> fragIds ;
 		std::map<int, int> fragUsed ;
-		
+		std::map<int, int> seqIdxUsed ;	
+		bool inExon = false;
+		bool skip = false ;
+
 		for (i = 0 ; i < varCnt ; ++i)
 		{
 			int seqIdx = candidateVariants[vars[i]].a ;
 			int refPos = candidateVariants[vars[i]].b ;
 			if (baseVariants[seqIdx][refPos].exon)
+				inExon = true ;
+			++seqIdxUsed[seqIdx] ;
+			if (seqIdxUsed[seqIdx] > 1)
+			{
+				skip = true ;
 				break ;
+			}
 		}
-		if (i >= varCnt) // only compute for exons
+		if (skip || !inExon) // only compute for exons
 			return ;
 		
 		/*for (i = 0 ; i < varCnt ; ++i)
