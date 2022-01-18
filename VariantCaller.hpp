@@ -1243,7 +1243,7 @@ public:
 				}
 				
 				char *align = o.align ;
-				int readPos = 0 ;
+				int readPos = o.readStart ;
 				int refPos = o.seqStart ;
 				int seqIdx = o.seqIdx ;
 				for (j = 0 ; align[j] != -1 ; ++j)
@@ -1266,9 +1266,9 @@ public:
 						}
 					}
 					
-					if (align[k] != EDIT_INSERT)
+					if (align[j] != EDIT_INSERT)
 						++refPos ;
-					if (align[k] != EDIT_DELETE)
+					if (align[j] != EDIT_DELETE)
 						++readPos ;
 				}
 

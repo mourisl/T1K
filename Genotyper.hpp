@@ -1144,7 +1144,9 @@ public:
 			{
 				diffSum += ABS(ecAbundance1[i] - ecAbundance0[i]) ;
 				ecAbundance0[i] = ecAbundance1[i] ;
-				//printf("%d %s %d: %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), ecReadCount[i], ecInfo[i].length, ecAbundance0[i]) ;
+#ifdef DEBUG
+				printf("%d %s %d: %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), ecReadCount[i], ecInfo[i].length, ecAbundance0[i]) ;
+#endif
 			}
 
 			if (diffSum < 1e-5 && t < maxEMIterations - 2)
