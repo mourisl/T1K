@@ -703,6 +703,14 @@ private:
 			}
 		}
 
+		for (i = 0 ; seqs[seqIdx].name[i] ; ++i)
+		{
+			if (seqs[seqIdx].name[i] == ':')
+			{
+				ignoreNonExonDiff = false ;
+				break ;
+			}
+		}
 	}
 	
 public:
