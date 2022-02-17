@@ -217,6 +217,7 @@ private:
 	int gapN ;
 	bool isLongSeqSet ; // Whether this seq set is built from long reads. Long reads may require more drastic filtration.
 	bool ignoreNonExonDiff ;
+	bool rnaData ; // has no intron
 
 	// Some threshold
 	double novelSeqSimilarity ;
@@ -693,12 +694,13 @@ private:
 				}*/
 			codonOffset = 2 - (j - e) ;
 		}
-
+		
 		for (i = 1 ; i < size ; ++i)
 		{
 			if (exons[i].a > exons[i - 1].b + 1)	
 			{
 				ignoreNonExonDiff = true ;
+				rnaData = false ;
 				break ;
 			}
 		}
@@ -713,6 +715,27 @@ private:
 		}
 	}
 	
+	std::string GetExonSeq(int seqIdx)
+	{
+		int i, k ;
+		struct _seqWrapper &seq = seqs[seqIdx] ;
+		int len = seq.consensusLen ;
+		char *s = new char[len + 1] ;
+		k = 0 ;
+		for (i = 0 ; i < len ; ++i)
+		{
+			if (seq.isValidDiff[i].exon)
+			{
+				s[k] = seq.consensus[i] ;
+				++k ;
+			}
+		}
+		s[k] = '\0' ;
+		std::string ret(s) ;
+		delete[] s ;
+
+		return ret ;
+	}
 public:
 	SeqSet( int kl ) 
 	{
@@ -725,6 +748,7 @@ public:
 		refSeqSimilarity = 0.8 ; 
 		
 		ignoreNonExonDiff = false ;
+		rnaData = true ;
 	}
 
 	~SeqSet() 
@@ -934,9 +958,39 @@ public:
 		seqs[seqIdx].weight += update;
 	}
 
+	int SetSeqWeight(int seqIdx, int weight)
+	{
+		seqs[seqIdx].weight = weight ;
+	}
+
 	int GetSeqWeight(int seqIdx)
 	{
 		return seqs[seqIdx].weight ;
+	}
+
+	// Use the rna seq sequence to update the 
+	// sequence weight if the input data is dna.
+	void UpdateDnaSeqWeight()
+	{
+		if (rnaData)
+			return ;
+		std::map<std::string, int> seqWeight ;
+		std::vector<std::string> rnaSeq ;
+		int i ;
+		int seqCnt = seqs.size() ;
+		for (i = 0 ; i < seqCnt ; ++i)
+		{
+			rnaSeq.push_back( GetExonSeq(i) ) ;
+		}
+	
+		for (i = 0 ; i < seqCnt ; ++i)
+			seqWeight[ rnaSeq[i] ] += seqs[i].weight ;
+
+		for (i = 0 ; i < seqCnt ; ++i)
+		{
+			SetSeqWeight(i, seqWeight[ rnaSeq[i] ]) ;
+			//printf("%d %s %s %d\n", i, seqs[i].name, rnaSeq[i].c_str(), seqs[i].weight) ;
+		}
 	}
 	
 	// Compute the length of hit from the read, take the overlaps of kmer into account 

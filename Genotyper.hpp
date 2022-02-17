@@ -602,6 +602,7 @@ public:
 			}
 		}
 
+		refSet.UpdateDnaSeqWeight() ;
 		InitAlleleInfo() ;
 	}
 
@@ -628,7 +629,7 @@ public:
 				usedSeq[seq] = refSet.InputRefSeq(fa.id, fa.seq, 1, true, fa.comment);
 			}
 		}
-
+		refSet.UpdateDnaSeqWeight() ;
 		InitAlleleInfo() ;
 	}
 
@@ -1737,11 +1738,11 @@ public:
 							//coveredReadCnt = coveredReadCnt - jMissingCoverage * abundanceJ * readLength / 150.0
 							//	- kMissingCoverage * abundanceK * readLength / 150.0;
 							coveredReadCnt = coveredReadCnt - jMissingCoverage * weightJ * readLength / 150.0
-								- kMissingCoverage * weightK * readLength / 150.0;
+								- kMissingCoverage * weightK * readLength / 150.0 + refSet.GetSeqWeight(selectedAlleles[i][alleleJ].a) + refSet.GetSeqWeight(selectedAlleles[i][alleleK].a);
 						}
 						//coveredReadCnt = coveredReadCntJ + coveredReadCntK ;
 #ifdef DEBUG
-						printf("Further selection %s %s %lf %lf %d %d %.2lf\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, jMissingCoverage, kMissingCoverage, coveredReadCnt) ;
+						printf("Further selection %s %s %lf %lf %d %d %.2lf. %d %d\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, jMissingCoverage, kMissingCoverage, coveredReadCnt, refSet.GetSeqWeight(selectedAlleles[i][alleleJ].a), refSet.GetSeqWeight(selectedAlleles[i][alleleK].a)) ;
 #endif
 						if (bestTypes.Size() == 0 || coveredReadCnt > maxCover 
 								|| (coveredReadCnt == maxCover && abundanceSum > maxCoverAbundance))
