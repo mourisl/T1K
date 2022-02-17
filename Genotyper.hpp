@@ -1549,6 +1549,48 @@ public:
 				}
 			}
 		}
+
+		// The weight for each missing coverage 
+		// Different gene uses a different set of weights
+		std::vector< std::map<int, double> > missingCoverageAlleleTypeWeight ;
+		for (i = 0 ; i < geneCnt ; ++i)
+		{
+			std::map<int, double> weight ;
+			int selectedAlleleCnt = selectedAlleles[i].size() ;
+			int alleleTypeCnt = GetGeneAlleleTypes(i) ;
+			
+			// a- missing coverage, b-abundance
+			struct _pairID *alleleTypeInfo = new struct _pairID[alleleTypeCnt] ;
+			for (j = 0 ; j < alleleTypeCnt ; ++j)
+			{
+				alleleTypeInfo[j].a = -1 ;
+				alleleTypeInfo[j].b = 0 ;
+			}
+			for (j = 0 ; j < selectedAlleleCnt ; ++j)
+			{
+				int alleleIdx = selectedAlleles[i][j].a ;
+				int alleleType = selectedAlleles[i][j].b ;
+			
+				alleleTypeInfo[alleleType].b += alleleInfo[alleleIdx].abundance ;
+				if (alleleTypeInfo[alleleType].a == -1 
+						|| alleleInfo[alleleIdx].missingCoverage < alleleTypeInfo[alleleType].a)
+					alleleTypeInfo[alleleType].a = alleleInfo[alleleIdx].missingCoverage ;
+				//printf("1 %d %d: %d %d. %d\n", i, j, alleleType, alleleInfo[alleleIdx].missingCoverage,
+				//		alleleTypeInfo[alleleType].a) ;
+			}
+
+			for (j = 0 ; j < alleleTypeCnt ; ++j)
+			{
+				if (weight.find( alleleTypeInfo[j].a ) == weight.end() 
+						|| weight[ alleleTypeInfo[j].a ] < alleleTypeInfo[j].b)
+				{
+					weight[alleleTypeInfo[j].a] = alleleTypeInfo[j].b ;
+				}
+			}
+			missingCoverageAlleleTypeWeight.push_back(weight) ;
+			delete[] alleleTypeInfo ;
+		}
+
 		for (iter = 0 ; iter < iterMax ; ++iter)
 		{
 			int updatedGeneCnt = 0 ;
@@ -1686,11 +1728,16 @@ public:
 								coveredReadCntK += readAssignments[it->first][0].adjustWeight / (1 + kMissingCoverage);
 							}*/
 						}
-
+						
 						if (alleleTypeCnt > 3)
 						{
-							coveredReadCnt = coveredReadCnt - jMissingCoverage * abundanceJ * readLength / 150.0
-								- kMissingCoverage * abundanceK * readLength / 150.0;
+							double weightJ = missingCoverageAlleleTypeWeight[i][jMissingCoverage] ;
+							double weightK = missingCoverageAlleleTypeWeight[i][kMissingCoverage] ;
+							//printf("Further selection %s %s %lf %lf %d %d %.2lf. %lf %lf %d\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, jMissingCoverage, kMissingCoverage, coveredReadCnt, weightJ, weightK, i) ;
+							//coveredReadCnt = coveredReadCnt - jMissingCoverage * abundanceJ * readLength / 150.0
+							//	- kMissingCoverage * abundanceK * readLength / 150.0;
+							coveredReadCnt = coveredReadCnt - jMissingCoverage * weightJ * readLength / 150.0
+								- kMissingCoverage * weightK * readLength / 150.0;
 						}
 						//coveredReadCnt = coveredReadCntJ + coveredReadCntK ;
 #ifdef DEBUG
