@@ -37,6 +37,7 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "\t--stage INT: start genotyping on specified stage (default: 0):\n".
     "\t\t0: start from beginning (candidate read extraction)\n".
     "\t\t1: start from genotype with candidate reads\n".
+    "\t\t2: start from post analysis\n".
     "" 
 	if ( @ARGV == 0 ) ;
 

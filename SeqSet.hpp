@@ -55,6 +55,12 @@ struct _seqWrapper
 		else
 			return consensusLen > b.consensusLen ;
 	}
+
+	_seqWrapper()
+	{
+		isValidDiff = NULL ;
+		lockBaseCoverage = NULL ;
+	}
 } ;
 
 struct _hit
@@ -857,7 +863,7 @@ public:
 			sw.effectiveLen = sw.consensusLen ; //effectiveLen ; 	
 			sw.barcode = -1 ;
 			sw.weight = 1 ;
-
+			
 			sw.separator.push_back(-1) ;
 			for (i = 0 ; sw.consensus[i] ; ++i)
 				if (sw.consensus[i] == 'N')
