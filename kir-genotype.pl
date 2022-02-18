@@ -21,6 +21,7 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "\t-o STRING: prefix of output files. (default: inferred from file prefix)\n".
     "\t--od STRING: the directory for output files. (default: ./)\n".
     "\t-t INT: number of threads (default: 1)\n".
+		"\t-s FLOAT: minimum alignment similarity (default: 0.8)\n".
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n".
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n".
 		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.02)\n".
