@@ -5,6 +5,28 @@ use warnings ;
 
 die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA] > yyy.fa\n" if (@ARGV == 0) ;
 
+sub FindMode
+{
+	my %dist = %{$_[0]} ;
+	my $ret = -1 ;
+	my $max = -1 ;
+	foreach my $k (keys %dist) 
+	{
+		if ($dist{$k} > $max) 
+		{
+			$max = $dist{$k} ;
+			$ret = $k ;
+		}
+	}
+	return $ret ;
+}
+
+sub GetLastExonLength
+{
+	my @exons = @{$_[0]} ;
+	return $exons[scalar(@exons) - 1] - $exons[scalar(@exons) - 2] + 1 ;
+}
+
 my %selectedAlleles ;
 my $selectAlleleFile = "" ;
 my $mode = "rna" ;
@@ -41,7 +63,7 @@ if ($mode eq "rna")
 }
 elsif ($mode eq "dna")
 {
-	$fixGeneLength = 0 ;
+	$fixGeneLength = 1 ;
 }
 
 if ($selectAlleleFile ne "" )
@@ -82,6 +104,7 @@ my %alleleEffectiveLength ; # exon length + 2 * utrLength
 my $utrLength = 50 ;
 my $intronPaddingLength = 200 ;
 my %alleleExonRegions ; # the actuall exon regions in the output sequence
+my %geneLastExonLengthDist ;
 
 if ($mode eq "genome")
 {
@@ -254,6 +277,8 @@ while (<FP>)
 				{
 					die "Unknown mode $mode\n" ;
 				}
+				++${$geneLastExonLengthDist{$gene}}{GetLastExonLength(\@exons)} ;
+
 				# UTR after
 				$start = $exons[scalar(@exons) - 1] + 1;
 				$end = $start + $utrLength - 1 ;
@@ -342,31 +367,28 @@ foreach my $allele (@alleleOrder)
 }
 
 my %geneSeqLength ;
+my %geneLastExonLength ;
 foreach my $gene (keys %geneSeqLengthDist)
 {
-	my %dist = %{$geneSeqLengthDist{$gene}} ;
-	my $max = -1;
-	my $chosenLen = -1;
-	foreach my $l (keys %dist)
-	{
-		if ($dist{$l} > $max)
-		{
-			$chosenLen = $l ;
-			$max = $dist{$l} ;
-		}
-	}
-	$geneSeqLength{$gene} = $chosenLen ;
+	$geneSeqLength{$gene} = FindMode(\%{$geneSeqLengthDist{$gene}}) ;
+	$geneLastExonLength{$gene} = FindMode(\%{$geneLastExonLengthDist{$gene}}) ;
 }
 
 if ($fixGeneLength == 1)
 {
+	# Trim the allele sequence if it is too long:
+	#  1. Longer than other alleles
+	#  2. Last exon is longer than other alleles
 	foreach my $allele (@alleleOrder)	
 	{
 		my $outputSeq = $alleleSeq{$allele} ;
 		my $gene = (split /\*/, $allele)[0] ;
-		if (length($outputSeq) > $geneSeqLength{$gene})
+		my $lastExonLength = GetLastExonLength(\@{$alleleExonRegions{$allele}}) ;
+		my $trim = $lastExonLength - $geneLastExonLength{$gene} ;
+		if (length($outputSeq) > $geneSeqLength{$gene} &&
+			$trim > 0)
 		{
-			$outputSeq = substr($outputSeq, 0, $geneSeqLength{$gene})
+			$outputSeq = substr($outputSeq, 0, length($outputSeq) - $trim) ;
 		}
 		$alleleSeq{$allele} = $outputSeq;
 	}

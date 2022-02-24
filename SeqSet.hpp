@@ -817,6 +817,11 @@ public:
 	{
 		refSeqSimilarity = s ;
 	}
+	
+	double GetRefSeqSimilarity()
+	{
+		return refSeqSimilarity ;
+	}
 
 	int GetOverlapSize( int s0, int e0, int s1, int e1 )
 	{
@@ -2109,10 +2114,11 @@ public:
 
 		int extendCnt = 0 ;
 		bool onlyConsiderClip = false ;
+		int goodMatchCnt = -1 ;
 		for ( i = 0 ; i < overlapCnt ; ++i )
 		{
 			//printf( "0 %d %s %d: %d-%d %d-%d %d %lf\n", i, seqs[overlaps[i].seqIdx].name, overlaps[i].seqIdx, overlaps[i].readStart, overlaps[i].readEnd,
-				//	overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].strand, overlaps[i].similarity) ;
+			//		overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].strand, overlaps[i].similarity) ;
 			if (IsSeparatorInRange(overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].seqIdx))
 				continue ;
 
@@ -2120,15 +2126,19 @@ public:
 			if (IsSeparatorInRange(overlaps[i].seqStart - overlaps[i].readStart,
 						overlaps[i].seqEnd + (len - overlaps[i].readEnd - 1), overlaps[i].seqIdx ))
 				needClip = true ;
-			if (onlyConsiderClip 
+			if (onlyConsiderClip && overlaps[i].matchCnt < goodMatchCnt
 					&& (!needClip || overlaps[i].similarity < 0.95))
 				continue ;
-
 			if ( ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
 			{
 				//printf( "e0 %d-%d %d-%d %lf. %d %d\n", eOverlap.readStart, eOverlap.readEnd,
 				//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity, eOverlap.matchCnt, eOverlap.relaxedMatchCnt) ;
 				extendedOverlaps.push_back(eOverlap) ;
+				if (!onlyConsiderClip)
+				{
+					if (goodMatchCnt == -1 || overlaps[i].matchCnt > goodMatchCnt)
+						goodMatchCnt = overlaps[i].matchCnt ;
+				}
 			}
 			else
 				onlyConsiderClip = true ;
@@ -2494,7 +2504,10 @@ public:
 			int size = assign.size() ;
 			for (i = 0 ; i < size ; ++i)
 			{
-				if (assign[i].similarity < 1 || IsSeparatorInRange(assign[i].seqStart, assign[i].seqEnd, assign[i].seqIdx))
+				//printf("%d\n", (assign[i].seqEnd - assign[i].seqStart + 1 + assign[i].overlap1.readEnd - assign[i].overlap1.readStart + 1));
+				if (assign[i].similarity < 1 || IsSeparatorInRange(assign[i].seqStart, assign[i].seqEnd, assign[i].seqIdx) 
+						|| (/*assign[i].seqEnd - assign[i].seqStart + 1 + assign[i].overlap1.readEnd - assign[i].overlap1.readStart + 1 < assign[i].matchCnt &&*/ assign[i].seqEnd - assign[i].seqStart + 1 + assign[i].overlap1.readEnd - assign[i].overlap1.readStart + 1 < 3 * hitLenRequired) 
+						)
 					break ;
 				int spanRange = 100 ;
 				if ((assign[i].overlap1.strand == 1 && assign[i].seqEnd + spanRange < seqs[assign[i].seqIdx].consensusLen)
@@ -2534,10 +2547,15 @@ public:
 			for (i = 0 ; i < overlapCnt && !filter ; ++i)
 			{
 				if (overlaps[i].matchCnt > representative.matchCnt
-						|| (overlaps[i].matchCnt == representative.matchCnt
-							&& overlaps[i].similarity > representative.similarity) 
-						&& seqIdxToOverlapIdx.find(overlaps[i].seqIdx) == seqIdxToOverlapIdx.end())
+						|| (((overlaps[i].matchCnt == representative.matchCnt
+							&& overlaps[i].similarity > representative.similarity)
+						/*|| (overlaps[i].matchCnt == representative.matchCnt
+							&& overlaps[i].similarity == representative.similarity
+							&& GetSeqWeight(overlaps[i].seqIdx) > GetSeqWeight(representative.seqIdx) + 20)*/
+							)
+						&& seqIdxToOverlapIdx.find(overlaps[i].seqIdx) == seqIdxToOverlapIdx.end()))
 				{
+					//printf("1 %d %d\n", GetSeqWeight(overlaps[i].seqIdx), GetSeqWeight(representative.seqIdx));
 					if (TruncatedMatePairOverlap(overlaps[i], 
 								assign[representativeAssign].overlap1, assign[representativeAssign].overlap2))
 					{
@@ -2554,10 +2572,15 @@ public:
 			for (i = 0 ; i < overlapCnt2 && !filter ; ++i)
 			{
 				if (overlaps2[i].matchCnt > representative.matchCnt
-						|| (overlaps2[i].matchCnt == representative.matchCnt
-							&& overlaps2[i].similarity > representative.similarity) 
-						&& seqIdxToOverlapIdx.find(overlaps2[i].seqIdx) == seqIdxToOverlapIdx.end())
+						|| (((overlaps2[i].matchCnt == representative.matchCnt
+							&& overlaps2[i].similarity > representative.similarity)
+						/*|| (overlaps2[i].matchCnt == representative.matchCnt
+							&& overlaps2[i].similarity == representative.similarity
+							&& GetSeqWeight(overlaps2[i].seqIdx) > GetSeqWeight(representative.seqIdx) + 20)*/
+							)
+						&& seqIdxToOverlapIdx.find(overlaps2[i].seqIdx) == seqIdxToOverlapIdx.end()))
 				{
+					//printf("2 %d %d\n", GetSeqWeight(overlaps2[i].seqIdx), GetSeqWeight(representative.seqIdx));
 					if (TruncatedMatePairOverlap(overlaps2[i], 
 								assign[representativeAssign].overlap2, assign[representativeAssign].overlap1))
 					{
