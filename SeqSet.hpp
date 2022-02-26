@@ -2551,7 +2551,8 @@ public:
 							&& overlaps[i].similarity > representative.similarity)
 						/*|| (overlaps[i].matchCnt == representative.matchCnt
 							&& overlaps[i].similarity == representative.similarity
-							&& GetSeqWeight(overlaps[i].seqIdx) > GetSeqWeight(representative.seqIdx) + 20)*/
+							&& GetSeqWeight(overlaps[i].seqIdx) > GetSeqWeight(representative.seqIdx) + 20
+							&& GetSeqWeight(representative.seqIdx) == 1)*/
 							)
 						&& seqIdxToOverlapIdx.find(overlaps[i].seqIdx) == seqIdxToOverlapIdx.end()))
 				{
@@ -2576,7 +2577,8 @@ public:
 							&& overlaps2[i].similarity > representative.similarity)
 						/*|| (overlaps2[i].matchCnt == representative.matchCnt
 							&& overlaps2[i].similarity == representative.similarity
-							&& GetSeqWeight(overlaps2[i].seqIdx) > GetSeqWeight(representative.seqIdx) + 20)*/
+							&& GetSeqWeight(overlaps2[i].seqIdx) > GetSeqWeight(representative.seqIdx) + 20
+							&& GetSeqWeight(representative.seqIdx) == 1)*/
 							)
 						&& seqIdxToOverlapIdx.find(overlaps2[i].seqIdx) == seqIdxToOverlapIdx.end()))
 				{

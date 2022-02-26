@@ -25,7 +25,7 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t--barcode STRING: path to the barcode file\n"
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
-		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.02)\n"
+		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.04)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
 	FILE *fpOutput ;
 	double filterFrac = 0.15 ;
 	double filterCov = 1.0 ;
-	double crossGeneRate = 0.02 ;
+	double crossGeneRate = 0.04 ;
 	double filterAlignmentSimilarity = 0.8 ;
 	bool keepMissingBarcode = false ;
 
