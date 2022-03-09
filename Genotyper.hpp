@@ -194,8 +194,8 @@ private:
 		//if (o.hasMatePair && o.overlap2.similarity < similarity)
 		//	similarity = o.overlap2.similarity ;
 		double segment = (1 - refSet.GetRefSeqSimilarity()) / 4.0 ;
-		if (segment < 0.02)
-			segment = 0.02 ;
+		if (segment < 0.01)
+			segment = 0.01;
 		if (similarity < 1 - 3 * segment)
 			ret = 0.01 ;
 		else if (similarity < 1 - 2 * segment)
