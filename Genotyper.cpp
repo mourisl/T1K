@@ -171,6 +171,7 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 		if (fragmentAssignment.size() > 0)
 			reads1[i].fragmentAssigned = true ;
 	}
+  pthread_exit( NULL ) ;
 }
 
 int main(int argc, char *argv[])
