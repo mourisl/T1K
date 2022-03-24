@@ -103,7 +103,7 @@ public:
 
 	void Close()
 	{
-		samclose( fpSam ) ;
+    samclose( fpSam ) ;
 		fpSam = NULL ;
 	}
 
@@ -383,14 +383,14 @@ public:
 	bool IsTemplateAligned()
 	{
 		if ( ( b->core.flag & 0xd ) == 0xd ||
-			( b->core.flag & 0x5 ) == 0x4 ) 
+			( b->core.flag & 0x5 ) == 0x4 || b->core.tid < 0) 
 			return false ;
 		return true ;
 	}
 
 	bool IsAligned() 
 	{
-		if ( b->core.flag & 0x4 )
+		if ( b->core.flag & 0x4 || b->core.tid < 0)
 			return false ;
 		return true ;
 	}
