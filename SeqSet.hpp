@@ -159,6 +159,7 @@ struct _fragmentOverlap
 	struct _overlap overlap2 ; // for read 2
 
 	double qual ; // qulaity of this assignment
+	bool hasN ; 
 
 	bool operator<( const struct _fragmentOverlap &b ) const
 	{
@@ -1577,7 +1578,6 @@ public:
 		int overlapCnt = 0 ;
 		SimpleVector<struct _hit> hits ;
 		char *rcRead =  new char[len + 1] ;
-		
 		GetHitsFromRead( read, rcRead, strand, barcode, false, hits, NULL ) ;
 		SortHits( hits, true ) ;
 		// Find the overlaps.
@@ -2084,9 +2084,13 @@ public:
 		assign.clear() ;
 
 		int i, j, k ;
+
+		/*int Ncnt = 0;
 		for (i = 0 ; read[i] ; ++i)
 			if (read[i] == 'N')
-				return 0 ;
+				++Ncnt;
+		if (Ncnt > 1)
+				return 0 ;*/
 		
 		std::vector<struct _overlap> overlaps ;
 
@@ -2118,7 +2122,7 @@ public:
 		for ( i = 0 ; i < overlapCnt ; ++i )
 		{
 			//printf( "0 %d %s %d: %d-%d %d-%d %d %lf\n", i, seqs[overlaps[i].seqIdx].name, overlaps[i].seqIdx, overlaps[i].readStart, overlaps[i].readEnd,
-			//		overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].strand, overlaps[i].similarity) ;
+				//	overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].strand, overlaps[i].similarity) ;
 			if (IsSeparatorInRange(overlaps[i].seqStart, overlaps[i].seqEnd, overlaps[i].seqIdx))
 				continue ;
 
@@ -2132,7 +2136,7 @@ public:
 			if ( ExtendOverlap( r, len, seqs[ overlaps[i].seqIdx ], align, overlaps[i], eOverlap ) == 1 )
 			{
 				//printf( "e0 %d-%d %d-%d %lf. %d %d\n", eOverlap.readStart, eOverlap.readEnd,
-				//	eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity, eOverlap.matchCnt, eOverlap.relaxedMatchCnt) ;
+					//eOverlap.seqStart, eOverlap.seqEnd, eOverlap.similarity, eOverlap.matchCnt, eOverlap.relaxedMatchCnt) ;
 				extendedOverlaps.push_back(eOverlap) ;
 				if (!onlyConsiderClip)
 				{
@@ -2217,8 +2221,11 @@ public:
 							pthread_mutex_lock(seq.lockBaseCoverage) ;
 						for ( k = 0 ; align[k] != -1 ; ++k )
 						{
-							if ( align[k] == EDIT_MATCH )
-								seq.posWeight[refPos].count[ nucToNum[r[readPos] - 'A']] += weight;
+							if ( align[k] == EDIT_MATCH ) 
+							{
+								if (r[readPos] != 'N')
+									seq.posWeight[refPos].count[ nucToNum[r[readPos] - 'A']] += weight;
+							}
 
 							if (align[k] != EDIT_INSERT)
 								++refPos ;
@@ -2263,14 +2270,14 @@ public:
 		return IsSeparatorInRange(assign.seqStart, assign.seqEnd, assign.seqIdx) ;
 	}
 
-	int ReadAssignmentToFragmentAssignment( std::vector<struct _overlap> *pOverlaps1, std::vector<struct _overlap> *pOverlaps2, int barcode, std::vector<struct _fragmentOverlap> &assign )
+	int ReadAssignmentToFragmentAssignment( std::vector<struct _overlap> *pOverlaps1, std::vector<struct _overlap> *pOverlaps2, int barcode, bool hasN, std::vector<struct _fragmentOverlap> &assign )
 	{
 		assign.clear() ;
-		
+			
 		int i, j, k ;
 		SimpleVector<struct _pair> fragments ;
 		std::vector<struct _overlap> &overlaps = *pOverlaps1 ;
-		int overlapCnt = overlaps.size()  ;
+		int overlapCnt = overlaps.size() ;
 		
 		fragments.Reserve(overlapCnt + 1) ;
 		if (pOverlaps2 == NULL)
@@ -2354,6 +2361,7 @@ public:
 				fragmentOverlap.seqStart = o.seqStart ;
 				fragmentOverlap.seqEnd = o.seqEnd ;
 				fragmentOverlap.hasMatePair = false ;
+				fragmentOverlap.hasN = hasN ;
 				fragmentOverlap.o1FromR2 = false ;
 				fragmentOverlap.overlap1 = o ;
 				fragmentOverlap.relaxedMatchCnt = o.relaxedMatchCnt ;

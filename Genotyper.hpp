@@ -207,6 +207,9 @@ private:
 		//if (pairedEndData && !o.hasMatePair)	
 		//	ret *= 0.9 ;
 
+		if (o.hasN)
+			ret /= 10.0 ;
+
 		return ret ;
 	}
 
@@ -1810,6 +1813,18 @@ public:
 			if (updatedGeneCnt == 0)
 				break ;
 		} // for iter: global iterations
+
+
+		// For the heterzygous case, filter the allele if it does not contribute
+		// much read assignment.
+		/*for (i = 0 ; i < geneCnt ; ++i) 
+		{
+        int alleleTypeCnt = GetGeneAlleleTypes(i) ;
+				if (alleleTypeCnt <= 1)
+					continue ;
+
+				std::map<int, int> 
+		}*/
 
 		// Set the genes with too few abundance to quality 0.
 		double *geneAbundances = new double[geneCnt] ;

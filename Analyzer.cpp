@@ -47,6 +47,7 @@ struct _genotypeRead
 	char *qual ;
 
 	int strand ;
+	bool hasN ;
 
 	int barcode ;
 	int umi ;
@@ -160,11 +161,15 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 	//for (i = start ; i < end ; ++i)
 	for (i = arg.tid + arg.start ; i < arg.end ; i += arg.threadCnt)
 	{
+		bool hasN = reads1[i].hasN ;
+		if (arg.hasMate && reads2[i].hasN) 
+			hasN = true ;
+
 		if (!arg.hasMate)	
-			refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, fragmentAssignment) ;
+			refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, hasN, fragmentAssignment) ;
 		else
 			refSet.ReadAssignmentToFragmentAssignment( readAssignments[reads1[i].info], readAssignments[reads2[i].info],
-					reads1[i].barcode, fragmentAssignment) ;
+					reads1[i].barcode, hasN, fragmentAssignment) ;
 		arg.pGenotyper->SetReadAssignments(i, fragmentAssignment ) ;	
 		if (fragmentAssignment.size() > 0)
 			reads1[i].fragmentAssigned = true ;
@@ -370,6 +375,13 @@ int main(int argc, char *argv[])
 		nr.umi = umi ;
 		nr.idx = i ;
 		nr.mate = 0 ;
+		nr.hasN = false ;
+		for (j = 0 ; nr.seq[j] ; ++j)
+			if (nr.seq[j] == 'N')
+			{
+				nr.hasN = true ;
+				break ;
+			}
 		if (strlen(nr.seq) > maxReadLength)
 			maxReadLength = strlen(nr.seq) ;
 		nr.fragmentAssigned = false ;
@@ -388,6 +400,13 @@ int main(int argc, char *argv[])
 				mateR.qual = NULL;
 			mateR.idx = i ;	
 			mateR.mate = 1 ;
+			mateR.hasN = false ;
+			for (j = 0 ; mateR.seq[j] ; ++j)
+				if (mateR.seq[j] == 'N')
+				{
+					mateR.hasN = true ;
+					break ;
+				}
 			if (strlen(mateR.seq) > maxReadLength)
 				maxReadLength = strlen(mateR.seq) ;
 			reads2.push_back(mateR);			
@@ -480,12 +499,16 @@ int main(int argc, char *argv[])
 		for (i = 0 ; i < readCnt ; ++i)
 		{
 			std::vector<struct _fragmentOverlap> fragmentAssignment ;
+			bool hasN = reads1[i].hasN ;
+			if (hasMate && reads2[i].hasN) 
+				hasN = true ;
+			
 			if (!hasMate)	
-				refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, fragmentAssignment) ;
+				refSet.ReadAssignmentToFragmentAssignment( readAssignments[ reads1[i].info ], NULL, reads1[i].barcode, hasN, fragmentAssignment) ;
 			else
 			{
 				refSet.ReadAssignmentToFragmentAssignment( readAssignments[reads1[i].info], readAssignments[reads2[i].info],
-						reads1[i].barcode, fragmentAssignment) ;
+						reads1[i].barcode, hasN, fragmentAssignment) ;
 			}
 #ifdef DEBUG
 			std::vector<struct _fragmentOverlap> &assignments = fragmentAssignment ;

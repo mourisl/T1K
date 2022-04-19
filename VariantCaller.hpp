@@ -137,6 +137,9 @@ private:
 				}*/
 				if (filterLowQual && !baseVariants[o.seqIdx][refPos].IsGoodAssignment(o.matchCnt, o.similarity))
 					continue ;
+				if (r[readPos] == 'N')
+					continue;
+
 				int nucIdx = nucToNum[r[readPos] - 'A'] ;
 				if (weight == 1)
 					baseVariants[o.seqIdx][refPos].uniqCount[nucIdx] += weight ;
