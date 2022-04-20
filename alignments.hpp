@@ -3,7 +3,12 @@
 #ifndef _LSONG_ALIGNMENT_HEADER
 #define _LSONG_ALIGNMENT_HEADER
 
-#include "samtools-0.1.19/sam.h"
+#ifdef HTSLIB
+  #include "htslib-1.15.1/htslib/sam.h"
+#else
+	#include "samtools-0.1.19/sam.h"
+#endif
+
 #include <map>
 #include <string>
 #include <assert.h>
@@ -13,10 +18,29 @@
 
 #include "defs.h"
 
+
+#ifdef HTSLIB
+	#define bam1_cigar(b) ((uint32_t*)((b)->data + (b)->core.l_qname))
+	#define bam1_qname(b) ((char*)((b)->data))
+	#define bam1_qual(b) ((b)->data + (b)->core.n_cigar*4 + (b)->core.l_qname + (((b)->core.l_qseq + 1)>>1))
+	#define bam1_seq(b) ((b)->data + (b)->core.n_cigar*4 + (b)->core.l_qname)
+	#define bam1_seqi(s, i) ((s)[(i)>>1] >> ((~(i)&1)<<2) & 0xf)
+#endif
+
 class Alignments
 {
 private:
-	samfile_t *fpSam ;	
+#ifdef HTSLIB
+  samFile *fpSam ;
+#else
+	samfile_t *fpSam ;
+#endif
+
+#ifdef HTSLIB
+	bam_hdr_t *bHdr ;
+#else
+	bam_header_t *bHdr ;
+#endif
 	bam1_t *b ;
 
 	char fileName[1024] ;
@@ -37,17 +61,23 @@ private:
 
 	void Open()
 	{
+#ifdef HTSLIB
+		fpSam = sam_open( fileName, "r" ) ;
+		bHdr = sam_hdr_read(fpSam) ;
+#else
 		fpSam = samopen( fileName, "rb", 0 ) ;
-		if ( !fpSam->header )
+		bHdr = fpSam->header ;
+#endif
+		if ( !bHdr )
 		{
 			fprintf( stderr, "Can not open %s.\n", fileName ) ;
 			exit( 1 ) ;
 		}
 
 		// Collect the chromosome information
-		for ( int i = 0 ; i < fpSam->header->n_targets ; ++i )		
+		for ( int i = 0 ; i < bHdr->n_targets ; ++i )		
 		{
-			std::string s( fpSam->header->target_name[i] ) ;
+			std::string s( bHdr->target_name[i] ) ;
 			chrNameToId[s] = i ;
 		}
 		opened = true ;
@@ -81,7 +111,12 @@ public:
 	~Alignments() 
 	{
 		if ( fpSam )
+#ifdef HTSLIB
+			sam_close( fpSam ) ;
+#else
 			samclose( fpSam ) ;
+#endif
+		
 		if ( b )
 			bam_destroy1( b ) ;
 	}
@@ -103,7 +138,11 @@ public:
 
 	void Close()
 	{
-    samclose( fpSam ) ;
+#ifdef HTSLIB
+			sam_close( fpSam ) ;
+#else
+			samclose( fpSam ) ;
+#endif
 		fpSam = NULL ;
 	}
 
@@ -154,7 +193,11 @@ public:
 					bam_destroy1( b ) ;
 				b = bam_init1() ;
 
+#ifdef HTSLIB
+				if ( sam_read1( fpSam, bHdr, b ) <= 0 )
+#else
 				if ( samread( fpSam, b ) <= 0 )
+#endif
 				{
 					atEnd = true ;
 					return 0 ;
@@ -278,7 +321,7 @@ public:
 
 	char* GetChromName( int tid )
 	{
-		return fpSam->header->target_name[ tid ] ; 
+		return bHdr->target_name[ tid ] ; 
 	}
 
 	int GetChromIdFromName( const char *s )
@@ -306,12 +349,12 @@ public:
 
 	int GetChromLength( int tid )
 	{
-		return fpSam->header->target_len[ tid ] ;
+		return bHdr->target_len[ tid ] ;
 	}
 
 	int GetChromCount()
 	{
-		return fpSam->header->n_targets ;
+		return bHdr->n_targets ;
 	}
 
 	void GetMatePosition( int &chrId, int64_t &pos )
@@ -571,7 +614,11 @@ public:
 					bam_destroy1( b ) ;
 				b = bam_init1() ;
 
+#ifdef HTSLIB
+				if ( sam_read1( fpSam, bHdr, b ) <= 0 )
+#else
 				if ( samread( fpSam, b ) <= 0 )
+#endif
 				{
 					end = true ;
 					break ;
