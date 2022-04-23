@@ -118,7 +118,7 @@ struct _threadArg
 bool ValidAlternativeChrom( char *chrom )
 {
 	//if ( strstr( chrom, "_random" ) || strstr( chrom, "_alt" ) )
-	if ( strstr( chrom, "_" ) || strstr( chrom, "." ) )
+	if ( strstr( chrom, "_" ) || strstr( chrom, "." ) || strstr( chrom, "*" ) )
 	{
 		//if ( chrom[0] == 'c' && chrom[3] >= '0' && chrom[3] <= '9' )
 		return true ;
