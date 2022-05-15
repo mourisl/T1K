@@ -26,6 +26,7 @@ class ReadFiles
 		gzFile gzFp[MAX_READ_FILE] ;
 		kseq_t *inSeq[MAX_READ_FILE] ;
 		bool hasMate[MAX_READ_FILE] ;
+		int interleavedId[MAX_READ_FILE] ; // 0-not interleave, 1-odd lines, 2-even lines
 		int FILE_TYPE[MAX_READ_FILE] ; // 0-FASTA, 1-FASTQ
 		int fpUsed ;
 		int currentFpInd ;
@@ -81,8 +82,8 @@ class ReadFiles
 
 		}
 
-
-		void AddReadFile( char *file, bool fileHasMate )
+		// interleaved file is not frequently set. 0-no, 1-first line, 2-second line
+		void AddReadFile( char *file, bool fileHasMate, int fileInterleavedId = 0)
 		{
 			if ( fpUsed >= MAX_READ_FILE )
 			{
@@ -118,6 +119,7 @@ class ReadFiles
 			//gzrewind( gzFp[ fpUsed ]) ;
 			//kseq_rewind( inSeq[ fpUsed] ) ;
 			hasMate[ fpUsed ] = fileHasMate ;	
+			interleavedId[ fpUsed ] = fileInterleavedId ;
 			++fpUsed ;
 		}
 
@@ -135,6 +137,9 @@ class ReadFiles
 				gzrewind( gzFp[i] ) ;
 				kseq_rewind( inSeq[i] ) ;
 			}
+			currentFpInd = 0 ;
+			if (interleavedId[0] == 2)
+				Next() ;
 			
 			if ( id != NULL )
 				free( id ) ;
@@ -145,13 +150,15 @@ class ReadFiles
 			if ( comment != NULL )
 				free( comment ) ;
 			id = seq = qual = comment = NULL ;
-			currentFpInd = 0 ;
 		}
 
 		int Next() 
 		{
 			//int len ;
 			//char buffer[2048] ;
+			int i ;
+			if (currentFpInd < fpUsed && interleavedId[currentFpInd] == 2)
+				kseq_read(inSeq[currentFpInd]) ;
 			while ( currentFpInd < fpUsed && ( kseq_read( inSeq[ currentFpInd ] ) < 0 ) )
 			{
 				++currentFpInd ;
@@ -191,6 +198,8 @@ class ReadFiles
 				comment = strdup( inSeq[ currentFpInd]->comment.s ) ;
 			else
 				comment = NULL ;
+			if (interleavedId[currentFpInd] == 1)
+				kseq_read(inSeq[currentFpInd]) ;
 			return 1 ;
 		}
 
@@ -198,6 +207,8 @@ class ReadFiles
 		{
 			//int len ;
 			//char buffer[2048] ;
+			if (currentFpInd < fpUsed && interleavedId[currentFpInd] == 2)
+				kseq_read(inSeq[currentFpInd]) ;
 			while ( currentFpInd < fpUsed && ( kseq_read( inSeq[ currentFpInd ] ) < 0 ) )
 			{
 				++currentFpInd ;
@@ -229,6 +240,8 @@ class ReadFiles
 			else
 				*qual = NULL ;
 			
+			if (interleavedId[currentFpInd] == 1)
+				kseq_read(inSeq[currentFpInd]) ;
 			return 1 ;
 		}
 

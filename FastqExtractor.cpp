@@ -15,6 +15,8 @@ char usage[] = "./fastq-extractor [OPTIONS]:\n"
 		"\t-u STRING: path to single-end read file\n"
 		"\t\tor\n"
 		"\t-1 STRING -2 STRING: path to paired-end read files\n"
+		"\t\tor\n"
+		"\t-i STRING: apth to interleaved read file\n"
 		"Optional:\n"
 		"\t-o STRING: prefix to the output file (default: toassemble)\n"
 		"\t-t INT: number of threads (default: 1)\n" 
@@ -29,7 +31,7 @@ char usage[] = "./fastq-extractor [OPTIONS]:\n"
 		"\t--read2End INT: the end position of sequence in read 2 (default: length-1)\n"
 		;
 
-static const char *short_options = "f:u:1:2:o:t:" ;
+static const char *short_options = "f:u:1:2:i:o:t:" ;
 static struct option long_options[] = {
 			{ "barcode", required_argument, 0, 10000},
 			{ "barcodeStart", required_argument, 0, 10001},
@@ -314,6 +316,12 @@ int main( int argc, char *argv[] )
 		else if ( c == 'u' )
 		{
 			reads.AddReadFile( optarg, false ) ;
+		}
+		else if ( c == 'i' )
+		{
+			reads.AddReadFile( optarg, true, /*interleavedId=*/1) ;
+			mateReads.AddReadFile( optarg, true, /*interleavedId=*/2) ;
+			hasMate = true ;
 		}
 		else if ( c == 't' )
 		{

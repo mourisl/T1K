@@ -743,6 +743,19 @@ private:
 
 		return ret ;
 	}
+
+	int ComputeEffectiveLen(char *seq)
+	{
+		int i ;
+		int ret = 0 ;
+		for (i = 0 ; seq[i] ; ++i)
+		{
+			// Only count consecutive Ns as 1.
+			if (seq[i] != 'N' || (i > 0 && seq[i - 1] != 'N'))
+				++ret ;
+		}
+		return ret ;
+	}
 public:
 	SeqSet( int kl ) 
 	{
@@ -866,7 +879,7 @@ public:
 			int seqLen = strlen( fa.seq ) ;
 			sw.consensus = strdup( fa.seq ) ;	
 			sw.consensusLen = strlen( sw.consensus );
-			sw.effectiveLen = sw.consensusLen ; //effectiveLen ; 	
+			sw.effectiveLen = ComputeEffectiveLen(fa.seq) ; //effectiveLen ; 	
 			sw.barcode = -1 ;
 			sw.weight = 1 ;
 			
@@ -894,7 +907,7 @@ public:
 		int seqLen = strlen( read ) ;
 		sw.consensus = strdup( read ) ;
 		sw.consensusLen = seqLen ;	
-		sw.effectiveLen = sw.consensusLen ;
+		sw.effectiveLen = ComputeEffectiveLen(read) ;
 		sw.barcode = -1 ;
 		sw.weight = weight ;
 
@@ -2396,6 +2409,7 @@ public:
 				fragmentOverlap.seqStart = o.seqStart ;
 				fragmentOverlap.seqEnd = o.seqEnd ;
 				fragmentOverlap.hasMatePair = false ;
+				fragmentOverlap.hasN = hasN ;
 				fragmentOverlap.o1FromR2 = true ;
 				fragmentOverlap.relaxedMatchCnt = o.relaxedMatchCnt ;
 				fragmentOverlap.overlap1 = o ;

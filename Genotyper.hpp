@@ -461,7 +461,7 @@ public:
 
 		filterFrac = 0.15 ;
 		filterCov = 1.0 ;
-		crossGeneRate = 0.005 ;
+		crossGeneRate = 0.04 ;
 
 		geneSimilarity = NULL ;
 

@@ -15,6 +15,7 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "\t-b STRING: path to BAM file\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
     "\t-u STRING: path to single-end read file\n".
+		"\t-i STRING: path to interleaved read file\n".
     "\t-f STRING: path to the KIR reference sequence file\n".
     "Optional:\n".
 		"\t-c STRING: path to the gene coordinate file (required when -b input)\n".
@@ -58,6 +59,7 @@ my $j ;
 # process the options.
 my @firstMateFiles ;
 my @secondMateFiles ;
+my @interleavedFiles ;
 my @bamFiles ;
 my @barcodeFiles ;
 my $prefix = "" ;
@@ -113,6 +115,11 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 	elsif ( $ARGV[$i] eq "-b" )
 	{
 		push @bamFiles, $ARGV[$i + 1] ;
+		++$i ;
+	}
+	elsif ( $ARGV[$i] eq "-i" )
+	{
+		push @interleavedFiles, $ARGV[$i + 1] ;
 		++$i ;
 	}
 	elsif ( $ARGV[$i] eq "-f" )
@@ -220,9 +227,9 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 	}
 }
 
-if ( @bamFiles == 0 && @firstMateFiles == 0 )
+if ( @bamFiles == 0 && @firstMateFiles == 0 && @interleavedFiles == 0)
 {
-	die "Need to use -b/{-1,-2}/-u to specify input reads.\n" ;
+	die "Need to use -b/{-1,-2}/-u/-i to specify input reads.\n" ;
 }
 
 if ( @bamFiles > 0 && $noExtraction == 1 )
@@ -239,8 +246,6 @@ if ( @bamFiles > 0 && $refCoordFasta eq "" )
 {
 	die "Need to use -c to specify gene coordinate file for BAM input.\n" ;
 }
-
-
 
 # Infer the output prefix.
 if ( $prefix eq "" )
@@ -278,7 +283,7 @@ if ( $stage <= 0 )
 	{
 		system_call( "$WD/bam-extractor -b ".$bamFiles[0]." -t $threadCnt -f $refCoordFasta -o $extractorPrefix $bamExtractorArgs" ) ;
 	}
-	elsif ( @secondMateFiles > 0 && $noExtraction == 0 )
+	elsif ( (@secondMateFiles > 0 || @interleavedFiles > 0) && $noExtraction == 0 )
 	{
 		my $fname ; 
 		foreach $fname (@firstMateFiles)
@@ -289,13 +294,17 @@ if ( $stage <= 0 )
 		{
 			$fastqExtractorArgs .= " -2 ".$fname ;
 		}
+		foreach $fname (@interleavedFiles)
+		{
+			$fastqExtractorArgs .= " -i ".$fname ;
+		}
 		foreach $fname (@barcodeFiles)
 		{
 			$fastqExtractorArgs .= " --barcode ".$fname ;
 		}
 		system_call( "$WD/fastq-extractor -t $threadCnt -f $refSeqFasta -o $extractorPrefix $fastqExtractorArgs" ) ;
 	}
-	elsif ( @firstMateFiles > 0 && $noExtraction == 0 )
+	elsif ( $noExtraction == 0 )
 	{
 		my $fname ; 
 		foreach $fname (@firstMateFiles)

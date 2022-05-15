@@ -451,7 +451,7 @@ int main(int argc, char *argv[])
 		delete[] args ;
 	}
 	PrintLog("Finish read end assignments.") ;
-
+	
 	// Matching up read ends to form fragment assignment
 	for (i = 0 ; i < allReadCnt ; ++i)
 	{
@@ -530,7 +530,7 @@ int main(int argc, char *argv[])
 
 			for ( i = 0 ; i < threadCnt ; ++i )
 				pthread_join( threads[i], NULL ) ;
-
+			
 			alignedFragmentCnt += genotyper.CoalesceReadAssignments(start, end) ;
 		}
 		pthread_attr_destroy(&attr);
