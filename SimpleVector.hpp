@@ -111,10 +111,10 @@ public:
 		if ( size == capacity )
 		{
 			inc = ( capacity >> 1 ) + 16;
-			capacity += inc;
-			s = (T *)realloc( s, sizeof( T ) * capacity ) ;
 			if ( maxInc > 0 && inc > maxInc )
 				inc = maxInc;
+			capacity += inc;
+			s = (T *)realloc( s, sizeof( T ) * capacity ) ;
 			if ( s == NULL ) 
 			{
 				fprintf( stderr, "%s: Failed to allocate memory.\n", __func__ ) ;
