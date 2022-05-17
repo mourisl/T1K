@@ -112,8 +112,8 @@ public:
 		{
 			inc = ( capacity >> 1 ) + 16;
 			if ( maxInc > 0 && inc > maxInc )
-				inc = maxInc;
-			capacity += inc;
+				inc = maxInc ;
+			capacity += inc ;
 			s = (T *)realloc( s, sizeof( T ) * capacity ) ;
 			if ( s == NULL ) 
 			{
