@@ -106,20 +106,15 @@ public:
 			inc = maxInc ;
 	}
 
-
 	int PushBack( const T &in )	
 	{
 		if ( size == capacity )
 		{
-			//int tmp = capacity ;
-			capacity += inc ;
-			inc *= 2 ;
+			inc = ( capacity >> 1 ) + 16;
+			capacity += inc;
+			s = (T *)realloc( s, sizeof( T ) * capacity ) ;
 			if ( maxInc > 0 && inc > maxInc )
-				inc = maxInc ;
-			if ( size == 0 )
-				s = (T *)malloc( sizeof( T ) * capacity ) ;
-			else
-				s = (T *)realloc( s, sizeof( T ) * capacity ) ;
+				inc = maxInc;
 			if ( s == NULL ) 
 			{
 				fprintf( stderr, "%s: Failed to allocate memory.\n", __func__ ) ;
