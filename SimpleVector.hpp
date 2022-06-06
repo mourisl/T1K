@@ -19,23 +19,24 @@ private:
 	int capacity ;
 	int maxInc ; // The maximal value we can use to increase the capacity.
 	int inc ;
+	const int default_inc ;
 	T *s ;
 public:
-	SimpleVector() : maxInc( -1 )
+	SimpleVector() : maxInc( -1 ), default_inc(16)
 	{ 
 		s = NULL ;
 		size = capacity = 0 ;
-		inc = 1 ;
+		inc = default_inc ;
 	}
 	
-	SimpleVector( int mi ): maxInc( mi ) 
+	SimpleVector( int mi ): maxInc( mi ), default_inc(16)
 	{ 
 		s = NULL ;
 		size = capacity = 0 ;
-		inc = 1 ;
+		inc = default_inc ;
 	}
 
-	SimpleVector( const SimpleVector &in )
+	SimpleVector( const SimpleVector &in ): default_inc(16)
 	{
 		size = in.size ;
 		capacity = in.capacity ;
@@ -91,6 +92,7 @@ public:
 			free( s ) ;
 		s = NULL ;
 		size = capacity = 0 ;
+		inc = default_inc ;
 	}
 
 	void Reserve( int sz )
@@ -110,10 +112,10 @@ public:
 	{
 		if ( size == capacity )
 		{
-			inc = ( capacity >> 1 ) + 16;
+			capacity += inc ;
+			inc *= 2 ;
 			if ( maxInc > 0 && inc > maxInc )
 				inc = maxInc ;
-			capacity += inc ;
 			s = (T *)realloc( s, sizeof( T ) * capacity ) ;
 			if ( s == NULL ) 
 			{
@@ -136,10 +138,7 @@ public:
 			inc *= 2 ;
 			if ( maxInc > 0 && inc > maxInc )
 				inc = maxInc ;
-			if ( size == 0 )
-				s = (T *)malloc( sizeof( T ) * capacity ) ;
-			else
-				s = (T *)realloc( s, sizeof( T ) * capacity ) ;
+			s = (T *)realloc( s, sizeof( T ) * capacity ) ;
 			if ( s == NULL ) 
 			{
 				fprintf( stderr, "%s: Failed to allocate memory.\n", __func__ ) ;
@@ -335,10 +334,7 @@ public:
 			inc *= 2 ;
 			if ( maxInc > 0 && inc > maxInc )
 				inc = maxInc ;
-			if ( size == 0 )
-				s = (T *)malloc( sizeof( T ) * capacity ) ;
-			else
-				s = (T *)realloc( s, sizeof( T ) * capacity ) ;
+			s = (T *)realloc( s, sizeof( T ) * capacity ) ;
 			if ( s == NULL ) 
 			{
 				fprintf( stderr, "%s: Failed to allocate memory.\n", __func__ ) ;
