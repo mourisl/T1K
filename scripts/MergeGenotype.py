@@ -5,7 +5,6 @@
 import sys
 import argparse
 import re
-import pandas as pd
 
 geneAlleles = {}
 geneAlleleList = {}
@@ -16,6 +15,7 @@ if (__name__ == "__main__"):
 	parser = argparse.ArgumentParser(description = "Combine the genotyping results from mutiple files.")
 	parser.add_argument("-l", help="list of genotyping results", dest="filelist", required=True)
 	parser.add_argument("-q", help="ignore allels with less or equal quality scores", dest="qual", required=False, default=0)
+	parser.add_argument("--tq", help="ignore allels with less or equal total quality scores", dest="totalQual", required=False, default=30)
 
 	args = parser.parse_args()
 	
@@ -33,7 +33,8 @@ if (__name__ == "__main__"):
 			for i in [2, 5]:
 				if (i < len(cols) and float(cols[i + 2]) > args.qual):
 					equalAlleles = cols[i].split(",")
-					for allele in equalAlleles:
+
+					for allele in equalAlleles[0:1]: # only use the first one for voting
 						if (allele not in geneAlleles[gene]):
 							geneAlleles[gene][allele] = 0
 						geneAlleles[gene][allele] += float(cols[i + 2])
@@ -43,7 +44,8 @@ if (__name__ == "__main__"):
 	# Select the representative alleles 
 	for gene in geneAlleles:
 		for allele in sorted(geneAlleles[gene].keys(), key=lambda x:geneAlleles[gene][x], reverse=True)[0:2]:
-			finalAlleles[allele] = geneAlleles[gene][allele]
+			if (geneAlleles[gene][allele] >= args.totalQual):
+				finalAlleles[allele] = geneAlleles[gene][allele]
 	
 	# output the count matrix
 	output = ["sample"]
