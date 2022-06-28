@@ -2495,6 +2495,12 @@ public:
 				assign[k].qual = 1 ;
 				++k ;
 			}
+			/*else if (bestAssign.similarity <= 0.95 && assign[i].matchCnt >= bestAssign.matchCnt - matchCntRelax)
+			{
+				assign[k] = assign[i] ;
+				assign[k].qual = 1 ;
+				++k ;
+			}*/
 			/*else if (assign[i].overlap1 <= bestAssign.overlap1 && bestAssign.overlap1.similarity == 1.00 
 					&& bestAssign.overlap2.similarity == 1 
 						&& assign[i].overlap2.matchCnt >= bestAssign.overlap2.matchCnt - 2) 

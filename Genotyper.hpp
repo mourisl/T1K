@@ -1743,7 +1743,7 @@ public:
 							//coveredReadCnt = coveredReadCnt - jMissingCoverage * abundanceJ * readLength / 150.0
 							//	- kMissingCoverage * abundanceK * readLength / 150.0;
 							coveredReadCnt = coveredReadCnt - jMissingCoverage * weightJ * readLength / 150.0
-								- kMissingCoverage * weightK * readLength / 150.0 + (refSet.GetSeqWeight(selectedAlleles[i][alleleJ].a) + refSet.GetSeqWeight(selectedAlleles[i][alleleK].a))/readLength;
+								- kMissingCoverage * weightK * readLength / 150.0 + (refSet.GetSeqWeight(selectedAlleles[i][alleleJ].a));
 						}
 						//coveredReadCnt = coveredReadCntJ + coveredReadCntK ;
 #ifdef DEBUG
