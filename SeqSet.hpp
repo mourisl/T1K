@@ -1947,7 +1947,11 @@ public:
 		}
 
 		if (kmerLength * max < hitLenRequired)
+		{
+			delete[] buckets[0] ;
+			delete[] buckets[1] ;
 			return false ;
+		}
 		
 		std::vector<struct _overlap> overlaps ;
 		std::vector< SimpleVector<struct _pair> *> overlapsHitCoords ;
