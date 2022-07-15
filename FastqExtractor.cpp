@@ -375,7 +375,7 @@ int main( int argc, char *argv[] )
 
 	if ( fpRef == NULL )
 	{
-		fprintf( stderr, "Need to use -f to specify the receptor genome sequence.\n" ) ;
+		fprintf( stderr, "Need to use -f to specify the reference genome sequence.\n" ) ;
 		return EXIT_FAILURE ;
 	}
 	
@@ -400,6 +400,15 @@ int main( int argc, char *argv[] )
 		hitLenRequired = len / (i * 5) ;
 	refSet.SetHitLenRequired( hitLenRequired ) ;
 	reads.Rewind() ;
+
+	int newKmerLength = refSet.InferKmerLength() ;
+	if (newKmerLength > kmerLength)
+	{
+		kmerLength = newKmerLength ;
+		if (kmerLength > hitLenRequired)
+			hitLenRequired = kmerLength ;
+		refSet.UpdateKmerLength(kmerLength) ;
+	}
 	
 	if ( hasBarcode && hasBarcodeWhitelist )
 	{

@@ -581,6 +581,15 @@ int main( int argc, char *argv[] )
 	//refSet.SetRadius( 1 ) ;	
 	refSet.SetHitLenRequired( hitLenRequired ) ;
 
+	int newKmerLength = refSet.InferKmerLength() ;
+	if (newKmerLength > kmerLength)
+	{
+		kmerLength = newKmerLength ;
+		if (kmerLength > hitLenRequired)
+			hitLenRequired = kmerLength ;
+		refSet.UpdateKmerLength(kmerLength) ;
+	}
+
 	int tag = 0 ;
 	
 	FILE *fp1 = NULL ;
@@ -792,10 +801,6 @@ int main( int argc, char *argv[] )
 		if ( !alignments.IsAligned() ) // when reach here, it is parie-end case, and the other mate is aligned.
 			continue ;
 		
-		alignments.GetReadSeq( buffer ) ;
-		if ( IsLowComplexity( buffer ) )
-			continue ;
-
 		// The aligned reads can reach here.
 		int chrId = alignments.GetChromId() ;
 		int start = (int)alignments.segments[0].a ;
@@ -812,6 +817,10 @@ int main( int argc, char *argv[] )
 				|| ( chrId == genes[tag].chrId && end <= genes[tag].start ) )
 			continue ;
 		
+		alignments.GetReadSeq( buffer ) ;
+		if ( IsLowComplexity( buffer ) )
+			continue ;
+
 		// overlaps with reference gene location.
 		if ( alignments.fragStdev != 0 )
 		{
@@ -876,7 +885,7 @@ int main( int argc, char *argv[] )
 
 		std::string name( alignments.GetReadId() ) ;
 		TrimName( name, mateIdLen ) ;
-		
+
 		std::map<std::string, struct _candidate>::iterator it = candidates.find( name ) ;
 		if ( it == candidates.end() )
 			continue ;
@@ -893,17 +902,17 @@ int main( int argc, char *argv[] )
 			it->second.mate2 = strdup( buffer ) ;
 			it->second.qual2 = strdup( bufferQual ) ;	
 		}
-		
+
 		/*if ( nameCnt.find( name ) == nameCnt.end() )
-		{
+			{
 			nameCnt[ name ] = 1 ;
-		}
-		else
-		{
+			}
+			else
+			{
 			++nameCnt[ name ] ;
 			if ( nameCnt[name] >= 3 )
-				printf( "Error!! %s\n", name.c_str() ) ;
-		}*/
+			printf( "Error!! %s\n", name.c_str() ) ;
+			}*/
 
 		if ( it->second.mate1 != NULL && it->second.mate2 != NULL )
 		{
@@ -920,13 +929,13 @@ int main( int argc, char *argv[] )
 
 			it->second.mate1 = NULL ;
 			it->second.mate2 = NULL ;
-			
+
 			++outputCnt ;
 			if ( outputCnt == candidateCnt )
 				break ;
 		}
-			
 	}
+
 	fclose( fp1 ) ;
 	if ( fp2 != NULL )
 		fclose( fp2 ) ;

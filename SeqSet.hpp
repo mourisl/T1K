@@ -1945,6 +1945,9 @@ public:
 				}
 			}
 		}
+
+		if (kmerLength * max < hitLenRequired)
+			return false ;
 		
 		std::vector<struct _overlap> overlaps ;
 		std::vector< SimpleVector<struct _pair> *> overlapsHitCoords ;
@@ -2801,7 +2804,35 @@ public:
 			}
 		}	
 	}
+	
+	int InferKmerLength()
+	{
+		int i ;
+		int totalLength = 0 ;
+		int seqCnt = seqs.size() ;
+		for (i = 0 ; i < seqCnt ; ++i)
+			totalLength += seqs[i].consensusLen ;
+		int ret = 0 ;
+		while (totalLength)
+		{
+				ret += 1 ;
+				totalLength /= 4 ;
+		}
+		ret += 1 ;
+		return ret ;
+	}
 
+	int UpdateKmerLength(int kl)
+	{
+		int i ;
+		int seqCnt = seqs.size() ;
+		kmerLength = kl ;
+		KmerCode kmerCode( kmerLength ) ;
+		
+		seqIndex.Clear() ;
+		for ( i = 0 ; i < seqCnt ; ++i )
+			seqIndex.BuildIndexFromRead( kmerCode, seqs[i].consensus, seqs[i].consensusLen, i, 0 ) ;
+	}
 }	;
 
 
