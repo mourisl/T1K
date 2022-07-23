@@ -15,7 +15,7 @@
 
 char usage[] = "./bam-extractor [OPTIONS]:\n"
 		"Required:\n"
-		"\t-f STRING: fasta file containing the receptor genome sequence\n"
+		"\t-f STRING: fasta file containing the reference sequence\n"
 		"\t-b STRING: path to BAM file\n"
 		"Optional:\n"
 		"\t-o STRING: prefix to the output file\n"
@@ -535,7 +535,7 @@ int main( int argc, char *argv[] )
 
 	if ( fpRef == NULL )
 	{
-		fprintf( stderr, "Need to use -f to specify the receptor genome sequence.\n" ) ;
+		fprintf( stderr, "Need to use -f to specify the reference sequence.\n" ) ;
 		return EXIT_FAILURE ;
 	}
 
