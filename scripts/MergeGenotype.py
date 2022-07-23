@@ -14,6 +14,7 @@ finalAlleles = {}
 if (__name__ == "__main__"):
 	parser = argparse.ArgumentParser(description = "Combine the genotyping results from mutiple files.")
 	parser.add_argument("-l", help="list of genotyping results", dest="filelist", required=True)
+	parser.add_argument("-n", help="number of alleles per gene", dest="numAllelePerGene", required=False, default=2)
 	parser.add_argument("-q", help="ignore allels with less or equal quality scores", dest="qual", required=False, default=0)
 	parser.add_argument("--tq", help="ignore allels with less or equal total quality scores", dest="totalQual", required=False, default=30)
 
@@ -43,8 +44,8 @@ if (__name__ == "__main__"):
 
 	# Select the representative alleles 
 	for gene in geneAlleles:
-		for allele in sorted(geneAlleles[gene].keys(), key=lambda x:geneAlleles[gene][x], reverse=True)[0:2]:
-			if (geneAlleles[gene][allele] >= args.totalQual):
+		for allele in sorted(geneAlleles[gene].keys(), key=lambda x:geneAlleles[gene][x], reverse=True)[0:int(args.numAllelePerGene)]:
+			if (geneAlleles[gene][allele] >= float(args.totalQual)):
 				finalAlleles[allele] = geneAlleles[gene][allele]
 	
 	# output the count matrix
