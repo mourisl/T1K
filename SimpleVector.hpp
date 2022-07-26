@@ -22,21 +22,21 @@ private:
 	const int default_inc ;
 	T *s ;
 public:
-	SimpleVector() : maxInc( -1 ), default_inc(16)
+	SimpleVector() : maxInc( -1 ), default_inc(1)
 	{ 
 		s = NULL ;
 		size = capacity = 0 ;
 		inc = default_inc ;
 	}
 	
-	SimpleVector( int mi ): maxInc( mi ), default_inc(16)
+	SimpleVector( int mi ): maxInc( mi ), default_inc(1)
 	{ 
 		s = NULL ;
 		size = capacity = 0 ;
 		inc = default_inc ;
 	}
 
-	SimpleVector( const SimpleVector &in ): default_inc(16)
+	SimpleVector( const SimpleVector &in ): default_inc(1)
 	{
 		size = in.size ;
 		capacity = in.capacity ;

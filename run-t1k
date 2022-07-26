@@ -7,7 +7,7 @@ use Cwd 'cwd' ;
 use Cwd 'abs_path' ;
 use File::Basename ;
 
-my $progName = "kir-genotype" ;
+my $progName = "run-t1k" ;
 
 die "$progName usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
@@ -345,28 +345,6 @@ else
 	elsif ( @firstMateFiles > 0 )
 	{
 		$candidateFiles = $firstMateFiles[0] ;
-	}
-}
-
-# Run bwa
-my $bwaRd1 = "${prefix}_bwa_r1.fq" ;
-my $bwaRd2 = "${prefix}_bwa_r2.fq" ;
-my $bwaRd = "${prefix}_bwa.fq" ;
-my $bwaReadFiles = "$bwaRd1 $bwaRd2" ;
-
-if ( 0 ) # no long needed #$stage <= 1 )
-{
-	#system_call("bwa mem -t $threadCnt $bwaIdx $candidateFiles > ${prefix}_bwa_aligned.sam") ;
-	my @cols = split /\s/, $candidateFiles ;
-	if (scalar(@cols) > 1)
-	{
-		system_call("perl $WD/ExtractBamHits.pl ${prefix}_bwa_aligned.sam ".$cols[0]."> $bwaRd1") ;
-		system_call("perl $WD/ExtractBamHits.pl ${prefix}_bwa_aligned.sam ".$cols[1]."> $bwaRd2") ;
-	}
-	else
-	{
-		system_call("perl $WD/ExtractBamHits.pl ${prefix}_bwa_aligned.sam ".$cols[0]."> $bwaRd") ;
-		$bwaReadFiles = "$bwaRd" ;
 	}
 }
 
