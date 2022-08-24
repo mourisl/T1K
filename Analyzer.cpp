@@ -25,6 +25,8 @@ char usage[] = "./analyzer [OPTIONS]:\n"
 		"\t-n INT: maximal number of alleles per read (default: 2000)\n"
 		"\t-s FLOAT: filter alignments with alignment similarity less than specified value (defalut: 0.8)\n"
 		"\t--barcode STRING: path to the barcode file\n"
+		"\t--alleleDigitUnits INT: the number of units in genotyping result. (default: automatic)\n"
+		"\t--alleleDelimiter CHR: the delimiter character for digit unit. (default: automatic)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -37,6 +39,8 @@ char numToNuc[4] = {'A', 'C', 'G', 'T'} ;
 static const char *short_options = "f:a:u:1:2:o:t:n:s:" ;
 static struct option long_options[] = {
 	{"barcode", required_argument, 0, 10000},
+	{ "alleleDigitUnits", required_argument, 0, 10005 },  
+	{ "alleleDelimiter", required_argument, 0, 10006 },  
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -235,6 +239,8 @@ int main(int argc, char *argv[])
 	double crossGeneRate = 0.02 ;
 	double filterAlignmentSimilarity = 0.8 ;
 	bool keepMissingBarcode = false ;
+	int alleleDigitUnits = -1 ;
+	char alleleDelimiter = '\0' ;
 	
 	char refFile[1025] = "" ;
 	char alleleFile[1025] = "" ;
@@ -292,6 +298,14 @@ int main(int argc, char *argv[])
 			barcodeFile.AddReadFile(optarg, false) ;
 			hasBarcode = true ;
 		}
+		else if ( c == 10005 )
+		{
+			alleleDigitUnits = atoi(optarg) ;
+		}
+		else if ( c == 10006 )
+		{
+			alleleDelimiter = optarg[0] ;
+		}
 		else
 		{
 			fprintf( stderr, "%s", usage ) ;
@@ -322,6 +336,7 @@ int main(int argc, char *argv[])
 	genotyper.InitRefSet(refFile, selectedAlleles) ;
 
 	SeqSet &refSet = genotyper.refSet ;
+	genotyper.SetAlleleNameStructure(alleleDigitUnits, alleleDelimiter) ;
 	refSet.SetRefSeqSimilarity(filterAlignmentSimilarity) ;
 	if (threadCnt > 1)
 		refSet.InitPthread() ;

@@ -706,20 +706,20 @@ private:
 		{
 			if (exons[i].a > exons[i - 1].b + 1)	
 			{
-				ignoreNonExonDiff = true ;
+				//ignoreNonExonDiff = true ;
 				rnaData = false ;
 				break ;
 			}
 		}
 
-		for (i = 0 ; seqs[seqIdx].name[i] ; ++i)
+		/*for (i = 0 ; seqs[seqIdx].name[i] ; ++i)
 		{
 			if (seqs[seqIdx].name[i] == ':')
 			{
 				ignoreNonExonDiff = false ;
 				break ;
 			}
-		}
+		}*/
 	}
 	
 	std::string GetExonSeq(int seqIdx)
@@ -835,6 +835,11 @@ public:
 	double GetRefSeqSimilarity()
 	{
 		return refSeqSimilarity ;
+	}
+	
+	void SetRelaxIntronAlign(bool relax)
+	{
+		ignoreNonExonDiff = relax ;
 	}
 
 	int GetOverlapSize( int s0, int e0, int s1, int e1 )

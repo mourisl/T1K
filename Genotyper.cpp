@@ -25,7 +25,10 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t--barcode STRING: path to the barcode file\n"
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
-		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.04)\n"
+		"\t--crossGeneRate FLOAT: the effect from other gene's expression (default: 0.04)\n"
+		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n"
+		"\t--alleleDigitUnits INT: the number of units in genotyping result. (default: automatic)\n"
+		"\t--alleleDelimiter CHR: the delimiter character for digit unit. (default: automatic)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -39,8 +42,11 @@ static const char *short_options = "f:a:u:1:2:o:t:n:s:b:" ;
 static struct option long_options[] = {
 	{ "frac", required_argument, 0, 10000 },
 	{ "cov", required_argument, 0, 10001 },
-	{ "crossGeneRate", required_argument, 0, 10002},
-	{ "barcode", required_argument, 0, 10003},
+	{ "crossGeneRate", required_argument, 0, 10002 },
+	{ "barcode", required_argument, 0, 10003 },
+	{ "relaxIntronAlign", no_argument, 0, 10004 },
+	{ "alleleDigitUnits", required_argument, 0, 10005 },  
+	{ "alleleDelimiter", required_argument, 0, 10006 },  
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -210,7 +216,9 @@ int main(int argc, char *argv[])
 	double crossGeneRate = 0.04 ;
 	double filterAlignmentSimilarity = 0.8 ;
 	bool keepMissingBarcode = false ;
-
+	bool relaxIntronAlign = false ;
+	int alleleDigitUnits = -1 ;
+	char alleleDelimiter = '\0' ;
 	std::map<std::string, int> barcodeStrToInt ;
 	std::vector<std::string> barcodeIntToStr ;
 
@@ -276,6 +284,18 @@ int main(int argc, char *argv[])
 			barcodeFile.AddReadFile(optarg, false) ;
 			hasBarcode = true ;
 		}
+		else if ( c = 10004 )
+		{
+			relaxIntronAlign = true ;
+		}
+		else if ( c == 10005 )
+		{
+			alleleDigitUnits = atoi(optarg) ;
+		}
+		else if ( c == 10006 )
+		{
+			alleleDelimiter = optarg[0] ;
+		}
 		else
 		{
 			fprintf( stderr, "%s", usage ) ;
@@ -283,7 +303,7 @@ int main(int argc, char *argv[])
 		}
 	}
 	SeqSet &refSet = genotyper.refSet ;
-
+	
 	if ( refSet.Size() == 0 )
 	{
 		fprintf( stderr, "Need to use -f to specify the reference sequences.\n" );
@@ -293,7 +313,9 @@ int main(int argc, char *argv[])
 	genotyper.SetFilterFrac(filterFrac) ;
 	genotyper.SetFilterCov(filterCov) ;
 	genotyper.SetCrossGeneRate(crossGeneRate) ;
+	genotyper.SetAlleleNameStructure(alleleDigitUnits, alleleDelimiter) ;
 	refSet.SetRefSeqSimilarity(filterAlignmentSimilarity) ;
+	refSet.SetRelaxIntronAlign(relaxIntronAlign) ;
 	if (threadCnt > 1)
 		refSet.InitPthread() ;
 	int alleleCnt = refSet.Size() ;

@@ -55,30 +55,41 @@ struct _readAssignment
 class Genotyper
 {
 private:
-	// field length: 0 - default 
-	//							 1 - same exon size
+	// field type: 0 - default 
+	//						 1 - the digits up until the exon stage (before intronic stage)
 	void ParseAlleleName(char *allele, char *gene, char *majorAllele, int fieldsType = 0)
 	{
 		int i, j ;
-		int parseType = 1 ; // 1-first three (KIR); 2-colon(HLA)
-		int fieldsLength = 3 ;
+		int parseType = 1 ; // 1-no delimits (KIR); 2-with dimit(HLA)
+		int fieldsLength = alleleDigitUnits;
+		char delimiter = '\0' ;
 		strcpy(gene, allele) ;
 		strcpy(majorAllele, allele) ;
-		for (i = 0 ; allele[i] ; ++i)
-			if (allele[i] == ':')
-				parseType = 2 ;
-		
-		if (fieldsType == 0)
+
+		if (fieldsLength == -1)
 		{
 			fieldsLength = 3 ;
-		}
-		else if (fieldsType >= 1)
-		{
-			if (parseType == 1)
-				fieldsLength = 5 ;
-			else if (parseType == 2)
+			for (i = 0 ; allele[i] ; ++i)
+				if (allele[i] == ':')
+				{
+					delimiter = ':' ;
+					parseType = 2 ;
+				}
+
+			if (fieldsType == 0)
+			{
 				fieldsLength = 3 ;
+			}
+			else if (fieldsType >= 1)
+			{
+				if (parseType == 1)
+					fieldsLength = 5 ;
+				else if (parseType == 2)
+					fieldsLength = 3 ;
+			}
 		}
+		if (alleleDelimiter != '\0')
+			delimiter = alleleDelimiter ;
 
 		if (parseType == 1)
 		{
@@ -103,7 +114,7 @@ private:
 			int k = 0 ;
 			for (j = i ; allele[j] ; ++j)
 			{
-				if (allele[j] == ':')	
+				if (allele[j] == alleleDelimiter)	
 				{
 					++k ;
 					if (k >= fieldsLength)
@@ -445,6 +456,9 @@ private:
 	double crossGeneRate ;
 	double **geneSimilarity ;
 
+	int alleleDigitUnits ;
+	char alleleDelimiter ;
+
 	int readLength ;
 public:
 	SeqSet refSet ;
@@ -466,6 +480,9 @@ public:
 		geneSimilarity = NULL ;
 
 		readLength = 0 ;
+
+		alleleDigitUnits = -1 ;
+		alleleDelimiter = '\0' ;
 	}
 
 	~Genotyper() 
@@ -502,6 +519,12 @@ public:
 	void SetCrossGeneRate(double r)
 	{
 		crossGeneRate = r ;
+	}
+
+	void SetAlleleNameStructure(int n, char d) 
+	{
+		alleleDigitUnits = n ;
+		alleleDelimiter = d ;
 	}
 	
 	void InitAlleleInfo()
