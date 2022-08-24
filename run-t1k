@@ -16,7 +16,7 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
     "\t-u STRING: path to single-end read file\n".
 		"\t-i STRING: path to interleaved read file\n".
-    "\t-f STRING: path to the KIR reference sequence file\n".
+    "\t-f STRING: path to the reference sequence file\n".
     "Optional:\n".
 		"\t-c STRING: path to the gene coordinate file (required when -b input)\n".
     "\t-o STRING: prefix of output files. (default: inferred from file prefix)\n".
@@ -36,6 +36,11 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "\t--mateIdSuffixLen INT: the suffix length in read id for mate. (default: not used)\n".
     "\t--abnormalUnmapFlag: the flag in BAM for the unmapped read-pair is nonconcordant (default: not set)\n".
     "\t--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)\n".
+		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n".
+		"\t--preset STRING: preset parameters for cases requiring non-default settings:\n".
+		"\t\thla: HLA genotyping\n".
+		"\t\tkir-wgs: KIR genotyping on WGS data\n".
+		"\t\tkir-wes: KIR genotyping on WES data\n".
     "\t--stage INT: start genotyping on specified stage (default: 0):\n".
     "\t\t0: start from beginning (candidate read extraction)\n".
     "\t\t1: start from genotype with candidate reads\n".
@@ -76,6 +81,8 @@ my $outputDirectory = "" ;
 
 my $refCoordFasta = "" ;
 my $refSeqFasta = "" ;
+
+my $preset = "" ;
 
 #my $filterFrac = 0.15 ;
 #my $filterCov = 1.0 ;
@@ -160,6 +167,11 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 	{
 		$noExtraction = 1 ;
 	}
+	elsif ( $ARGV[$i] eq "--preset" )
+	{
+		$preset = $ARGV[$i + 1] ;
+		++$i ;
+	}
 	elsif ( $ARGV[$i] eq "--barcode" )
 	{
 		$hasBarcode = 1 ;
@@ -203,6 +215,10 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		$bamExtractorArgs .= " --UMI ".$ARGV[$i + 1] ;
 		++$i ;
 	}
+	elsif ( $ARGV[$i] eq "--relaxIntronAlign" )
+	{
+		$genotyperArgs .= " ".$ARGV[$i] ;
+	}
 	elsif ( $ARGV[$i] eq "--stage" )
 	{
 		$stage = $ARGV[$i + 1] ;
@@ -245,6 +261,27 @@ if ( $refSeqFasta eq "" )
 if ( @bamFiles > 0 && $refCoordFasta eq "" )
 {
 	die "Need to use -c to specify gene coordinate file for BAM input.\n" ;
+}
+
+if ( $preset ne "" )
+{
+	if ($preset eq "hla")
+	{
+		$genotyperArgs .= " -s 0.97" ;	
+		$analyzerArgs .= " -s 0.97"	;
+	}
+	elsif ($preset eq "kir-wgs")
+	{
+		$genotyperArgs .= " -s 0.90 --relaxIntronAlign" ;	
+	}
+	elsif ($preset eq "kir-wes")
+	{
+		$genotyperArgs .= " --relaxIntronAlign" ;	
+	}
+	else
+	{
+		die "Unknown preset parameter $preset.\n" ;
+	}
 }
 
 # Infer the output prefix.
