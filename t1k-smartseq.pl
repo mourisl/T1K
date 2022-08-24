@@ -12,7 +12,8 @@ die "T1K SMART-seq pipeline usage: perl pl [OPTIONS]:\n".
     "\t-2 STRING: file containing the list of read 2 files\n".
     "\t-f STRING: path to reference sequence file\n".
     "\t-o STRING: prefix of final output files. (default: T1K)\n".
-    "\t-t INT: number of threads (default: 1)\n"
+    "\t-t INT: number of threads (default: 1)\n".
+    "Other T1K parameters will be directly passed to T1K main program\n"
 		#"\t--noclear: do not clear the intermediate results (default: clear)\n"
     if (@ARGV == 0) ;
 
@@ -61,6 +62,15 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 	{
 		$t1kArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
 		++$i ;
+	}
+	elsif ($ARGV[$i] =~ /^-/)
+	{
+		$t1kArgs .= " ".$ARGV[$i] ;
+		if (!($ARGV[$i + 1] =~ /^-/))
+		{
+			$t1kArgs .= " ".$ARGV[$i + 1] ;
+			++$i ;
+		}
 	}
 	else
 	{
