@@ -279,12 +279,12 @@ int main(int argc, char *argv[])
 		{
 			crossGeneRate = atof(optarg) ;
 		}
-		else if ( c = 10003 )
+		else if ( c == 10003 )
 		{
 			barcodeFile.AddReadFile(optarg, false) ;
 			hasBarcode = true ;
 		}
-		else if ( c = 10004 )
+		else if ( c == 10004 )
 		{
 			relaxIntronAlign = true ;
 		}
@@ -303,7 +303,6 @@ int main(int argc, char *argv[])
 		}
 	}
 	SeqSet &refSet = genotyper.refSet ;
-	
 	if ( refSet.Size() == 0 )
 	{
 		fprintf( stderr, "Need to use -f to specify the reference sequences.\n" );

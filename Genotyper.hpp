@@ -65,7 +65,6 @@ private:
 		char delimiter = '\0' ;
 		strcpy(gene, allele) ;
 		strcpy(majorAllele, allele) ;
-
 		if (fieldsLength == -1)
 		{
 			fieldsLength = 3 ;
@@ -89,7 +88,10 @@ private:
 			}
 		}
 		if (alleleDelimiter != '\0')
+		{
 			delimiter = alleleDelimiter ;
+			parseType = 2 ;
+		}
 
 		if (parseType == 1)
 		{
@@ -114,7 +116,7 @@ private:
 			int k = 0 ;
 			for (j = i ; allele[j] ; ++j)
 			{
-				if (allele[j] == alleleDelimiter)	
+				if (allele[j] == delimiter)	
 				{
 					++k ;
 					if (k >= fieldsLength)
