@@ -37,12 +37,13 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     #"\t--umiRange INT INT CHAR: start, end(-1 for lenght-1), strand in a umi is the true umi (default: 0 -1 +)\n".
     "\t--mateIdSuffixLen INT: the suffix length in read id for mate. (default: not used)\n".
     "\t--abnormalUnmapFlag: the flag in BAM for the unmapped read-pair is nonconcordant (default: not set)\n".
-    "\t--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)\n".
 		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n".
 		"\t--preset STRING: preset parameters for cases requiring non-default settings:\n".
 		"\t\thla: HLA genotyping\n".
 		"\t\tkir-wgs: KIR genotyping on WGS data\n".
 		"\t\tkir-wes: KIR genotyping on WES data\n".
+    "\t--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)\n".
+		"\t--skipPostAnaysis: only conduct genotyping. (default: conduct the post analysis)\n".
     "\t--stage INT: start genotyping on specified stage (default: 0):\n".
     "\t\t0: start from beginning (candidate read extraction)\n".
     "\t\t1: start from genotype with candidate reads\n".
@@ -77,6 +78,7 @@ my $analyzerArgs = "" ;
 my $threadCnt = 1 ;
 my $stage = 0 ;
 my $noExtraction = 0 ;
+my $skipPostAnalysis = 0 ;
 my $hasBarcode = 0 ;
 my $hasUmi = 0 ;
 my $outputDirectory = "" ;
@@ -169,6 +171,10 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 	elsif ( $ARGV[$i] eq "--noExtraction" )
 	{
 		$noExtraction = 1 ;
+	}
+	elsif ( $ARGV[$i] eq "--skipPostAnalysis" )
+	{
+		$skipPostAnalysis = 1 ;
 	}
 	elsif ( $ARGV[$i] eq "--preset" )
 	{
@@ -409,7 +415,7 @@ if ( $stage <= 1 )
 	}
 }
 
-if ($stage <= 2)
+if ($stage <= 2 && $skipPostAnalysis == 0)
 {
 	my @cols = split /\s/, $candidateFiles ;
 	if (scalar(@cols) > 1)
