@@ -74,7 +74,9 @@ T1K depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads) and samtoo
 
 The primary input to T1K is the raw RNA-seq files in fasta/fastq format (-1/-2 for paired; -u for single-end; -i for interleaved), and the allele reference sequences (-f). The alternative input to T1K is the alignment BAM file (-b), which requires -f and the gene coordinate file (-b). For RNA-seq data, the user shall pick the "rna" reference file, e.g.: kiridx/kir_rna_seq.fa, for -f and -b option. For WES and WGS data, the user shall select the "dna" reference file for -f and -b.
 
-T1K outputs several files. t1k_genotype.tsv is the main output file holding the genotyping result, where the allele for each gene is on its own line with format
+T1K outputs several files: 
+
+* t1k_genotype.tsv is the main output file holding the genotyping result, where the allele for each gene is on its own line with format
 
 	gene_name num_alleles allele_1 abundance_1 quality_1 allele_2 abundance_2 quality_2
 
