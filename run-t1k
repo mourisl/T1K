@@ -299,15 +299,15 @@ if ( $prefix eq "" )
 	# infer the output prefix.
 	if ( @bamFiles > 0 )
 	{
-		$prefix = "genotype_".( split /\./, basename( $bamFiles[0] ) )[0] ;
+		$prefix = "T1K_".( split /\./, basename( $bamFiles[0] ) )[0] ;
 	}
 	elsif ( @firstMateFiles > 0 )
 	{
-		$prefix = "genotype_".( split /\./, basename( $firstMateFiles[0] ) )[0] ;
+		$prefix = "T1K_".( split /\./, basename( $firstMateFiles[0] ) )[0] ;
 	}
 	else
 	{
-		$prefix = "genotype" ;
+		$prefix = "T1K" ;
 	}
 }
 

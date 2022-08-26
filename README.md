@@ -104,7 +104,7 @@ We provide a wrapper "t1k-smartseq.pl" to process the files from platforms like 
 
 The directory './example' in this distribution contains two FASTQs as input for T1K. Run T1K with:
 
-	./run-t1k -f kiridx/kir_rna_seq.fa -1 example/example_1.bam -2 example/example_2.fa 
+	./run-t1k -f kiridx/kir_rna_seq.fa -1 example/example_1.bam -2 example/example_2.fa -t 8 -o T1K_example
 
 ### Support
 
