@@ -3,7 +3,7 @@ T1K
 
 Described in: 
 
-Song, L., Cohen, D., Ouyang, Z. et al. T1K: immune repertoire reconstruction from bulk and single-cell RNA-seq data.
+Song, L., et al. T1K: efficient and accurate KIR and HLA genotyping with next-generation sequencing data
 
 	Copyright (C) 2018- and GNU GPL by Li Song, Heng Li
 
@@ -14,7 +14,7 @@ Includes portions copyright from:
 
 ### What is T1K?
 
-T1K (The ONE genotyper for Kir and HLA) is a computational tool to  
+T1K (The ONE genotyper for Kir and HLA) is a computational tool to infer the alleles for the polymorphic genes such as KIR and HLA. T1K calculates the allele abundances based on the RNA-seq/WES/WGS read alignments on the provided allele reference sequences. The abundances are used to pick the true alleles for each gene. T1K provides the post analysis steps, including novel SNP detection and single-cell representation. T1K supports both single-end and paired-end sequencing data with any read length.   
 
 ### Install
 
@@ -30,49 +30,49 @@ T1K depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads) and samtoo
 
 ### Usage
 
-Usage: ./run-t1k [OPTIONS]
-Required:
-	-1 STRING -2 STRING: path to paired-end read files
-		or
-	-u STRING: path to single-end read file
-		or
-	-i STRING: path to interleaved read file
-		or
-	-b STRING: path to BAM file
-	-f STRING: path to the reference sequence file
-Optional:
-	-c STRING: path to the gene coordinate file (required when -b input)
-	-o STRING: prefix of output files. (default: inferred from file prefix)
-	--od STRING: the directory for output files. (default: ./)
-	-t INT: number of threads (default: 1)
-	-s FLOAT: minimum alignment similarity (default: 0.8)
-	--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)
-	--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)
-	--crossGeneRate FLOAT: the effect from other gene's expression (0.04)
-	--alleleDigitUnits INT: the number of units in genotyping result. (default: automatic)
-	--alleleDelimiter CHR: the delimiter character for digit unit. (default: automatic)
-	--barcode STRING: if -b, BAM field for barcode; if -1 -2/-u, file containing barcodes (default: not used)
-	--barcodeRange INT INT CHAR: start, end(-1 for length-1), strand in a barcode is the true barcode (default: 0 -1 +)
-	--barcodeWhitelist STRING: path to the barcode whitelist (default: not used)
-	--read1Range INT INT: start, end(-1 for length-1) in -1/-u files for genomic sequence (default: 0 -1)
-	--read2Range INT INT: start, end(-1 for length-1) in -2 files for genomic sequence (default: 0 -1)
-	--mateIdSuffixLen INT: the suffix length in read id for mate. (default: not used)
-	--abnormalUnmapFlag: the flag in BAM for the unmapped read-pair is nonconcordant (default: not set)
-	--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)
-	--preset STRING: preset parameters for cases requiring non-default settings:
-		hla: HLA genotyping
-		kir-wgs: KIR genotyping on WGS data
-		kir-wes: KIR genotyping on WES data
-	--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)
-	--skipPostAnaysis: only conduct genotyping. (default: conduct the post analysis)
-	--stage INT: start genotyping on specified stage (default: 0):
-		0: start from beginning (candidate read extraction)
-		1: start from genotype with candidate reads
-		2: start from post analysis
+	Usage: ./run-t1k [OPTIONS]
+	Required:
+		-1 STRING -2 STRING: path to paired-end read files
+			or
+		-u STRING: path to single-end read file
+			or
+		-i STRING: path to interleaved read file
+			or
+		-b STRING: path to BAM file
+		-f STRING: path to the reference sequence file
+	Optional:
+		-c STRING: path to the gene coordinate file (required when -b input)
+		-o STRING: prefix of output files. (default: inferred from file prefix)
+		--od STRING: the directory for output files. (default: ./)
+		-t INT: number of threads (default: 1)
+		-s FLOAT: minimum alignment similarity (default: 0.8)
+		--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)
+		--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)
+		--crossGeneRate FLOAT: the effect from other gene's expression (0.04)
+		--alleleDigitUnits INT: the number of units in genotyping result. (default: automatic)
+		--alleleDelimiter CHR: the delimiter character for digit unit. (default: automatic)
+		--barcode STRING: if -b, BAM field for barcode; if -1 -2/-u, file containing barcodes (default: not used)
+		--barcodeRange INT INT CHAR: start, end(-1 for length-1), strand in a barcode is the true barcode (default: 0 -1 +)
+		--barcodeWhitelist STRING: path to the barcode whitelist (default: not used)
+		--read1Range INT INT: start, end(-1 for length-1) in -1/-u files for genomic sequence (default: 0 -1)
+		--read2Range INT INT: start, end(-1 for length-1) in -2 files for genomic sequence (default: 0 -1)
+		--mateIdSuffixLen INT: the suffix length in read id for mate. (default: not used)
+		--abnormalUnmapFlag: the flag in BAM for the unmapped read-pair is nonconcordant (default: not set)
+		--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)
+		--preset STRING: preset parameters for cases requiring non-default settings:
+			hla: HLA genotyping
+			kir-wgs: KIR genotyping on WGS data
+			kir-wes: KIR genotyping on WES data
+		--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)
+		--skipPostAnaysis: only conduct genotyping. (default: conduct the post analysis)
+		--stage INT: start genotyping on specified stage (default: 0):
+			0: start from beginning (candidate read extraction)
+			1: start from genotype with candidate reads
+			2: start from post analysis
 
 ### Input/Output
 
-The primary input to T1K is the raw RNA-seq files in fasta/fastq format (-1/-2 for paired; -u for single-end; -i for interleaved), and the allele reference sequences (-f). The alternative input to T1K is the alignment BAM file (-b), which requires -f and the gene coordinate file (-b).
+The primary input to T1K is the raw RNA-seq files in fasta/fastq format (-1/-2 for paired; -u for single-end; -i for interleaved), and the allele reference sequences (-f). The alternative input to T1K is the alignment BAM file (-b), which requires -f and the gene coordinate file (-b). For RNA-seq data, the user shall pick the "rna" reference file, e.g.: kiridx/kir_rna_seq.fa, for -f and -b option. For WES and WGS data, the user shall select the "dna" reference file for -f and -b.
 
 T1K outputs several files. t1k_genotype.tsv is the main output file holding the genotyping result, where the allele for each gene is on its own line with format
 
