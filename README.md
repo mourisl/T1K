@@ -5,7 +5,7 @@ Described in:
 
 Song, L., et al. T1K: efficient and accurate KIR and HLA genotyping with next-generation sequencing data
 
-	Copyright (C) 2018- and GNU GPL by Li Song, Heng Li
+	Copyright (C) 2021- and GNU GPL by Li Song, Heng Li
 
 Includes portions copyright from: 
 
