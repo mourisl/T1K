@@ -12,10 +12,10 @@ my $progName = "run-t1k" ;
 die "$progName usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
     #"\t[Input]:\n".
-    "\t-b STRING: path to BAM file\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
     "\t-u STRING: path to single-end read file\n".
 		"\t-i STRING: path to interleaved read file\n".
+    "\t-b STRING: path to BAM file\n".
     "\t-f STRING: path to the reference sequence file\n".
     "Optional:\n".
 		"\t-c STRING: path to the gene coordinate file (required when -b input)\n".

@@ -1993,6 +1993,8 @@ public:
 			}
 			if (qualities[type] >= 0)
 				sprintf(buffer + strlen(buffer), "\t%lf\t%d", abundance, qualities[type]) ;
+			else
+				sprintf(buffer + strlen(buffer), ".\t0\t-1") ;
 		}
 		return ret ;
 	}

@@ -31,8 +31,8 @@ if (__name__ == "__main__"):
 			gene = cols[0]
 			if (gene not in geneAlleles):
 				geneAlleles[gene] = {}
-			for i in [2, 5]:
-				if (i < len(cols) and float(cols[i + 2]) > args.qual):
+			for k,i in enumerate([2, 5]):
+				if (k < int(cols[1]) and float(cols[i + 2]) > args.qual):
 					equalAlleles = cols[i].split(",")
 
 					for allele in equalAlleles[0:1]: # only use the first one for voting
@@ -64,8 +64,8 @@ if (__name__ == "__main__"):
 			cols = line.rstrip().split("\t")
 			gene = cols[0]
 			
-			for i in [2, 5]:
-				if (i < len(cols) and float(cols[i + 2]) > args.qual):
+			for k, i in enumerate([2, 5]):
+				if (k < int(cols[1]) and float(cols[i + 2]) > args.qual):
 					conflict = True
 					equalAlleles = cols[i].split(",")
 					for allele in equalAlleles:

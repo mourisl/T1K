@@ -597,7 +597,7 @@ int main(int argc, char *argv[])
 	{
 		int calledAlleleCnt = genotyper.GetAlleleDescription(i, bufferAllele[0], bufferAllele[1]) ;
 		fprintf(fpOutput, "%s\t%d", genotyper.GetGeneName(i), calledAlleleCnt) ;
-		for (j = 0 ; j < calledAlleleCnt ; ++j)
+		for (j = 0 ; j < 2 ; ++j)
 		{
 			fprintf(fpOutput, "\t%s", bufferAllele[j]);
 		}
