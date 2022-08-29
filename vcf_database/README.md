@@ -13,9 +13,9 @@ You will need hg38 human reference genome (hg38.fa) and the gene annotation file
 
 1.3 Generate the combined VCF file
 	
-	perl ./CombinedVcf.pl CYP2D6.1 vcflist.out > cyp2d6_combined.vcf
+	perl ./CombinedVcf.pl CYP2D6*1 vcflist.out > cyp2d6_combined.vcf
 
-	We need the first parameter "CYP2D6.1" because that the VCF files does not contain the primary allele "CYP2D6.1", and we need a place holder for it in the combined VCF file. 
+We need the first parameter "CYP2D6*1" because that the VCF files does not contain the primary allele "CYP2D6.1", and we need a place holder for it in the combined VCF file. 
 
 #### step 2: create the reference files
 
