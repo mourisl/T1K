@@ -281,11 +281,13 @@ if ( $preset ne "" )
 	}
 	elsif ($preset eq "kir-wgs")
 	{
-		$genotyperArgs .= " -s 0.90 --relaxIntronAlign" ;	
+		$genotyperArgs .= " -s 0.9 --relaxIntronAlign" ;
+		$analyzerArgs .= "-s 0.9 --relaxIntronAlign" ;
 	}
 	elsif ($preset eq "kir-wes")
 	{
 		$genotyperArgs .= " --relaxIntronAlign" ;	
+		$analyzerArgs .= " --relaxIntronAlign" ;	
 	}
 	else
 	{

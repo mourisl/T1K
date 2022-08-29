@@ -319,7 +319,7 @@ public:
 				{
 					if (baseVariants[i][j].count[k] >= countThreshold 
 							//&& (baseVariants[i][j].count[k] >= sqrt(refCount) 
-							//		&& baseVariants[i][j].count[k] >= refCount - 6 * sqrt(refCount))
+							//&& baseVariants[i][j].count[k] >= refCount - 6 * sqrt(refCount))
 							&& baseVariants[i][j].count[k] >= refCount * factor 
 							&& k != nucToNum[s[j] - 'A'])
 					{
@@ -744,15 +744,17 @@ public:
 						++refContribution ;
 					p = adjVar[p].next ;
 				}	
-				//if (candidateVariants[vars[0]].b==1007)
-				//	printf("%d %s %d %d\n", i, refSet.GetSeqName(seqIdx), refContribution, altContribution) ;
+				//if (candidateVariants[vars[0]].b==270)
+				//printf("%d %s %d %d %d\n", i, refSet.GetSeqName(seqIdx), refPos, refContribution, altContribution) ;
 
 				bool includeAlt = false ;
-				if (altContribution >= 2 &&
+				if ( ((altContribution >= 2 && baseVariants[seqIdx][refPos].uniqCount[ nucToNum[choices[i] - 'A'] ] > 0) 
+					  || (altContribution >= 10 )) &&
 						altContribution > 0.15 * refContribution)
 				{
 					includeAlt = true ;
 				}
+				
 				p = adjVar[ vars[i] ].next ;
 				while (p != -1)
 				{
@@ -803,7 +805,7 @@ public:
 			}
 			return ;	
 		}
-
+	
 		for (i = 0 ; i < 4 ; ++i)
 		{
 			choices[depth] = numToNuc[i] ;
@@ -843,7 +845,7 @@ public:
 		{
 			int seqIdx = candidateVariants[vars[i]].a ;
 			int refPos = candidateVariants[vars[i]].b ;
-			printf("%d %d %s %d %c %lf %lf %lf %lf %lf %lf %lf %lf\n", i, seqIdx, refSet.GetSeqName(seqIdx), refPos, refSet.GetSeqConsensus(seqIdx)[refPos],  
+			printf("%d %d %s %d %d %c %lf %lf %lf %lf %lf %lf %lf %lf\n", i, seqIdx, refSet.GetSeqName(seqIdx), refPos, refSet.GetExonicPosition(seqIdx, refPos), refSet.GetSeqConsensus(seqIdx)[refPos],  
 					baseVariants[seqIdx][refPos].count[0],
 					baseVariants[seqIdx][refPos].count[1],
 					baseVariants[seqIdx][refPos].count[2],
@@ -889,6 +891,7 @@ public:
 		}
 		
 		result.bestCover = -1 ;	
+		result.usedVarCnt = varCnt + 1 ;
 		EnumerateVariants(0, choices, result, fragIds, vars, adjFrag, adjVar) ;
 
 		// Process the final results.

@@ -3,7 +3,7 @@
 use strict ;
 use warnings ;
 
-die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA] > yyy.fa\n" if (@ARGV == 0) ;
+die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|...] > yyy.fa\n" if (@ARGV == 0) ;
 
 sub FindMode
 {
@@ -30,7 +30,7 @@ sub GetLastExonLength
 my %selectedAlleles ;
 my $selectAlleleFile = "" ;
 my $mode = "rna" ;
-my $genePrefix = "KIR" ;
+my $genePrefix = "" ;
 my $fixGeneLength = 0 ;
 
 my $i ;
@@ -281,22 +281,29 @@ while (<FP>)
 
 				# UTR after
 				$start = $exons[scalar(@exons) - 1] + 1;
-				$end = $start + $utrLength - 1 ;
-				if ($end >= length($seq)) 
+				if ($start > length($seq)) # partial allele that the exon ends after the sequence ends
 				{
-					$allelePaddingLength{$allele}[1] = $end - length($seq) + 1 ;
-					if (!defined $geneBestPossible3UTRPadding{$gene} ||
-						length($seq) - $start > length($geneBestPossible3UTRPadding{$gene}))
+					$partialAlleles{$allele} = 1;						
+				}
+				else
+				{
+					$end = $start + $utrLength - 1 ;
+					if ($end >= length($seq)) 
 					{
-						$geneBestPossible3UTRPadding{$gene} = uc(substr($seq, $start)) ;
+						$allelePaddingLength{$allele}[1] = $end - length($seq) + 1 ;
+						if (!defined $geneBestPossible3UTRPadding{$gene} ||
+							length($seq) - $start > length($geneBestPossible3UTRPadding{$gene}))
+						{
+							$geneBestPossible3UTRPadding{$gene} = uc(substr($seq, $start)) ;
+						}
+						$end = length($seq) - 1 ;
 					}
-					$end = length($seq) - 1 ;
+					elsif (!defined $gene3UTRPadding{$gene})
+					{
+						$gene3UTRPadding{$gene} = uc(substr($seq, $start, $end - $start + 1)) ;
+					}
+					$outputSeq .= substr($seq, $start, $end - $start + 1) ;
 				}
-				elsif (!defined $gene3UTRPadding{$gene})
-				{
-					$gene3UTRPadding{$gene} = uc(substr($seq, $start, $end - $start + 1)) ;
-				}
-				$outputSeq .= substr($seq, $start, $end - $start + 1) ;
 				
 				$outputSeq = uc($outputSeq) ;				
 				
