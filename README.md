@@ -72,11 +72,12 @@ T1K depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads) and samtoo
 			2: start from post analysis
 
 * ##### User cases 
-	
+```	
 	# Genotyping HLA on RNA-seq data
 	./t1k -1 read_1.fq -2 read_2.fq --preset hla -f hlaidx/hla_rna_seq.fa 
 	# Genotyping KIR on whole genome sequencing data
 	./t1k -1 read_1.fq -2 read_2.fq --preset kir-wgs -f kiridx/kir_dna_seq.fa 
+```
 
 ### Input/Output
 
