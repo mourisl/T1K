@@ -23,7 +23,7 @@ We need the first parameter "CYP2D6*1" because that the VCF files does not conta
 
 	perl ./CombinedVcfToDat.pl genome.fa gencode.gtf cyp2d6_combined.vcf > cyp2d6.dat
 
-	The dat file should look similar to the dat file from IPD-IMGT/HLA and IPD-KIR.
+The dat file should look similar to the dat file from IPD-IMGT/HLA and IPD-KIR.
 
 2.2 Generate the reference files
 
@@ -35,4 +35,4 @@ You can run T1K to genotype CYP2D6 with RNA-seq data using command:
 
 	{T1K_PATH}/run-t1k -f cyp2d6_idx/cyp2d6_rna_seq.fa -1 read_1.fq -2 read_2.fq --alleleDigitUnits 1 --alleleDelimiter . -t 8
 
-	The command will genotype CYP2D6 to the digit before "." symbol, i.e. "CYP2D6*1".
+The command will genotype CYP2D6 to the digit before "." symbol, i.e. "CYP2D6*1".
