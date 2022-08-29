@@ -18,15 +18,16 @@ T1K (The ONE genotyper for Kir and HLA) is a computational tool to infer the all
 
 ### Install
 
-1. Clone the [GitHub repo](https://github.com/liulab-dfci/T1K), e.g. with `git clone https://github.com/liulab-dfci/T1K.git`
+1. Clone the [GitHub repo](https://github.com/mourisl/T1K), e.g. with `git clone https://github.com/mourisl/T1K.git`
 2. Run `make` in the repo directory
-3. Run `tar -xzf ipd_ref.tar.xzf` in the repo directory to decompress the pre-downloaded HLA and KIR sequences
-4. Optional: If you want to update the allele reference sequences of IPD-IMGT/HLA and IPD-KIR from previous step, please run the
+3. Optional: If you want to update the allele reference sequences of IPD-IMGT/HLA and IPD-KIR datbases, run 
+
+	perl t1k-build.pl -o hlaidx --download IPD-IMGT/HLA
+	perl t1k-build.pl -o kiridx --download IPD-KIR
 
 You will find the executable files in the downloaded directory. If you want to run T1K without specifying the directory, you can either add the directory of T1K to the environment variable PATH or create a soft link ("ln -s") of the file "run-t1k" to a directory in PATH.
 
 T1K depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads) and samtools depends on [zlib](http://en.wikipedia.org/wiki/Zlib). 
-
 
 ### Usage
 
@@ -64,15 +65,24 @@ T1K depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads) and samtoo
 			kir-wgs: KIR genotyping on WGS data
 			kir-wes: KIR genotyping on WES data
 		--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)
-		--skipPostAnaysis: only conduct genotyping. (default: conduct the post analysis)
+		--skipPostAnaysis: only conduct genotyping. (default: do the post analysis)
 		--stage INT: start genotyping on specified stage (default: 0):
 			0: start from beginning (candidate read extraction)
 			1: start from genotype with candidate reads
 			2: start from post analysis
 
+* ##### User cases 
+	
+	# Genotyping HLA on RNA-seq data
+	./t1k -1 read_1.fq -2 read_2.fq --preset hla -f hlaidx/hla_rna_seq.fa 
+	# Genotyping KIR on whole genome sequencing data
+	./t1k -1 read_1.fq -2 read_2.fq --preset kir-wgs -f kiridx/kir_dna_seq.fa 
+
 ### Input/Output
 
-The primary input to T1K is the raw RNA-seq files in fasta/fastq format (-1/-2 for paired; -u for single-end; -i for interleaved), and the allele reference sequences (-f). The alternative input to T1K is the alignment BAM file (-b), which requires -f and the gene coordinate file (-b). For RNA-seq data, the user shall pick the "rna" reference file, e.g.: kiridx/kir_rna_seq.fa, for -f and -b option. For WES and WGS data, the user shall select the "dna" reference file for -f and -b.
+The primary input to T1K is the raw RNA-seq files in fasta/fastq format (-1/-2 for paired; -u for single-end; -i for interleaved), and the allele reference sequences (-f). For RNA-seq data, the user shall pick the "rna" reference file, e.g.: kiridx/kir_rna_seq.fa, for -f and -b option. For WES and WGS data, the user shall select the "dna" reference file for -f and -b.
+
+The alternative input to T1K is the alignment BAM file (-b), which requires -f and the gene coordinate file (-c). To create the file for -c command, you can run command like "perl t1k-build.pl -o kiridx -d kiridx/kir.da -g gencode.gtf" to create "_{dna,rna}_coord.fa" file.
 
 T1K outputs several files. t1k_genotype.tsv is the main output file holding the genotyping result, where the allele for each gene is on its own line with format:
 
@@ -89,19 +99,33 @@ The other outputs files are:
 
 ### Practical notes
 
-* #### Update IPD-KIR and IPD-IMGT/HLA database
+* #### Custom database based on VCF files such as PharmVar
 
+Databases like PharmVar represent the variations of the alleles in the form of VCF file. T1K provides the scripts for generating the EMBL-ENA formatted dat file from VCF files. The dat file can then be used in "t1k-build" to create the reference files. Please refer to the tutorial in the vcf_database folder.
 
-* #### Custom database based on VCF files, e.g. PharmVar
-Please refer to the tutorial in the vcf_database folder.
-
+* #### Custom database with known sequences
+If you have collected the linear sequences for the interested alleles, you can directyl build the reference sequence. The allele name should be in the formation like "gene_name*ABCDEFG". T1K reports the genotype at the allele series level, so by default it will report the allele "gene_name*ABC" using three digits. If you have a special format for allele ids, you can feed the information to T1K throught the option "--alleleDigitUnits" and "--alleleDigitDelimiter". For example, the delimiter in HLA allele is ":", and if you want to genotype with first four digits (two digit units/groups), you can run T1K with options "--alleleDigitUnits 2 --alleleDigitDelimiter :".
 
 * #### SMART-Seq data
 
 We provide a wrapper "t1k-smartseq.pl" to process the files from platforms like SMART-seq. The user shall give the path to each file in a text file. An example command can be
 
 	perl t1k-smartseq.pl -1 read1_list.txt -2 read2_list.txt -t 8 -f kiridx/kir_rna_seq.fa -o T1K
- 
+
+The final output file is "T1K_final_genotype.tsv". This file is a data matrix, where the rows are the cells and columns are the abundance for each identified allele.
+
+* #### 10x Genomics data
+
+For 10X Genomics data, usually the input is the BAM file from cell-ranger, and you can use "--barcode" to specify the field in the BAM file to specify the barcode: e.g. "--barcode CB".
+
+If your input is raw FASTQ files, you can use "--barcode" to specify the barcode file and use "--barcodeRange" to tell T1K how to extract barcode information. If the barcode or UMI sequence is in the read sequence, you may use "--read1Range", "--read2Range" to tell T1K how to extract sequence information in the reads. T1K supports using wildcard in the -1 -2/-u option, so a typical way to run 10X Genomics single-end data is by:
+
+	run-t1k -f kiridx/kir_rna_seq.fa -u path_to_10X_fastqs/*_R2_*.fastq.gz --barcode path_to_10X_fastqs/*_R1_*.fastq.gz --barcodeRange 0 15 + --barcodeWhitelist cellranger_folder/cellranger-cs/VERSION/lib/python/cellranger/barcodes/737K-august-2016.txt [other options]
+
+	The exact options depend on your 10x Genomics kit.
+
+	For barcoded file, T1K will generate the data matrix file "t1k_barcode_expr.tsv" file, where rows are the barcodes and columns are the allele abundances. Due to the shallow coverage in 10x Genomics data, the results need to be interpret with caution.
+
 ### Example
 
 The directory './example' in this distribution contains two FASTQs as input for T1K. Run T1K with:
