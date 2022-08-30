@@ -123,9 +123,9 @@ If your input is raw FASTQ files, you can use "--barcode" to specify the barcode
 
 	run-t1k -f kiridx/kir_rna_seq.fa -u path_to_10X_fastqs/*_R2_*.fastq.gz --barcode path_to_10X_fastqs/*_R1_*.fastq.gz --barcodeRange 0 15 + --barcodeWhitelist cellranger_folder/cellranger-cs/VERSION/lib/python/cellranger/barcodes/737K-august-2016.txt [other options]
 
-	The exact options depend on your 10x Genomics kit.
+The exact options depend on your 10x Genomics kit.
 
-	For barcoded file, T1K will generate the data matrix file "t1k_barcode_expr.tsv" file, where rows are the barcodes and columns are the allele abundances. Due to the shallow coverage in 10x Genomics data, the results need to be interpret with caution.
+For barcoded file, T1K will generate the data matrix file "t1k_barcode_expr.tsv" file, where rows are the barcodes and columns are the allele abundances. Due to the shallow coverage in 10x Genomics data, the results need to be interpret with caution.
 
 ### Example
 

@@ -26,8 +26,8 @@ char usage[] = "./analyzer [OPTIONS]:\n"
 		"\t-s FLOAT: filter alignments with alignment similarity less than specified value (defalut: 0.8)\n"
 		"\t--barcode STRING: path to the barcode file\n"
 		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n"
-		"\t--alleleDigitUnits INT: the number of units in genotyping result. (default: automatic)\n"
-		"\t--alleleDelimiter CHR: the delimiter character for digit unit. (default: automatic)\n"
+		"\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n"
+		"\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 

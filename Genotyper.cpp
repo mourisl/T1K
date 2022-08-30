@@ -27,8 +27,8 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
 		"\t--crossGeneRate FLOAT: the effect from other gene's expression (default: 0.04)\n"
 		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n"
-		"\t--alleleDigitUnits INT: the number of units in genotyping result. (default: automatic)\n"
-		"\t--alleleDelimiter CHR: the delimiter character for digit unit. (default: automatic)\n"
+		"\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n"
+		"\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
