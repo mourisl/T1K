@@ -202,6 +202,7 @@ int main(int argc, char *argv[])
 	ReadFiles reads ;
 	ReadFiles mateReads ;
 	ReadFiles barcodeFile ;
+	char *refFile = NULL ;
 	bool hasMate = false ;
 	bool hasBarcode = false ;
 	bool hasUmi = false ;
@@ -232,7 +233,8 @@ int main(int argc, char *argv[])
 		if ( c == 'f' )
 		{
 			//seqSet.InputRefFa( optarg ) ;
-			genotyper.InitRefSet( optarg ) ;
+			//genotyper.InitRefSet( optarg ) ;
+			refFile = strdup(optarg) ;
 		}
 		else if ( c == 'a' )
 		{
@@ -302,8 +304,7 @@ int main(int argc, char *argv[])
 			return EXIT_FAILURE ;
 		}
 	}
-	SeqSet &refSet = genotyper.refSet ;
-	if ( refSet.Size() == 0 )
+	if (refFile == NULL)
 	{
 		fprintf( stderr, "Need to use -f to specify the reference sequences.\n" );
 		return EXIT_FAILURE;
@@ -313,6 +314,14 @@ int main(int argc, char *argv[])
 	genotyper.SetFilterCov(filterCov) ;
 	genotyper.SetCrossGeneRate(crossGeneRate) ;
 	genotyper.SetAlleleNameStructure(alleleDigitUnits, alleleDelimiter) ;
+	genotyper.InitRefSet(refFile) ;
+	
+	SeqSet &refSet = genotyper.refSet ;
+	if ( refSet.Size() == 0 )
+	{
+		fprintf( stderr, "Need to use -f to specify the reference sequences.\n" );
+		return EXIT_FAILURE;
+	}
 	refSet.SetRefSeqSimilarity(filterAlignmentSimilarity) ;
 	refSet.SetRelaxIntronAlign(relaxIntronAlign) ;
 	if (threadCnt > 1)
@@ -650,7 +659,8 @@ int main(int argc, char *argv[])
 				fprintf(fpOutput, ">%s\n%s\n", reads1[i].id, barcodeIntToStr[reads1[i].barcode].c_str());
 		}
 	}
-
+	
+	free(refFile) ;
 	for ( i = 0 ; i < readCnt ; ++i )
 	{
 		free( reads1[i].id ) ;

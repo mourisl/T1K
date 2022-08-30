@@ -340,10 +340,10 @@ int main(int argc, char *argv[])
 		selectedAlleles[s] = 1 ;
 	}
 	fclose(fp) ;
+	genotyper.SetAlleleNameStructure(alleleDigitUnits, alleleDelimiter) ;
 	genotyper.InitRefSet(refFile, selectedAlleles) ;
 
 	SeqSet &refSet = genotyper.refSet ;
-	genotyper.SetAlleleNameStructure(alleleDigitUnits, alleleDelimiter) ;
 	refSet.SetRefSeqSimilarity(filterAlignmentSimilarity) ;
 	refSet.SetRelaxIntronAlign(relaxIntronAlign) ;
 	if (threadCnt > 1)
