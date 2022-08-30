@@ -224,7 +224,7 @@ foreach my $allele (keys %vcf)
 
 	# Output
 	print("ID   $allele\n")	;
-	print("FT   allele=$allele\n") ;
+	print("FT   allele=\"$allele\"\n") ;
 	if ($alleleExon[1] > 0)
 	{
 		print("FT   UTR            1..".$alleleExon[1]."\n") ;
