@@ -16,10 +16,11 @@ char usage[] = "./fastq-extractor [OPTIONS]:\n"
 		"\t\tor\n"
 		"\t-1 STRING -2 STRING: path to paired-end read files\n"
 		"\t\tor\n"
-		"\t-i STRING: apth to interleaved read file\n"
+		"\t-i STRING: path to interleaved read file\n"
 		"Optional:\n"
 		"\t-o STRING: prefix to the output file (default: toassemble)\n"
 		"\t-t INT: number of threads (default: 1)\n" 
+		"\t-s FLOAT: filter alignments with alignment similarity less than specified value (defalut: 0.8)\n"
 		"\t--barcode STRING: path to the raw barcode file (default: not used)\n"
 		"\t--barcodeStart INT: the start position of barcode in the barcode sequence (default: 0)\n"
 		"\t--barcodeEnd INT: the end position of barcode in the barcode sequence (default: length-1)\n"
@@ -31,7 +32,7 @@ char usage[] = "./fastq-extractor [OPTIONS]:\n"
 		"\t--read2End INT: the end position of sequence in read 2 (default: length-1)\n"
 		;
 
-static const char *short_options = "f:u:1:2:i:o:t:" ;
+static const char *short_options = "f:u:1:2:i:o:t:s:" ;
 static struct option long_options[] = {
 			{ "barcode", required_argument, 0, 10000},
 			{ "barcodeStart", required_argument, 0, 10001},
@@ -279,6 +280,7 @@ int main( int argc, char *argv[] )
 	bool hasMate = false ;
 	bool hasBarcode = false ;
 	bool hasBarcodeWhitelist = false ;
+	double filterAlignmentSimilarity = 0.8 ;
 	int barcodeStart = 0 ;
 	int barcodeEnd = -1 ;
 	int read1Start = 0 ;
@@ -326,6 +328,10 @@ int main( int argc, char *argv[] )
 		else if ( c == 't' )
 		{
 			threadCnt = atoi( optarg ) ;
+		}
+		else if ( c == 's' )
+		{
+			filterAlignmentSimilarity = atof(optarg) ;
 		}
 		else if ( c == 10000 ) // barcode
 		{
@@ -399,6 +405,7 @@ int main( int argc, char *argv[] )
 	if ( len / (i * 5) > hitLenRequired )
 		hitLenRequired = len / (i * 5) ;
 	refSet.SetHitLenRequired( hitLenRequired ) ;
+	refSet.SetRefSeqSimilarity(filterAlignmentSimilarity) ;
 	reads.Rewind() ;
 
 	int newKmerLength = refSet.InferKmerLength() ;
@@ -469,8 +476,6 @@ int main( int argc, char *argv[] )
 						barcodeStart, barcodeEnd, barcodeRevComp, 
 						hasBarcodeWhitelist ? &barcodeCorrector : NULL, refSet ) ;
 			}
-			
-			
 		}
 	}
 	else

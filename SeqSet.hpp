@@ -1964,17 +1964,24 @@ public:
 		delete[] buckets[0] ;
 		delete[] buckets[1] ;
 		//printf( "%d %d\n", hitCnt, overlaps.size() ) ;	
+		bool valid = false ;
+		int mismatchThreshold = int(len * (1-refSeqSimilarity)) * kmerLength ;
 		for ( i = 0 ; i < overlaps.size() ; ++i )
 		{
 			//printf( "%s\n", seqs[ overlaps[i].seqIdx ].name ) ;
+			if (len - overlaps[i].matchCnt / 2 <= mismatchThreshold)
+				valid = true ;
+
 			delete overlapsHitCoords[i] ;
 		}
-		if ( overlaps.size() == 0 )
-			return false ;
+
+		return valid ;
+		//if ( overlaps.size() == 0 )
+		//	return false ;
 		/*printf( "%s %d %d %lf\n", seqs[ overlaps[0].seqIdx ].name, overlaps[0].readStart, overlaps[0].readEnd, overlaps[0].similarity ) ;
 		for ( i = 0 ; i < overlaps[0].hitCoords->Size() ; ++i )
 			printf( "%d %d\n", overlaps[0].hitCoords->Get(i).a, overlaps[0].hitCoords->Get(i).b ) ;*/
-		return true ;
+		//return true ;
 	}
 
 	// Extend the overlap to include the overhang parts and filter the overlaps if the overhang does not match well.

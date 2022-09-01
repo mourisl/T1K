@@ -94,6 +94,7 @@ my $preset = "" ;
 my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0, "-s"=>0,
 								"--alleleDigitUnits"=>0, "--alleleDelimiter"=>0) ;
 my %analyzerArgNames = ("-s"=>0, "--alleleDigitUnits"=>0, "--alleleDelimiter"=>0) ;
+my %fastqExtractorArgNames = ("-s"=>0) ;
 print STDERR "[".localtime()."] $progName begins.\n" ;
 for ( $i = 0 ; $i < @ARGV ; ++$i )
 {
@@ -234,7 +235,8 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		++$i ;
 	}
 	elsif ( defined( $genotyperArgNames{$ARGV[$i]} ) 
-		|| defined ($analyzerArgNames{$ARGV[$i]}))
+		|| defined ($analyzerArgNames{$ARGV[$i]})
+		|| defined ($fastqExtractorArgNames{$ARGV[$i]}))
 	{
 		if ( defined( $genotyperArgNames{$ARGV[$i]} ) ) 
 		{
@@ -243,6 +245,10 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		if ( defined( $analyzerArgNames{$ARGV[$i]} ) )
 		{
 			$analyzerArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
+		}
+		if ( defined( $fastqExtractorArgNames{$ARGV[$i]} ) )
+		{
+			$fastqExtractorArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
 		}
 		++$i ;
 	}
@@ -276,6 +282,7 @@ if ( $preset ne "" )
 {
 	if ($preset eq "hla")
 	{
+		$fastqExtractorArgs .= " -s 0.97" ;
 		$genotyperArgs .= " -s 0.97" ;	
 		$analyzerArgs .= " -s 0.97"	;
 	}
