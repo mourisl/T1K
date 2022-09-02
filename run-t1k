@@ -39,7 +39,8 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
     "\t--abnormalUnmapFlag: the flag in BAM for the unmapped read-pair is nonconcordant (default: not set)\n".
 		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n".
 		"\t--preset STRING: preset parameters for cases requiring non-default settings:\n".
-		"\t\thla: HLA genotyping\n".
+		"\t\thla: HLA genotyping in general\n".
+		"\t\thla-wgs: HLA genotyping on WGS data\n".
 		"\t\tkir-wgs: KIR genotyping on WGS data\n".
 		"\t\tkir-wes: KIR genotyping on WES data\n".
     "\t--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)\n".
@@ -94,7 +95,6 @@ my $preset = "" ;
 my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0, "-s"=>0,
 								"--alleleDigitUnits"=>0, "--alleleDelimiter"=>0) ;
 my %analyzerArgNames = ("-s"=>0, "--alleleDigitUnits"=>0, "--alleleDelimiter"=>0) ;
-my %fastqExtractorArgNames = ("-s"=>0) ;
 print STDERR "[".localtime()."] $progName begins.\n" ;
 for ( $i = 0 ; $i < @ARGV ; ++$i )
 {
@@ -235,8 +235,7 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		++$i ;
 	}
 	elsif ( defined( $genotyperArgNames{$ARGV[$i]} ) 
-		|| defined ($analyzerArgNames{$ARGV[$i]})
-		|| defined ($fastqExtractorArgNames{$ARGV[$i]}))
+		|| defined ($analyzerArgNames{$ARGV[$i]}))
 	{
 		if ( defined( $genotyperArgNames{$ARGV[$i]} ) ) 
 		{
@@ -245,10 +244,6 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		if ( defined( $analyzerArgNames{$ARGV[$i]} ) )
 		{
 			$analyzerArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
-		}
-		if ( defined( $fastqExtractorArgNames{$ARGV[$i]} ) )
-		{
-			$fastqExtractorArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
 		}
 		++$i ;
 	}
@@ -280,11 +275,14 @@ if ( @bamFiles > 0 && $refCoordFasta eq "" )
 
 if ( $preset ne "" )
 {
-	if ($preset eq "hla")
+	if ($preset =~ "hla")
 	{
-		$fastqExtractorArgs .= " -s 0.97" ;
 		$genotyperArgs .= " -s 0.97" ;	
 		$analyzerArgs .= " -s 0.97"	;
+		if ($preset eq "hla-wgs")
+		{
+			$fastqExtractorArgs .= " -s 0.97" ;
+		}
 	}
 	elsif ($preset eq "kir-wgs")
 	{
