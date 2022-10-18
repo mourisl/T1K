@@ -5,7 +5,7 @@ Described in:
 
 Song, L., et al. T1K: efficient and accurate KIR and HLA genotyping with next-generation sequencing data
 
-	Copyright (C) 2021- and GNU GPL by Li Song, Heng Li
+	Copyright (c) 2021 Li Song, Bo Li, Heng Li
 
 Includes portions copyright from: 
 
@@ -105,7 +105,7 @@ The other outputs files are:
 Databases like PharmVar represent the variations of the alleles in the form of VCF file. T1K provides the scripts for generating the EMBL-ENA formatted dat file from VCF files. The dat file can then be used in "t1k-build" to create the reference files. Please refer to the tutorial in the vcf_database folder.
 
 * #### Custom database with known sequences
-If you have collected the linear sequences for the interested alleles, you can directyl build the reference sequence. The allele name should be in the formation like "gene_name\*ABCDEFG". T1K reports the genotype at the allele series level, so by default it will report the allele "gene_name\*ABC" using three digits. If you have a special format for allele ids, you can feed the information to T1K throught the option "--alleleDigitUnits" and "--alleleDigitDelimiter". For example, the delimiter in HLA allele is ":", and if you want to genotype with first four digits (two digit units/groups), you can run T1K with options "--alleleDigitUnits 2 --alleleDigitDelimiter :".
+If you have collected the linear sequences for the interested alleles, you can directly build the reference sequence. The allele name should be in the formation like "gene_name\*ABCDEFG". T1K reports the genotype at the allele series level, so by default it will report the allele "gene_name\*ABC" using three digits. If you have a special format for allele ids, you can feed the information to T1K throught the option "--alleleDigitUnits" and "--alleleDigitDelimiter". For example, the delimiter in HLA allele is ":", and if you want to genotype with first four digits (two digit units/groups), you can run T1K with options "--alleleDigitUnits 2 --alleleDigitDelimiter :".
 
 * #### SMART-Seq data
 
