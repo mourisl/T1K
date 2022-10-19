@@ -27,7 +27,7 @@ The dat file should look similar to the dat file from IPD-IMGT/HLA and IPD-KIR.
 
 2.2 Generate the reference files
 
-	perl {T1K_PATH}/t1k-build.pl -d cyp2d6 -g gencode.gtf -o cyp2d6_idx --prefix cyp2d6 
+	perl {T1K_PATH}/t1k-build.pl -d cyp2d6.dat -g gencode.gtf -o cyp2d6_idx --prefix cyp2d6 
 
 #### step 3: running T1K for genotyping
 
