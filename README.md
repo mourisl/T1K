@@ -20,7 +20,7 @@ T1K (The ONE genotyper for Kir and HLA) is a computational tool to infer the all
 
 1. Clone the [GitHub repo](https://github.com/mourisl/T1K), e.g. with `git clone https://github.com/mourisl/T1K.git`
 2. Run `make` in the repo directory
-3. Optional: If you want to update the allele reference sequences of IPD-IMGT/HLA and IPD-KIR datbases, run 
+3. Generate the allele reference sequences of IPD-IMGT/HLA and IPD-KIR datbases. You can also find pre-built indices in the release page.
 ```
 	perl t1k-build.pl -o hlaidx --download IPD-IMGT/HLA
 	perl t1k-build.pl -o kiridx --download IPD-KIR
