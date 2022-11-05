@@ -29,6 +29,8 @@ You will find the executable files in the downloaded directory. If you want to r
 
 T1K depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads) and samtools depends on [zlib](http://en.wikipedia.org/wiki/Zlib). 
 
+T1K is also available from [Bioconda](https://bioconda.github.io/recipes/t1k/README.html?highlight=t1k). You can install T1K with `conda install -c bioconda t1k`.
+
 ### Usage
 
 	Usage: ./run-t1k [OPTIONS]
