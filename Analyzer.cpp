@@ -181,6 +181,7 @@ void *ReadAssignmentToFragmentAssignment_Thread(void *pArg)
 			reads1[i].fragmentAssigned = true ;
 		fragmentAssignments[i] = fragmentAssignment ;
 	}
+	pthread_exit( NULL ) ;
 }
 
 void *AddFragmentAlignmentInfo_Thread(void *pArg)
@@ -209,6 +210,7 @@ void *AddFragmentAlignmentInfo_Thread(void *pArg)
 		else
 			refSet.AddFragmentAlignmentInfo(reads1[i].seq, NULL, fragmentAssignments[i]) ;
 	}
+	pthread_exit( NULL ) ;
 }
 
 int main(int argc, char *argv[])
