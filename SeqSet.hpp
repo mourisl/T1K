@@ -135,7 +135,7 @@ struct _overlap
 			return similarity >= b.similarity ;	
 	}
 
-	double UpdateSimilarity( int rlen, int slen, int mcnt )
+	void UpdateSimilarity( int rlen, int slen, int mcnt )
 	{
 		double origLen = matchCnt / similarity ;
 		similarity = ( matchCnt + mcnt ) / ( origLen + rlen + slen ) ;
@@ -988,7 +988,7 @@ public:
 		seqs[seqIdx].weight += update;
 	}
 
-	int SetSeqWeight(int seqIdx, int weight)
+	void SetSeqWeight(int seqIdx, int weight)
 	{
 		seqs[seqIdx].weight = weight ;
 	}
@@ -2819,6 +2819,7 @@ public:
 				psum += seq.exons[i].b - seq.exons[i].a + 1 ;
 			}
 		}	
+		return psum ;
 	}
 	
 	int InferKmerLength()
@@ -2838,7 +2839,7 @@ public:
 		return ret ;
 	}
 
-	int UpdateKmerLength(int kl)
+	void UpdateKmerLength(int kl)
 	{
 		int i ;
 		int seqCnt = seqs.size() ;
