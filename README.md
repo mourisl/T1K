@@ -76,14 +76,14 @@ T1K is also available from [Bioconda](https://bioconda.github.io/recipes/t1k/REA
 * ##### User cases 
 ```	
 	# Genotyping HLA on RNA-seq data
-	./t1k -1 read_1.fq -2 read_2.fq --preset hla -f hlaidx/hla_rna_seq.fa 
+	./t1k -1 read_1.fq -2 read_2.fq --preset hla -f hlaidx/hlaidx_rna_seq.fa 
 	# Genotyping KIR on whole genome sequencing data
-	./t1k -1 read_1.fq -2 read_2.fq --preset kir-wgs -f kiridx/kir_dna_seq.fa 
+	./t1k -1 read_1.fq -2 read_2.fq --preset kir-wgs -f kiridx/kiridx_dna_seq.fa 
 ```
 
 ### Input/Output
 
-The primary input to T1K is the raw RNA-seq files in fasta/fastq format (-1/-2 for paired; -u for single-end; -i for interleaved), and the allele reference sequences (-f). For RNA-seq data, the user shall pick the "rna" reference file, e.g.: kiridx/kir_rna_seq.fa, for -f and -b option. For WES and WGS data, the user shall select the "dna" reference file for -f and -b.
+The primary input to T1K is the raw RNA-seq files in fasta/fastq format (-1/-2 for paired; -u for single-end; -i for interleaved), and the allele reference sequences (-f). For RNA-seq data, the user shall pick the "rna" reference file, e.g.: kiridx/kiridx_rna_seq.fa, for -f and -b option. For WES and WGS data, the user shall select the "dna" reference file for -f and -b.
 
 The alternative input to T1K is the alignment BAM file (-b), which requires -f and the gene coordinate file (-c). To create the file for -c command, you can run command like "perl t1k-build.pl -o kiridx -d kiridx/kir.da -g gencode.gtf" to create "_{dna,rna}_coord.fa" file.
 
@@ -113,7 +113,7 @@ If you have collected the linear sequences for the interested alleles, you can d
 
 We provide a wrapper "t1k-smartseq.pl" to process the files from platforms like SMART-seq. The user shall give the path to each file in a text file. An example command can be
 
-	perl t1k-smartseq.pl -1 read1_list.txt -2 read2_list.txt -t 8 -f kiridx/kir_rna_seq.fa -o T1K
+	perl t1k-smartseq.pl -1 read1_list.txt -2 read2_list.txt -t 8 -f kiridx/kiridx_rna_seq.fa -o T1K
 
 The final output file is "T1K_final_genotype.tsv". This file is a data matrix, where the rows are the cells and columns are the abundance for each identified allele.
 
@@ -123,7 +123,7 @@ For 10X Genomics data, usually the input is the BAM file from cell-ranger, and y
 
 If your input is raw FASTQ files, you can use "--barcode" to specify the barcode file and use "--barcodeRange" to tell T1K how to extract barcode information. If the barcode or UMI sequence is in the read sequence, you may use "--read1Range", "--read2Range" to tell T1K how to extract sequence information in the reads. T1K supports using wildcard in the -1 -2/-u option, so a typical way to run 10X Genomics single-end data is by:
 
-	run-t1k -f kiridx/kir_rna_seq.fa -u path_to_10X_fastqs/*_R2_*.fastq.gz --barcode path_to_10X_fastqs/*_R1_*.fastq.gz --barcodeRange 0 15 + --barcodeWhitelist cellranger_folder/cellranger-cs/VERSION/lib/python/cellranger/barcodes/737K-august-2016.txt [other options]
+	run-t1k -f kiridx/kiridx_rna_seq.fa -u path_to_10X_fastqs/*_R2_*.fastq.gz --barcode path_to_10X_fastqs/*_R1_*.fastq.gz --barcodeRange 0 15 + --barcodeWhitelist cellranger_folder/cellranger-cs/VERSION/lib/python/cellranger/barcodes/737K-august-2016.txt [other options]
 
 The exact options depend on your 10x Genomics kit.
 
@@ -133,7 +133,7 @@ For barcoded file, T1K will generate the data matrix file "t1k_barcode_expr.tsv"
 
 The directory './example' in this distribution contains two FASTQs as input for T1K. Run T1K with:
 
-	./run-t1k -f kiridx/kir_rna_seq.fa -1 example/example_1.bam -2 example/example_2.fa -t 8 -o T1K_example
+	./run-t1k -f kiridx/kiridx_rna_seq.fa -1 example/example_1.bam -2 example/example_2.fa -t 8 -o T1K_example
 
 ### Support
 
