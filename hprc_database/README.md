@@ -1,4 +1,4 @@
-This tutorial is about how to create the reference sequences from Human Pangenome Reference Consortirum (HPRC) genomes, where the database contains . We will use the C4(C4A, C4B) genes from downloaded from https://zenodo.org/record/6617246#.Y1ih9-zMLzc (C4-96.agc) as an example.
+This tutorial is about how to create the reference sequences from Human Pangenome Reference Consortirum (HPRC) genomes. We will use the C4(C4A, C4B) genes from downloaded from https://zenodo.org/record/6617246#.Y1ih9-zMLzc (C4-96.agc) as an example.
 
 #### step 0: prerequisite files
 You will need the gene annotation file such as from gencode (gencode.gtf) and the program liftoff (https://github.com/agshumate/Liftoff). For this particular example, you need agc to decompress the phased genomes of HPRC.
