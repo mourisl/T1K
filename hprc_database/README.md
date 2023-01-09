@@ -13,7 +13,7 @@ You will need the gene annotation file such as from gencode (gencode.gtf) and th
 
 Make the {T1K_PATH}/hprc_database/ your current folder. 
 
-Note that the first sequence in the fasta file (C4-96.fa here) has to be the geneome corresponding to the gene annotation GTF file. 
+Note that the first sequence in the fasta file (C4-96.fa here) has to be the geneome corresponding to the gene annotation GTF file, i.e. hg38. 
 
 #### step 2: modify gene annotation GTF file  
 
@@ -29,7 +29,7 @@ Note that the first sequence in the fasta file (C4-96.fa here) has to be the gen
 
 	perl ProcessMultipleGenomesToDat.pl -g C4-96.fa -a C4_shift.gtf > C4-96.dat 
 
-This step will create a dummy allele id for C4A and C4B, respectively. For example, it assigns C4A*001 and C4B*001 for the first genome in C4-96.fa), and use 002, 003, so on so forth.
+This step will create a dummy allele id for C4A and C4B, respectively. For example, it assigns C4A\*001 and C4B\*001 for the first genome in C4-96.fa), and use 002, 003, so on so forth.
 
 The origin phased genome id for each dummy allele is recorded in the dat file, and you can find the mappings by:
 	
