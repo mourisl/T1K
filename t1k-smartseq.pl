@@ -116,7 +116,7 @@ close $FP2 if ($hasMate) ;
 
 # Reduce the reference sequence 
 my $cellCount = scalar(@cells) ;
-my $qualityFilter = $cellCount / 2 ;
+my $qualityFilter = $cellCount * 2 ;
 $qualityFilter = 30 if ($qualityFilter < 30) ;
 my $mergedGenotypeFile = "${outputPrefix}_merged_genotype.tsv" ;
 system("python3 $WD/t1k-merge.py --tq $qualityFilter -l ${outputPrefix}_genotype_list.out > $mergedGenotypeFile") ;
@@ -133,6 +133,8 @@ foreach my $allele (split /\s/, $header)
 	$allele =~ s/\*/\\\*/g ;
 	$selectedAlleles{$allele} = 1 ;
 }
+
+die "No qualified allele found.\n" if (scalar(%selectedAlleles) == 0) ;
 
 open FPref, $referenceFile ;
 open FPreducedref, ">$reducedReferenceFile" ;
