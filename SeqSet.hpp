@@ -827,6 +827,11 @@ public:
 		return seqs[seqIdx].effectiveLen ;
 	}
 	
+	void SetSeqEffectiveLen( int seqIdx, int len )
+	{
+		seqs[seqIdx].effectiveLen = len ;	
+	}
+	
 	void SetRefSeqSimilarity(double s)
 	{
 		refSeqSimilarity = s ;

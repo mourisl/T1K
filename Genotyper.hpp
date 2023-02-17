@@ -531,10 +531,10 @@ public:
 	
 	void InitAlleleInfo()
 	{
-		int i, j ;
+		int i, j, k ;
 		alleleCnt = refSet.Size() ;
 		alleleInfo.ExpandTo(alleleCnt) ;
-		
+			
 		for ( i = 0 ; i < alleleCnt ; ++i )	
 		{
 			char *allele = refSet.GetSeqName(i) ;
@@ -565,7 +565,8 @@ public:
 			alleleInfo[i].genotypeQuality = -1 ;
 			majorAlleleSize[ alleleInfo[i].majorAlleleIdx ] += refSet.GetSeqWeight(i) ;
 		}
-		
+	
+		// Compute gene similarity
 		geneSimilarity = new double*[geneCnt] ;
 		KmerCount *kmerProfiles = new KmerCount[geneCnt];
 		for (i = 0 ; i < geneCnt ; ++i)
@@ -609,6 +610,47 @@ public:
 		}
 		delete[] kmerProfiles ;
 
+		// Adjust allele effective length
+		std::map< int, std::vector<int> > geneIdxToAlleleIdx ;
+		for (i = 0 ; i < geneCnt ; ++i)
+			geneIdxToAlleleIdx[i] = std::vector<int>() ;
+		for (i = 0 ; i < alleleCnt ; ++i)
+			geneIdxToAlleleIdx[ alleleInfo[i].geneIdx ].push_back(i) ;
+		for (i = 0 ; i < geneCnt ; ++i)
+		{
+			SimpleVector<int> lens ;
+			std::vector<int> &alleleIds = geneIdxToAlleleIdx[i] ;
+			int size = alleleIds.size() ;
+			lens.ExpandTo(size) ;
+			for (j = 0 ; j < size ; ++j)
+				lens[j] = refSet.GetSeqEffectiveLen( alleleIds[j] ) ;
+			std::sort(lens.BeginAddress(), lens.EndAddress()) ;
+			
+			int lenMode = 0 ;
+			int max = 0 ;
+			for (j = 0 ; j < size ; )
+			{
+				for (k = j ; k < size ; ++k)
+					if (lens[k] != lens[j])
+						break ;
+				if (k - j > max)
+				{
+					max = k - j ;
+					lenMode = lens[j] ;
+				}
+				j = k ;
+			}
+			
+			const int largeDeletion = 500 ;
+			for (j = 0 ; j < size ; ++j)
+			{
+				if (refSet.GetSeqEffectiveLen( alleleIds[j] ) < lenMode - largeDeletion)
+				{
+					refSet.SetSeqEffectiveLen(alleleIds[j], lenMode) ;
+					//printf("%s changed\n", majorAlleleIdxToName[ alleleInfo[ alleleIds[j] ].majorAlleleIdx].c_str()) ;
+				}
+			}
+		}
 	}
 
 	void InitRefSet(char *filename)
