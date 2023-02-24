@@ -173,7 +173,7 @@ while (<FP>)
 			else
 			{
 				my $outputSeq = "" ;
-				last if ($mode ne "rna" && $hasIntron == 0) ;
+				last if ($mode ne "rna" && $hasIntron == 0 && scalar(@exons) > 2) ;
 				last if ($allele eq "-1") ;
 				last if (scalar(@exons) == 0) ;
 				# UTR before
