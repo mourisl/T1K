@@ -54,6 +54,7 @@ T1K is also available from [Bioconda](https://bioconda.github.io/recipes/t1k/REA
 		--crossGeneRate FLOAT: the effect from other gene's expression (0.04)
 		--alleleDigitUnits INT: the number of units in genotyping result. (default: automatic)
 		--alleleDelimiter CHR: the delimiter character for digit unit. (default: automatic)
+		--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)
 		--barcode STRING: if -b, BAM field for barcode; if -1 -2/-u, file containing barcodes (default: not used)
 		--barcodeRange INT INT CHAR: start, end(-1 for length-1), strand in a barcode is the true barcode (default: 0 -1 +)
 		--barcodeWhitelist STRING: path to the barcode whitelist (default: not used)

@@ -22,6 +22,7 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t-o STRING: output prefix (defult: t1k)\n"
 		"\t-n INT: maximal number of alleles per read (default: 2000)\n"
 		"\t-s FLOAT: filter alignments with alignment similarity less than specified value (defalut: 0.8)\n"
+		"\t--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)"
 		"\t--barcode STRING: path to the barcode file\n"
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
@@ -47,6 +48,7 @@ static struct option long_options[] = {
 	{ "relaxIntronAlign", no_argument, 0, 10004 },
 	{ "alleleDigitUnits", required_argument, 0, 10005 },  
 	{ "alleleDelimiter", required_argument, 0, 10006 },  
+	{ "alleleWhitelist", required_argument, 0, 10007 },  
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -211,6 +213,7 @@ int main(int argc, char *argv[])
 	int threadCnt = 1 ;
 	int maxAssignCnt = 2000 ;
 	FILE *fpAbundance = NULL ;
+	FILE *fpAlleleWhitelist = NULL ;
 	FILE *fpOutput ;
 	double filterFrac = 0.15 ;
 	double filterCov = 1.0 ;
@@ -298,6 +301,10 @@ int main(int argc, char *argv[])
 		{
 			alleleDelimiter = optarg[0] ;
 		}
+		else if ( c == 10007 )
+		{
+			fpAlleleWhitelist = fopen(optarg, "r") ;
+		}
 		else
 		{
 			fprintf( stderr, "%s", usage ) ;
@@ -315,6 +322,11 @@ int main(int argc, char *argv[])
 	genotyper.SetCrossGeneRate(crossGeneRate) ;
 	genotyper.SetAlleleNameStructure(alleleDigitUnits, alleleDelimiter) ;
 	genotyper.InitRefSet(refFile) ;
+	if (fpAlleleWhitelist != NULL)
+	{
+		genotyper.SetAlleleWhitelist(fpAlleleWhitelist) ;
+		fclose(fpAlleleWhitelist) ;
+	}
 	
 	SeqSet &refSet = genotyper.refSet ;
 	if ( refSet.Size() == 0 )

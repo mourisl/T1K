@@ -1,6 +1,7 @@
 #ifndef _MOURISL_GENOTYPER
 #define _MOURISL_GENOTYPER
 
+#include <set>
 #include <math.h>
 
 #include "SeqSet.hpp"
@@ -25,6 +26,8 @@ struct _alleleInfo
 	double ecAbundance ; // the abundance for the equivalent class.
 
 	int missingCoverage ;
+
+	bool whitelist ; 
 } ;
 
 struct _readGroupInfo
@@ -528,7 +531,7 @@ public:
 		alleleDigitUnits = n ;
 		alleleDelimiter = d ;
 	}
-	
+		
 	void InitAlleleInfo()
 	{
 		int i, j, k ;
@@ -563,6 +566,7 @@ public:
 			alleleInfo[i].alleleRank = -1 ;
 			alleleInfo[i].abundance = 0 ;
 			alleleInfo[i].genotypeQuality = -1 ;
+			alleleInfo[i].whitelist = true ;
 			majorAlleleSize[ alleleInfo[i].majorAlleleIdx ] += refSet.GetSeqWeight(i) ;
 		}
 	
@@ -650,6 +654,29 @@ public:
 					//printf("%s changed\n", majorAlleleIdxToName[ alleleInfo[ alleleIds[j] ].majorAlleleIdx].c_str()) ;
 				}
 			}
+		}
+	}
+
+	void SetAlleleWhitelist(FILE *fpAlleleWhitelist)
+	{
+		char alleleName[256] ;
+		int i ;
+		for (i = 0 ; i < alleleCnt ; ++i)
+			alleleInfo[i].whitelist = false ;
+
+		std::set<int> selectedMajorAlleles ;
+		while (fscanf(fpAlleleWhitelist, "%s", alleleName) != EOF)
+		{
+			ParseAlleleName(alleleName, geneBuffer, majorAlleleBuffer) ;
+			std::string sMajorAllele(majorAlleleBuffer) ;
+			if (majorAlleleNameToIdx.find( sMajorAllele ) != majorAlleleNameToIdx.end() )
+				selectedMajorAlleles.insert( majorAlleleNameToIdx[sMajorAllele] ) ;
+		}
+
+		for (i = 0 ; i < alleleCnt ; ++i)
+		{
+			if (selectedMajorAlleles.find( alleleInfo[i].majorAlleleIdx ) != selectedMajorAlleles.end() )
+				alleleInfo[i].whitelist = true ;
 		}
 	}
 
@@ -768,6 +795,8 @@ public:
 		for (i = 0; i < assignmentCnt; ++i)
 		{
 			struct _readAssignment na ;
+			if (!alleleInfo[ assignment[i].seqIdx ].whitelist)
+				continue ;
 			na.alleleIdx = assignment[i].seqIdx ;
 			na.start = assignment[i].seqStart ;
 			na.end = assignment[i].seqEnd ;
