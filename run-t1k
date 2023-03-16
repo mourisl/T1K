@@ -45,7 +45,7 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
 		"\t\tkir-wgs: KIR genotyping on WGS data\n".
 		"\t\tkir-wes: KIR genotyping on WES data\n".
     "\t--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)\n".
-		"\t--skipPostAnaysis: only conduct genotyping. (default: conduct the post analysis)\n".
+		"\t--skipPostAnalysis: only conduct genotyping. (default: conduct the post analysis)\n".
     "\t--stage INT: start genotyping on specified stage (default: 0):\n".
     "\t\t0: start from beginning (candidate read extraction)\n".
     "\t\t1: start from genotype with candidate reads\n".

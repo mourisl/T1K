@@ -68,7 +68,7 @@ T1K is also available from [Bioconda](https://bioconda.github.io/recipes/t1k/REA
 			kir-wgs: KIR genotyping on WGS data
 			kir-wes: KIR genotyping on WES data
 		--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)
-		--skipPostAnaysis: only conduct genotyping. (default: do the post analysis)
+		--skipPostAnalysis: only conduct genotyping. (default: do the post analysis)
 		--stage INT: start genotyping on specified stage (default: 0):
 			0: start from beginning (candidate read extraction)
 			1: start from genotype with candidate reads
