@@ -18,11 +18,14 @@ def LogNormalLikelihoodFactor(x, params):
 	return -0.5 * math.pow((x - mu)/sigma, 2) - math.log(sigma)
 
 def AbundTransform(x):
+	#return x
 	return math.sqrt(x)
 
 if (__name__ == "__main__"):
 	parser = argparse.ArgumentParser(description = "Infer the allele copy number. Output directly to stdout.")
 	parser.add_argument("-g", help="T1K's genotyping result file", dest="gfile", required=True)
+	parser.add_argument("--nomissing", help="A comma separated list of genes that should be on every chromosome", dest="nomissing_list",
+			required=False, default="")
 	parser.add_argument("--upper-quantile", help="The upper quantile of alleles used to inference one-copy parameters", dest="upper_quantile", required=False, default=0.5)
 	parser.add_argument("--lower-quantile", help="The upper quantile of alleles used to inference one-copy parameters", dest="lower_quantile", required=False, default=0)
 	parser.add_argument("--adjust-var", help="Adjust variance by the given factor", dest="adjust_var", required=False, default=1.0)
@@ -33,6 +36,10 @@ if (__name__ == "__main__"):
 	geneRank = {}
 	geneToAlleles = {}
 	alleleInfo = {}
+	
+	nomissingGenes = {}
+	if (args.nomissing_list != ""):
+		nomissingGenes = {g:1 for g in args.nomissing_list.split(",")}
 
 	# Read in the allele information
 	fp = open(args.gfile)
@@ -57,16 +64,25 @@ if (__name__ == "__main__"):
 			geneToAlleles[cols[0]].append(allele)
 			alleleIdx += 1
 	fp.close()
-
-	start = int(len(alleleInfo) * float(args.lower_quantile))
-	end = int(len(alleleInfo) * float(args.upper_quantile)) + 1
-	abundances = sorted([AbundTransform(alleleInfo[a]["abund"]) for a in alleleInfo])[start:end]
+	
+	abundances = []
+	if len(nomissingGenes) > 0:
+		for g in nomissingGenes:
+			if (g not in geneToAlleles):
+				continue
+			if (len(geneToAlleles[g]) > 1):
+				for a in geneToAlleles[g]:
+					abundances.append(AbundTransform(alleleInfo[a]["abund"])) 
+			elif (len(geneToAlleles[g]) == 1):
+				abundances.append(AbundTransform(alleleInfo[ geneToAlleles[g][0] ]["abund"]) / 2 ) 
+	else:
+		start = int(len(alleleInfo) * float(args.lower_quantile))
+		end = int(len(alleleInfo) * float(args.upper_quantile)) + 1
+		abundances = sorted([AbundTransform(alleleInfo[a]["abund"]) for a in alleleInfo])[start:end]
 	inspectAlleleCnt = len(abundances)
-
 	# Infer the parameters 
 	mean = sum(abundances)/inspectAlleleCnt
 	var = sum([a*a for a in abundances]) / inspectAlleleCnt - mean * mean
-
 	var *= float(args.adjust_var)
 	#mean *= float(args.adjust_var)
 
