@@ -24,7 +24,7 @@ def AbundTransform(x):
 if (__name__ == "__main__"):
 	parser = argparse.ArgumentParser(description = "Infer the allele copy number. Output directly to stdout.")
 	parser.add_argument("-g", help="T1K's genotyping result file", dest="gfile", required=True)
-	parser.add_argument("--nomissing", help="A comma separated list of genes that should be on every chromosome", dest="nomissing_list",
+	parser.add_argument("--nomissing", help="A comma separated list of genes that should be on every chromosome (will ignore the quantile options below)", dest="nomissing_list",
 			required=False, default="")
 	parser.add_argument("--upper-quantile", help="The upper quantile of alleles used to inference one-copy parameters", dest="upper_quantile", required=False, default=0.5)
 	parser.add_argument("--lower-quantile", help="The upper quantile of alleles used to inference one-copy parameters", dest="lower_quantile", required=False, default=0)
