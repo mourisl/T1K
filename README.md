@@ -92,7 +92,7 @@ T1K outputs several files. t1k_genotype.tsv is the main output file holding the 
 
 	gene_name num_alleles allele_1 abundance_1 quality_1 allele_2 abundance_2 quality_2
 
-In the case of missing allele, the triple (allele, abundance, quality) will be ". 0 -1". 
+In the case of missing allele, the triple (allele, abundance, quality) will be ". 0 -1". We recommend to ignore alleles with quality less or equal to 0. 
 
 The other outputs files are: 
 
