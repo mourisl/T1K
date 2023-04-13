@@ -36,3 +36,5 @@ You can run T1K to genotype CYP2D6 with RNA-seq data using command:
 	{T1K_PATH}/run-t1k -f cyp2d6_idx/cyp2d6_rna_seq.fa -1 read_1.fq -2 read_2.fq --alleleDigitUnits 1 --alleleDelimiter . -t 8
 
 The command will genotype CYP2D6 to the digit before "." symbol, i.e. "CYP2D6*1".
+
+The output example and the dat EMBL-ENA format dat file can be found in the cyp2d6_idx folder.
