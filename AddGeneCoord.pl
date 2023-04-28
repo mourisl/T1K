@@ -6,7 +6,7 @@ use warnings ;
 die "usage: a.pl ipdkir_seq.fa gencode.gtf > gene_coord.fa\n" if (@ARGV == 0) ;
 
 my %geneCoord ;
-my $hasChrPrefix = 1 ;
+my $hasChrPrefix = 1 ; # whether the output include chr prefix
 my $defaultChr = "chr19" ;
 $defaultChr = "19" if ($hasChrPrefix == 0) ;
 
@@ -49,8 +49,11 @@ while (<FP>)
 	{
 		$cols[0] = substr( $cols[0], 3 ) ;
 	}
-	
-	$geneCoord{$gname} = join(" ", ($cols[0], $cols[3], $cols[4], $cols[6])) ;
+
+	if (defined $geneCoord{$gname} && (split /\s/, $geneCoord{$gname})[1] == -1)
+	{
+		$geneCoord{$gname} = join(" ", ($cols[0], $cols[3], $cols[4], $cols[6])) ;
+	}
 }
 close FP ;
 
