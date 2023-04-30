@@ -86,7 +86,7 @@ T1K is also available from [Bioconda](https://bioconda.github.io/recipes/t1k/REA
 
 The primary input to T1K is the raw RNA-seq files in fasta/fastq format (-1/-2 for paired; -u for single-end; -i for interleaved), and the allele reference sequences (-f). For RNA-seq data, the user shall pick the "rna" reference file, e.g.: kiridx/kiridx_rna_seq.fa, for -f and -b option. For WES and WGS data, the user shall select the "dna" reference file for -f and -b.
 
-The alternative input to T1K is the alignment BAM file (-b), which requires -f and the gene coordinate file (-c). To create the file for -c command, you can run command like "perl t1k-build.pl -o kiridx -d kiridx/kir.da -g gencode.gtf" to create "_{dna,rna}_coord.fa" file.
+The alternative input to T1K is the alignment BAM file (-b), which requires -f and the gene coordinate file (-c). To create the file for -c command, you can run command like "perl t1k-build.pl -o kiridx -d kiridx/kir.dat -g gencode.gtf" to create "_{dna,rna}_coord.fa" file.
 
 T1K outputs several files. t1k_genotype.tsv is the main output file holding the genotyping result, where the allele for each gene is on its own line with format:
 
