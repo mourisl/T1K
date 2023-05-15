@@ -64,7 +64,8 @@ T1K is also available from [Bioconda](https://bioconda.github.io/recipes/t1k/REA
 		--abnormalUnmapFlag: the flag in BAM for the unmapped read-pair is nonconcordant (default: not set)
 		--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)
 		--preset STRING: preset parameters for cases requiring non-default settings:
-			hla: HLA genotyping
+			hla: HLA genotyping in general
+			hla-wgs: HLA genotyping on WGS data
 			kir-wgs: KIR genotyping on WGS data
 			kir-wes: KIR genotyping on WES data
 		--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)
@@ -129,6 +130,13 @@ If your input is raw FASTQ files, you can use "--barcode" to specify the barcode
 The exact options depend on your 10x Genomics kit.
 
 For barcoded file, T1K will generate the data matrix file "t1k_barcode_expr.tsv" file, where rows are the barcodes and columns are the allele abundances. Due to the shallow coverage in 10x Genomics data, the results need to be interpret with caution.
+
+* #### Preset parameters
+T1K's default parameter is based on RNA-seq data input, but it provides a series of preset parameters for different genotyping scenarios. The rationale for requiring different sets of parameters comes from two parts:
+
+1. When the reference database is far from complete, we need lower a lower specificity alignment parameter to incorporate reads from a missing exact allele but may have a homologous allele in the same series (lower value for -s). Furthermore, the intron sequence in such database is even less representative, therefore we need to set "--relaxIntronAlign" to allow more variations in intron region during read alignment. 
+
+2. When the sequencing data is WGS, the reads can come from more regions on the genomes. Therefore, we need a higher specificity alignment parameter to exclude reads from other regions (higher value for -s).
 
 ### Example
 
