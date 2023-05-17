@@ -26,7 +26,7 @@ if (__name__ == "__main__"):
 	parser.add_argument("-g", help="T1K's genotyping result file", dest="gfile", required=True)
 	parser.add_argument("--nomissing", help="A comma separated list of genes that should be on every chromosome for inference one-copy parameters (will ignore the quantile options below)", dest="nomissing_list",
 			required=False, default="")
-	parser.add_argument("--upper-quantile", help="The upper quantile of alleles used to inference one-copy parameters", dest="upper_quantile", required=False, default=0.5)
+	parser.add_argument("--upper-quantile", help="The upper quantile of alleles used to inference one-copy parameters (the alleles are from the predicted heterogzyous genes)", dest="upper_quantile", required=False, default=0.3)
 	parser.add_argument("--lower-quantile", help="The upper quantile of alleles used to inference one-copy parameters", dest="lower_quantile", required=False, default=0)
 	parser.add_argument("--adjust-var", help="Adjust variance by the given factor", dest="adjust_var", required=False, default=1.0)
 	parser.add_argument("-q", help="ignore allels with less or equal quality scores", dest="qual", required=False, default=0)
@@ -66,6 +66,7 @@ if (__name__ == "__main__"):
 	fp.close()
 	
 	abundances = []
+	usedAlleles = 0
 	if len(nomissingGenes) > 0:
 		for g in nomissingGenes:
 			if (g not in geneToAlleles):
@@ -75,10 +76,20 @@ if (__name__ == "__main__"):
 					abundances.append(AbundTransform(alleleInfo[a]["abund"])) 
 			elif (len(geneToAlleles[g]) == 1):
 				abundances.append(AbundTransform(alleleInfo[ geneToAlleles[g][0] ]["abund"]) / 2 ) 
-	else:
-		start = int(len(alleleInfo) * float(args.lower_quantile))
-		end = int(len(alleleInfo) * float(args.upper_quantile)) + 1
-		abundances = sorted([AbundTransform(alleleInfo[a]["abund"]) for a in alleleInfo])[start:end]
+			usedAlleles += len(geneToAlleles[g])
+
+	start = int((len(alleleInfo) - usedAlleles) * float(args.lower_quantile))
+	end = int((len(alleleInfo) - usedAlleles) * float(args.upper_quantile)) 
+	#abundances = sorted([AbundTransform(alleleInfo[a]["abund"]) for a in alleleInfo])[start:end]
+	
+	heterAlleles = {}
+	for g in geneToAlleles:
+		if (g in nomissingGenes or len(geneToAlleles[g]) <= 1):
+			continue
+		for a in geneToAlleles[g]:
+			heterAlleles[a] = 1
+	abundances.extend( sorted([AbundTransform(alleleInfo[a]["abund"]) for a in heterAlleles])[start:end] )
+	
 	inspectAlleleCnt = len(abundances)
 	# Infer the parameters 
 	mean = sum(abundances)/inspectAlleleCnt
