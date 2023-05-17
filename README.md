@@ -134,7 +134,7 @@ For barcoded file, T1K will generate the data matrix file "t1k_barcode_expr.tsv"
 * #### Preset parameters
 T1K's default parameter is based on RNA-seq data input, but it provides a series of preset parameters for different genotyping scenarios. The rationale for requiring different sets of parameters comes from two parts:
 
-1. When the reference database is far from complete, we need lower a lower specificity alignment parameter to incorporate reads from a missing exact allele but may have a homologous allele in the same series (lower value for -s). Furthermore, the intron sequence in such database is even less representative, therefore we need to set "--relaxIntronAlign" to allow more variations in intron region during read alignment. 
+1. When the reference database is far from complete, we need a lower specificity alignment strategy to incorporate reads from a missing exact allele but may have a homologous allele in the same series (lower value for -s). Furthermore, the intron sequence in such database is even less representative, therefore we need to set "--relaxIntronAlign" to allow more variations in intron region during read alignment. 
 
 2. When the sequencing data is WGS, the reads can come from more regions on the genomes. Therefore, we need a higher specificity alignment parameter to exclude reads from other regions (higher value for -s).
 
