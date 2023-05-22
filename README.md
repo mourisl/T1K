@@ -3,7 +3,7 @@ T1K
 
 Described in: 
 
-Song, L., et al. T1K: efficient and accurate KIR and HLA genotyping with next-generation sequencing data
+Song, L., et al. Efficient and accurate KIR and HLA genotyping with massively parallel sequencing data. Genome Res. 2023 May 11;gr.277585.122. doi: 10.1101/gr.277585.122. 
 
 	Copyright (c) 2021 Li Song, Bo Li, Heng Li
 
