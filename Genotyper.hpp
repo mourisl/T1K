@@ -806,6 +806,12 @@ public:
 			allReadAssignments[readId].push_back(na) ;
 		}
 	}
+
+  // Should only be called on the reads without coalescing
+  std::vector<struct _readAssignment> GetReadAssignments(int readId)
+  {
+    return allReadAssignments[readId] ;
+  }
 		
 	// Coalesce the [begin,end] all reads to the read assignment
 	int CoalesceReadAssignments(int begin, int end)

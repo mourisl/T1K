@@ -30,6 +30,7 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n"
 		"\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n"
 		"\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n"
+    "\t--outputReadAssignment: output the allele assignment for each read to prefix_assign.tsv file (default: not used)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -49,6 +50,7 @@ static struct option long_options[] = {
 	{ "alleleDigitUnits", required_argument, 0, 10005 },  
 	{ "alleleDelimiter", required_argument, 0, 10006 },  
 	{ "alleleWhitelist", required_argument, 0, 10007 },  
+	{ "outputReadAssignment", no_argument, 0, 10008 },  
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -223,6 +225,7 @@ int main(int argc, char *argv[])
 	bool relaxIntronAlign = false ;
 	int alleleDigitUnits = -1 ;
 	char alleleDelimiter = '\0' ;
+  bool outputReadAssignment = false ;
 	std::map<std::string, int> barcodeStrToInt ;
 	std::vector<std::string> barcodeIntToStr ;
 
@@ -305,6 +308,10 @@ int main(int argc, char *argv[])
 		{
 			fpAlleleWhitelist = fopen(optarg, "r") ;
 		}
+    else if ( c == 10008 ) 
+    {
+      outputReadAssignment = true ;
+    }
 		else
 		{
 			fprintf( stderr, "%s", usage ) ;
@@ -508,6 +515,13 @@ int main(int argc, char *argv[])
 	}
 	
 	const int coalesceSize = 500000 ;
+  fpOutput = NULL ;
+  if (outputReadAssignment)
+  {
+    sprintf(buffer, "%s_assign.tsv", outputPrefix) ;
+    fpOutput = fopen(buffer, "w") ;
+  }
+
 	if (threadCnt == 1)
 	{
 		int coalesceStart = 0 ;
@@ -532,6 +546,15 @@ int main(int argc, char *argv[])
 						assignments[j].overlap2.seqStart, assignments[j].overlap2.seqEnd);
 #endif
 			genotyper.SetReadAssignments(i, fragmentAssignment ) ;	
+      if (outputReadAssignment)
+      {
+        std::vector<struct _readAssignment> assignments = genotyper.GetReadAssignments(i) ;
+        for (int j = 0 ; j < assignments.size() ; ++j)
+          fprintf(fpOutput, "%s\t%s\t%d\t%d\n", 
+              reads1[i].id, refSet.GetSeqName(assignments[j].alleleIdx),
+              assignments[j].start, assignments[j].end) ;
+      }
+
 			if (fragmentAssignment.size() > 0)
 				reads1[i].fragmentAssigned = true ;
 
@@ -573,6 +596,17 @@ int main(int argc, char *argv[])
 			for ( i = 0 ; i < threadCnt ; ++i )
 				pthread_join( threads[i], NULL ) ;
 			
+      if (outputReadAssignment)
+      {
+        for (i = start ; i < readCnt && i < start + coalesceSize ; ++i)
+        {
+          std::vector<struct _readAssignment> assignments = genotyper.GetReadAssignments(i) ;
+          for (int j = 0 ; j < assignments.size() ; ++j)
+            fprintf(fpOutput, "%s\t%s\t%d\t%d\n", 
+                reads1[i].id, refSet.GetSeqName(assignments[j].alleleIdx),
+                assignments[j].start, assignments[j].end) ;
+        }
+      }
 			alignedFragmentCnt += genotyper.CoalesceReadAssignments(start, end) ;
 		}
 		pthread_attr_destroy(&attr);
@@ -588,6 +622,8 @@ int main(int argc, char *argv[])
 		delete readAssignments[i] ;
 		i = j ;
 	}
+  if (outputReadAssignment)
+    fclose(fpOutput) ;
 
 	genotyper.FinalizeReadAssignments() ;
 	PrintLog( "Finish read fragment assignments. %d read fragments can be assigned (average %.2lf alleles/read).", 

@@ -9,7 +9,7 @@ use File::Basename ;
 
 my $progName = "run-t1k" ;
 
-die "$progName usage: ./$progName [OPTIONS]:\n".
+die "T1K v1.0.2-r187 usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
     #"\t[Input]:\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
@@ -46,6 +46,7 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
 		"\t\tkir-wes: KIR genotyping on WES data\n".
     "\t--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)\n".
 		"\t--skipPostAnalysis: only conduct genotyping. (default: conduct the post analysis)\n".
+    "\t--outputReadAssignment: output the allele assignment for each read to prefix_assign.tsv file (default: not used)\n".
     "\t--stage INT: start genotyping on specified stage (default: 0):\n".
     "\t\t0: start from beginning (candidate read extraction)\n".
     "\t\t1: start from genotype with candidate reads\n".
@@ -227,6 +228,10 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		++$i ;
 	}
 	elsif ( $ARGV[$i] eq "--relaxIntronAlign" )
+	{
+		$genotyperArgs .= " ".$ARGV[$i] ;
+	}
+	elsif ( $ARGV[$i] eq "--outputReadAssignment" )
 	{
 		$genotyperArgs .= " ".$ARGV[$i] ;
 	}
