@@ -142,7 +142,7 @@ T1K's default parameter is based on RNA-seq data input, but it provides a series
 
 The directory './example' in this distribution contains two FASTQs as input for T1K. Run T1K with:
 
-	./run-t1k -f kiridx/kiridx_rna_seq.fa -1 example/example_1.bam -2 example/example_2.fa -t 8 -o T1K_example
+	./run-t1k -f kiridx/kiridx_rna_seq.fa -1 example/example_1.fq -2 example/example_2.fq -t 8 -o T1K_example
 
 ### Support
 
