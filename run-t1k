@@ -9,7 +9,7 @@ use File::Basename ;
 
 my $progName = "run-t1k" ;
 
-die "T1K v1.0.2-r187 usage: ./$progName [OPTIONS]:\n".
+die "T1K v1.0.3-r190 usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
     #"\t[Input]:\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".

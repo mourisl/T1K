@@ -3,7 +3,8 @@
 use strict ;
 use warnings ;
 
-die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|...] > yyy.fa\n" if (@ARGV == 0) ;
+#--partialInRnaMode INT: include explicitly annotated partial alleles if its length no less than the mode length by <int> for that gene in RNA mode. [0] 
+die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|... --partialInRnaMode INT] > yyy.fa\n" if (@ARGV == 0) ;
 
 sub FindMode
 {
@@ -32,6 +33,7 @@ my $selectAlleleFile = "" ;
 my $mode = "rna" ;
 my $genePrefix = "" ;
 my $fixGeneLength = 0 ;
+my $includePartialDiffLen = 0 ;
 
 my $i ;
 for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
@@ -51,6 +53,11 @@ for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
 		$genePrefix = uc($ARGV[$i + 1]) ;
 		++$i ;
 	}
+  elsif ($ARGV[$i] eq "--partialInRnaMode")
+  {
+    $includePartialDiffLen = $ARGV[$i + 1] ;
+    ++$i ;
+  }
 	else
 	{
 		die "Unknown option ".$ARGV[$i]."\n" ;
@@ -65,6 +72,7 @@ elsif ($mode eq "dna")
 {
 	$fixGeneLength = 1 ;
 }
+$includePartialDiffLen = -1 if ($mode ne "rna") ;
 
 if ($selectAlleleFile ne "" )
 {
@@ -310,11 +318,11 @@ while (<FP>)
 				if (!defined $partialAlleles{$allele})
 				{
 					push @alleleOrder, $allele ;
-					$alleleSeq{$allele} = $outputSeq ;
-					@{$alleleExonRegions{$allele}} = @exonActualRegion ;
 					#print(">$allele\n$outputSeq\n") ;
 				}
 
+        $alleleSeq{$allele} = $outputSeq ;
+        @{$alleleExonRegions{$allele}} = @exonActualRegion ;
 				$alleleEffectiveLength{$allele} = 2 * $utrLength ;
 				for (my $i = 0 ; $i < scalar(@exons) ; $i += 2)
 				{
@@ -326,6 +334,37 @@ while (<FP>)
 	}
 }
 close FP ;
+
+# Rescue the annotated alleles that maybe partial in DNA but complete in RNA
+# Only for mode == rna
+if ($mode eq "rna" && $includePartialDiffLen >= 0)
+{
+  my %geneEffectiveSeqLengthDist ;
+  foreach my $allele (@alleleOrder)
+  {
+    my $gene = (split /\*/, $allele)[0] ;
+    ++${$geneEffectiveSeqLengthDist{$gene}}{$alleleEffectiveLength{$allele}} ;
+  }
+  
+  my %geneLengthMode ;
+  foreach my $gene (keys %geneEffectiveSeqLengthDist)
+  {
+    $geneLengthMode{$gene} = FindMode(\%{$geneEffectiveSeqLengthDist{$gene}}) ; 
+  }
+  my @rescuedAlleles ;
+  foreach my $allele (keys %partialAlleles)
+  {
+    my $gene = (split /\*/, $allele)[0] ;
+    my $len = $alleleEffectiveLength{$allele} ;
+    next if (!defined $geneLengthMode{$gene}) ;
+    if ($len >= $geneLengthMode{$gene} - $includePartialDiffLen)
+    {
+      push @rescuedAlleles, $allele ;
+    }
+  }
+
+  push @alleleOrder, @rescuedAlleles ;
+}
 
 srand(17) ;
 my @numToNuc = ("A", "C", "G", "T") ;
