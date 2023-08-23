@@ -108,7 +108,7 @@ if ($ipdDat eq "" and $downloadPath ne "")
 	}
 	elsif (uc($downloadPath) eq "IPD-KIR")
 	{
-		system_call("curl -o $outputDirectory/kir.dat https://ftp.ebi.ac.uk/pub/databases/ipd/kir/KIR.dat") ;
+		system_call("curl -o $outputDirectory/kir.dat https://ftp.ebi.ac.uk/pub/databases/ipd/kir/kir.dat") ;
 		$ipdDat = "$outputDirectory/kir.dat"
 	}
 	else
