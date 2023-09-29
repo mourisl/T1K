@@ -91,9 +91,9 @@ The alternative input to T1K is the alignment BAM file (-b), which requires -f a
 
 T1K outputs several files. t1k_genotype.tsv is the main output file holding the genotyping result, where the allele for each gene is on its own line with format:
 
-	gene_name num_alleles allele_1 abundance_1 quality_1 allele_2 abundance_2 quality_2
+	gene_name num_diff_alleles allele_1 abundance_1 quality_1 allele_2 abundance_2 quality_2
 
-In the case of missing allele, the triple (allele, abundance, quality) will be ". 0 -1". **We recommend to ignore alleles with quality less or equal to 0**. 
+In the case of missing alleles or homozygous alleles, the triple (allele, abundance, quality) will be ". 0 -1" as place holders. **We recommend to ignore alleles with quality less or equal to 0**. 
 
 The other outputs files are: 
 
