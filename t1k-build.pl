@@ -22,7 +22,8 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
 		"\t-o STRING: output folder (default: ./)\n".
 		"\t-g STRING: genome annotation file (default: not used)\n".
 		"\t--target STRING: gene name keyword (default: no filter)\n".
-		"\t--prefix STRING: file prefix (default: based on --target or -o)\n"
+		"\t--prefix STRING: file prefix (default: based on --target or -o)\n".
+    "\t--ignore-partial: ignore partial allele at all (default: fill in intron if exons are complete)\n"
 		if (@ARGV == 0);
 
 
@@ -45,6 +46,7 @@ my $annotationFile = "" ;
 my $downloadPath = "" ;
 my $targetGene = "" ;
 my $outputPrefix = "" ;
+my $ignorePartial = 0 ;
 
 for ($i = 0 ; $i < @ARGV ; ++$i) 
 {
@@ -83,6 +85,11 @@ for ($i = 0 ; $i < @ARGV ; ++$i)
 		$outputPrefix = $ARGV[$i + 1] ;
 		++$i ;
 	}
+  elsif ( $ARGV[$i] eq "--ignorePartial")
+  {
+    $ignorePartial = 1 ;
+    ++$i ;
+  }
 	else
 	{
 		die "Unknown parameter ".$ARGV[$i]."\n" ;
@@ -141,7 +148,7 @@ if ($ipdDat ne "")
 {
 	my $options = "" ;
 	$options .= " --gene $targetGene" if ($targetGene ne "") ;
-
+  $options .= "--ignorePartial" if ($ignorePartial == 1) ;
 	system_call("perl $WD/ParseDatFile.pl $ipdDat --mode dna $options > $dnaSeqFile") ;
 	system_call("perl $WD/ParseDatFile.pl $ipdDat --mode rna $options > $rnaSeqFile") ;
 }

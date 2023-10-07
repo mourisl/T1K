@@ -4,7 +4,7 @@ use strict ;
 use warnings ;
 
 #--partialInRnaMode INT: include explicitly annotated partial alleles if its length no less than the mode length by <int> for that gene in RNA mode. [0] 
-die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|... --partialInRnaMode INT] > yyy.fa\n" if (@ARGV == 0) ;
+die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|... --partialInRnaMode INT] [--ignoreParital] > yyy.fa\n" if (@ARGV == 0) ;
 
 sub FindMode
 {
@@ -33,6 +33,7 @@ my $selectAlleleFile = "" ;
 my $mode = "rna" ;
 my $genePrefix = "" ;
 my $fixGeneLength = 0 ;
+my $ignorePartial = 0 ;
 my $includePartialDiffLen = 0 ;
 
 my $i ;
@@ -53,6 +54,11 @@ for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
 		$genePrefix = uc($ARGV[$i + 1]) ;
 		++$i ;
 	}
+  elsif ($ARGV[$i] eq "--ignorePartial")
+  {
+    $ignorePartial = 1 ;
+    ++$i ;
+  }
   elsif ($ARGV[$i] eq "--partialInRnaMode")
   {
     $includePartialDiffLen = $ARGV[$i + 1] ;
@@ -72,7 +78,7 @@ elsif ($mode eq "dna")
 {
 	$fixGeneLength = 1 ;
 }
-$includePartialDiffLen = -1 if ($mode ne "rna") ;
+$includePartialDiffLen = -1 if ($mode eq "genome") ;
 
 if ($selectAlleleFile ne "" )
 {
@@ -181,7 +187,7 @@ while (<FP>)
 			else
 			{
 				my $outputSeq = "" ;
-				last if ($mode ne "rna" && $hasIntron == 0 && scalar(@exons) > 2) ;
+				last if ($mode eq "genome" && $hasIntron == 0 && scalar(@exons) > 2) ;
 				last if ($allele eq "-1") ;
 				last if (scalar(@exons) == 0) ;
 				# UTR before
@@ -335,9 +341,8 @@ while (<FP>)
 }
 close FP ;
 
-# Rescue the annotated alleles that maybe partial in DNA but complete in RNA
-# Only for mode == rna
-if ($mode eq "rna" && $includePartialDiffLen >= 0)
+# Rescue partial alleles
+if ($includePartialDiffLen >= 0 && $ignorePartial == 0)
 {
   my %geneEffectiveSeqLengthDist ;
   foreach my $allele (@alleleOrder)
@@ -351,14 +356,110 @@ if ($mode eq "rna" && $includePartialDiffLen >= 0)
   {
     $geneLengthMode{$gene} = FindMode(\%{$geneEffectiveSeqLengthDist{$gene}}) ; 
   }
+
+  # rna-mode rescue is easy, we just find 
   my @rescuedAlleles ;
-  foreach my $allele (keys %partialAlleles)
+  if ($mode eq "rna")
   {
-    my $gene = (split /\*/, $allele)[0] ;
-    my $len = $alleleEffectiveLength{$allele} ;
-    next if (!defined $geneLengthMode{$gene}) ;
-    if ($len >= $geneLengthMode{$gene} - $includePartialDiffLen)
+    foreach my $allele (keys %partialAlleles)
     {
+      my $gene = (split /\*/, $allele)[0] ;
+      my $len = $alleleEffectiveLength{$allele} ;
+      next if (!defined $geneLengthMode{$gene}) ;
+      if ($len >= $geneLengthMode{$gene} - $includePartialDiffLen)
+      {
+        push @rescuedAlleles, $allele ;
+      }
+    }
+  }
+  elsif ($mode eq "dna")
+  {
+    # DNA mode we need to get the intronic anchor sequences 
+    # The introns should be from the alleles with common exon count
+    my %geneExonCnt ;
+    my %geneExonCntMode ;
+    foreach my $allele (@alleleOrder)
+    {
+      my $gene = (split /\*/, $allele)[0] ;
+      my $exonCnt = scalar(@{$alleleExonRegions{$allele}}) / 2 ;
+      ++${$geneExonCnt{$gene}}{$exonCnt} ;
+    }
+    
+    foreach my $gene (keys %geneExonCnt)
+    {
+      $geneExonCntMode{$gene} = FindMode(\%{$geneExonCnt{$gene}}) ; 
+    }
+    
+    # Collect the consensus of introns
+    my %geneIntronSeq ;
+    my %geneIntronSeqMode ;
+    foreach my $allele (@alleleOrder)
+    {
+      my $gene = (split /\*/, $allele)[0] ;
+      my @exons = @{$alleleExonRegions{$allele}} ;
+      my $exonCnt = scalar(@exons) / 2 ;
+      next if ($exonCnt != $geneExonCntMode{$gene}) ;
+      for ($i = 2 ; $i < 2 * $exonCnt ; $i += 2)
+      {
+        my $intronSeq = substr($alleleSeq{$allele}, $exons[$i - 1] + 1, 
+          $exons[$i] - $exons[$i - 1] - 1) ;
+        ++${${$geneIntronSeq{$gene}}{$i / 2 - 1}}{$intronSeq} ;
+      }
+    }
+    
+    foreach my $gene (keys %geneIntronSeq)
+    {
+      foreach $i (keys %{$geneIntronSeq{$gene}})
+      {
+        ${$geneIntronSeqMode{$gene}}{$i} = FindMode(\%{${$geneIntronSeq{$gene}}{$i}}) ;
+      }
+    }
+    
+    # Adding introns to the partial alleles
+    foreach my $allele (keys %partialAlleles)
+    {
+      my $gene = (split /\*/, $allele)[0] ;
+      my $len = $alleleEffectiveLength{$allele} ;
+      next if (!defined $geneLengthMode{$gene}) ;
+      next if ($len < $geneLengthMode{$gene} - $includePartialDiffLen) ;
+      my @exons = @{$alleleExonRegions{$allele}} ;
+      my $exonCnt = scalar(@exons) / 2 ;
+      next if ($exonCnt != $geneExonCntMode{$gene}) ;
+    
+      my $exonOffset = 0 ;
+      my $outputSeq = $alleleSeq{$allele} ;
+      
+      # The exons holds the final exon offset, including the paddings 
+      #   so we need to subtract those out first to get the 
+      #   coordinate on real sequence at this step.
+      my $extra3UtrLength = $allelePaddingLength{$allele}[0] ;
+      for ($i = 0 ; $i < 2 * $exonCnt ; ++$i)
+      {
+        $exons[$i] -= $extra3UtrLength ;
+      }
+
+      for ($i = 2 ; $i < 2 * $exonCnt ; $i += 2)
+      {
+        if ($exons[$i] + $exonOffset == $exons[$i - 1] + 1)
+        {
+          my $intronSeq =  ${$geneIntronSeqMode{$gene}}{$i/2 - 1} ;
+          #$outputSeq = substr($outputSeq, 0, $exons[$i - 1] + 1).
+          #            $intronSeq.
+          #            substr($outputSeq, $exons[$i]);
+          substr($outputSeq, $exons[$i - 1], 0, $intronSeq) ;
+          $exonOffset += length($intronSeq) ;
+        }
+        $exons[$i] += $exonOffset ;
+        $exons[$i + 1] += $exonOffset ;
+      }
+      
+      for ($i = 0 ; $i < 2 * $exonCnt ; ++$i)
+      {
+        $exons[$i] += $extra3UtrLength ;
+      }
+      @{$alleleExonRegions{$allele}} = @exons ;
+
+      $alleleSeq{$allele} = $outputSeq ;
       push @rescuedAlleles, $allele ;
     }
   }
