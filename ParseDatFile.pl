@@ -357,7 +357,7 @@ if ($includePartialDiffLen >= 0 && $ignorePartial == 0)
     $geneLengthMode{$gene} = FindMode(\%{$geneEffectiveSeqLengthDist{$gene}}) ; 
   }
 
-  # rna-mode rescue is easy, we just find 
+  # rna-mode rescue is easy, we just make sure the length is about right. 
   my @rescuedAlleles ;
   if ($mode eq "rna")
   {
@@ -412,6 +412,7 @@ if ($includePartialDiffLen >= 0 && $ignorePartial == 0)
       foreach $i (keys %{$geneIntronSeq{$gene}})
       {
         ${$geneIntronSeqMode{$gene}}{$i} = FindMode(\%{${$geneIntronSeq{$gene}}{$i}}) ;
+        #printf("$gene $i ".${$geneIntronSeqMode{$gene}}{$i}."\n" ) ;
       }
     }
     
@@ -432,10 +433,10 @@ if ($includePartialDiffLen >= 0 && $ignorePartial == 0)
       # The exons holds the final exon offset, including the paddings 
       #   so we need to subtract those out first to get the 
       #   coordinate on real sequence at this step.
-      my $extra3UtrLength = $allelePaddingLength{$allele}[0] ;
+      my $extra5UtrLength = $allelePaddingLength{$allele}[0] ;
       for ($i = 0 ; $i < 2 * $exonCnt ; ++$i)
       {
-        $exons[$i] -= $extra3UtrLength ;
+        $exons[$i] -= $extra5UtrLength ;
       }
 
       for ($i = 2 ; $i < 2 * $exonCnt ; $i += 2)
@@ -446,7 +447,7 @@ if ($includePartialDiffLen >= 0 && $ignorePartial == 0)
           #$outputSeq = substr($outputSeq, 0, $exons[$i - 1] + 1).
           #            $intronSeq.
           #            substr($outputSeq, $exons[$i]);
-          substr($outputSeq, $exons[$i - 1], 0, $intronSeq) ;
+          substr($outputSeq, $exons[$i - 1] + 1, 0, $intronSeq) ;
           $exonOffset += length($intronSeq) ;
         }
         $exons[$i] += $exonOffset ;
@@ -455,7 +456,7 @@ if ($includePartialDiffLen >= 0 && $ignorePartial == 0)
       
       for ($i = 0 ; $i < 2 * $exonCnt ; ++$i)
       {
-        $exons[$i] += $extra3UtrLength ;
+        $exons[$i] += $extra5UtrLength ;
       }
       @{$alleleExonRegions{$allele}} = @exons ;
 
