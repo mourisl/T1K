@@ -1456,6 +1456,7 @@ public:
 		// equivalent classes are sorted by the abundance 
 		SimpleVector<int> genesToAdd ;
 		SimpleVector<int> allelesToAdd ;
+    SimpleVector<int> filteredAlleles ;
 		for (i = 0 ; i < ecCnt ; ++i)
 		{
 			int ec = ecAbundanceList[i].a ;
@@ -1517,6 +1518,7 @@ public:
 			allelesToAdd.Clear() ;
 			for (j = 0 ; j < size; ++j)	
 			{
+        bool filter = false ;
 				alleleIdx = equivalentClassToAlleles[ec][j] ;
 				int geneIdx = alleleInfo[alleleIdx].geneIdx ;
 				
@@ -1537,12 +1539,18 @@ public:
 				if (alleleInfo[alleleIdx].ecAbundance < filterFrac * geneMaxMajorAlleleAbundance[geneIdx]
 						/*&& (totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] / alleleInfo[alleleIdx].ecAbundance / filterFrac
 							|| totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] * filterFrac)*/)				
-					continue ;
-				if (covered == totalAssignedWeight 
+				  filter = true ;
+        if (covered == totalAssignedWeight 
 						&& (alleleInfo[alleleIdx].ecAbundance < 0.25 * geneMaxMajorAlleleAbundance[geneIdx]
 						|| selectedAlleles[geneIdx].size() == 0 || alleleInfo[alleleIdx].ecAbundance < 0.5 * alleleInfo[selectedAlleles[geneIdx].back().a].ecAbundance ) ) 
-					continue ;
-				/*if (GetGeneAlleleTypes(geneIdx) >= 2)
+					filter = true ;
+				
+        if (filter)
+        {
+          filteredAlleles.PushBack(alleleIdx) ;
+          continue ;
+        }
+        /*if (GetGeneAlleleTypes(geneIdx) >= 2)
 				{
 					// If there is already a good amount haplottypes, we need a harsher cutoff
 					int selectedAlleleSize = selectedAlleles[geneIdx].size() ;
@@ -1623,7 +1631,35 @@ public:
 				selectedAlleles[geneIdx].push_back(np) ;
 			}
 		}
-		
+
+    // Rescue some filtered alleles if they are in the some valid major allele series
+    int filteredAlleleCnt = filteredAlleles.Size() ;
+		for (i = 0 ; i < filteredAlleleCnt ; ++i)
+    {
+      int alleleIdx = filteredAlleles[i] ;
+      int geneIdx = alleleInfo[alleleIdx].geneIdx ;
+      if (selectedAlleles[geneIdx].size() == 0)
+        continue ;
+      int selectedAlleleCnt = selectedAlleles[geneIdx].size() ;
+      int rank = -1 ;
+      for (j = 0 ; j < selectedAlleleCnt ; ++j)
+        if (alleleInfo[selectedAlleles[geneIdx][j].a].majorAlleleIdx 
+            == alleleInfo[alleleIdx].majorAlleleIdx) 
+        {
+          rank = selectedAlleles[geneIdx][j].b ;
+          break ;
+        }
+
+      if (rank != -1)
+      {
+        struct _pair np ;
+        np.a = alleleIdx ;
+        np.b = rank ;
+
+        selectedAlleles[geneIdx].push_back(np) ;
+      }
+    }
+
 		// Go through each gene with more than 2 alleles
 		int *readCoverage = new int[readCnt] ;
 		
@@ -1836,18 +1872,20 @@ public:
 								coveredReadCntK += readAssignments[it->first][0].adjustWeight / (1 + kMissingCoverage);
 							}*/
 						}
+					  
+            if (alleleTypeCnt > 3 
+                || jMissingCoverage >= 10 || kMissingCoverage >= 10)
+            {
+              double weightJ = missingCoverageAlleleTypeWeight[i][jMissingCoverage] ;
+              double weightK = missingCoverageAlleleTypeWeight[i][kMissingCoverage] ;
+              //printf("Further selection %s %s %lf %lf %d %d %.2lf. %lf %lf %d\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, jMissingCoverage, kMissingCoverage, coveredReadCnt, weightJ, weightK, i) ;
+              //coveredReadCnt = coveredReadCnt - jMissingCoverage * abundanceJ * readLength / 150.0
+              //	- kMissingCoverage * abundanceK * readLength / 150.0;
+              coveredReadCnt = coveredReadCnt - jMissingCoverage * weightJ * readLength / 150.0
+                - kMissingCoverage * weightK * readLength / 150.0 + (refSet.GetSeqWeight(selectedAlleles[i][alleleJ].a));
+            }
 						
-						if (alleleTypeCnt > 3)
-						{
-							double weightJ = missingCoverageAlleleTypeWeight[i][jMissingCoverage] ;
-							double weightK = missingCoverageAlleleTypeWeight[i][kMissingCoverage] ;
-							//printf("Further selection %s %s %lf %lf %d %d %.2lf. %lf %lf %d\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, jMissingCoverage, kMissingCoverage, coveredReadCnt, weightJ, weightK, i) ;
-							//coveredReadCnt = coveredReadCnt - jMissingCoverage * abundanceJ * readLength / 150.0
-							//	- kMissingCoverage * abundanceK * readLength / 150.0;
-							coveredReadCnt = coveredReadCnt - jMissingCoverage * weightJ * readLength / 150.0
-								- kMissingCoverage * weightK * readLength / 150.0 + (refSet.GetSeqWeight(selectedAlleles[i][alleleJ].a));
-						}
-						//coveredReadCnt = coveredReadCntJ + coveredReadCntK ;
+            //coveredReadCnt = coveredReadCntJ + coveredReadCntK ;
 #ifdef DEBUG
 						printf("Further selection %s %s %lf %lf %d %d %.2lf. %d %d\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, jMissingCoverage, kMissingCoverage, coveredReadCnt, refSet.GetSeqWeight(selectedAlleles[i][alleleJ].a), refSet.GetSeqWeight(selectedAlleles[i][alleleK].a)) ;
 #endif
