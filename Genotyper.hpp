@@ -1547,6 +1547,7 @@ public:
 				
         if (filter)
         {
+					//Disable this function now.
           filteredAlleles.PushBack(alleleIdx) ;
           continue ;
         }
@@ -1878,6 +1879,13 @@ public:
             {
               double weightJ = missingCoverageAlleleTypeWeight[i][jMissingCoverage] ;
               double weightK = missingCoverageAlleleTypeWeight[i][kMissingCoverage] ;
+							if (alleleTypeCnt <= 3)
+							{
+								if (weightJ >= 1)
+									weightJ = log(weightJ) / log(10.0);
+								if (weightK >= 1)
+									weightK = log(weightK) / log(10.0) ;
+							}
               //printf("Further selection %s %s %lf %lf %d %d %.2lf. %lf %lf %d\n", refSet.GetSeqName(selectedAlleles[i][alleleJ].a), refSet.GetSeqName(selectedAlleles[i][alleleK].a), abundanceJ, abundanceK, jMissingCoverage, kMissingCoverage, coveredReadCnt, weightJ, weightK, i) ;
               //coveredReadCnt = coveredReadCnt - jMissingCoverage * abundanceJ * readLength / 150.0
               //	- kMissingCoverage * abundanceK * readLength / 150.0;
@@ -2059,7 +2067,7 @@ public:
 		return geneIdxToName[geneIdx].c_str() ;	
 	}
 
-	int GetAlleleDescription(int geneIdx, char *allele1, char *allele2)
+	int GetAlleleDescription(int geneIdx, char *allele1, char *allele2, char *secondaryAlleles)
 	{
 		int i, k ;
 		int type ;
@@ -2069,20 +2077,33 @@ public:
 		used.ExpandTo(majorAlleleCnt) ;
 		int ret = 0 ;
 
-		used.SetZero(0, majorAlleleCnt);
+		used.SetZero(0, majorAlleleCnt) ;
 		int qualities[2] = {-1, -1} ;
-		for (type = 0; type <= 1; ++type)	
+
+		int typeCnt = GetGeneAlleleTypes(geneIdx) ;
+		if (typeCnt < 2)
+			typeCnt = 2 ;
+		char sep = '\t' ;
+		secondaryAlleles[0] = '\0' ;
+
+		for (type = 0 ; type < typeCnt ; ++type)	
 		{
 			double abundance = 0 ;
 			char *buffer = allele1 ;
+			bool added = false ;
 			if (type == 1)
 				buffer = allele2 ;
+			else if (type > 1)
+			{
+				buffer = secondaryAlleles ;
+				sep = ';' ;
+			}
 			buffer[0] = '\0' ;
 
 			int size = selectedAlleles[geneIdx].size() ;
 			selectedMajorAlleles.Clear() ;
 
-			qualities[type] = -1 ;
+			int localQual = -1 ;
 			if (type == 1 && qualities[0] == 0)
 				used.SetZero(0, majorAlleleCnt) ;
 			for (i = 0; i < size; ++i)
@@ -2094,22 +2115,31 @@ public:
 				abundance += alleleInfo[k].abundance ;
 				if (!used[ majorAlleleIdx ])
 				{
-					qualities[type] = alleleInfo[k].genotypeQuality ;
-
-					ret = type + 1 ;
-					if (buffer[0])
+					localQual = alleleInfo[k].genotypeQuality ;
+					if (type <= 1)
+						ret = type + 1 ;
+					
+					if (added)
 					{
 						sprintf(buffer + strlen(buffer), ",%s", majorAlleleIdxToName[majorAlleleIdx].c_str()) ;
 					}
-					else
-						strcpy(buffer, majorAlleleIdxToName[majorAlleleIdx].c_str()) ;
+					else 
+					{
+						if (buffer[0] == '\0')
+							strcpy(buffer, majorAlleleIdxToName[majorAlleleIdx].c_str()) ;
+						else // only happens for secondary alleles
+							sprintf(buffer + strlen(buffer), "|%s", majorAlleleIdxToName[majorAlleleIdx].c_str()) ;
+						added = true ;
+					}
 					used[majorAlleleIdx] = 1 ;
 				}	
 			}
-			if (qualities[type] >= 0)
-				sprintf(buffer + strlen(buffer), "\t%lf\t%d", abundance, qualities[type]) ;
-			else
+			if (localQual >= 0)
+				sprintf(buffer + strlen(buffer), "%c%lf%c%d", sep, abundance, sep, localQual) ;
+			else if (type <= 1)
 				sprintf(buffer + strlen(buffer), ".\t0\t-1") ;
+			if (type <= 1)
+				qualities[type] = localQual ;
 		}
 		return ret ;
 	}

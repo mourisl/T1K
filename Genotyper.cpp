@@ -645,16 +645,18 @@ int main(int argc, char *argv[])
 	
 	// Output the genotype information
 	int geneCnt = genotyper.GetGeneCnt() ;
-	char *bufferAllele[2] ;
+	char *bufferAllele[3] ;
 	bufferAllele[0] = new char[20 * refSet.Size() + 40] ;
 	bufferAllele[1] = new char[20 * refSet.Size()+ 40] ;
+	bufferAllele[2] = new char[20 * refSet.Size()+ 40] ;
 	sprintf(buffer, "%s_genotype.tsv", outputPrefix) ;
 	fpOutput = fopen(buffer, "w") ;	
 	for (i = 0 ; i < geneCnt ; ++i)
 	{
-		int calledAlleleCnt = genotyper.GetAlleleDescription(i, bufferAllele[0], bufferAllele[1]) ;
+		int calledAlleleCnt = genotyper.GetAlleleDescription(i, bufferAllele[0], bufferAllele[1],
+        bufferAllele[2]) ;
 		fprintf(fpOutput, "%s\t%d", genotyper.GetGeneName(i), calledAlleleCnt) ;
-		for (j = 0 ; j < 2 ; ++j)
+		for (j = 0 ; j < 3 ; ++j)
 		{
 			fprintf(fpOutput, "\t%s", bufferAllele[j]);
 		}
@@ -662,6 +664,7 @@ int main(int argc, char *argv[])
 	}
 	delete[] bufferAllele[0] ;
 	delete[] bufferAllele[1] ;
+  delete[] bufferAllele[2] ;
 	fclose(fpOutput) ;
 	
 	// Output the representative alleles
