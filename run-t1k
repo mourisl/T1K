@@ -3,9 +3,9 @@
 use strict ;
 use warnings ;
 
-use Cwd 'cwd' ;
-use Cwd 'abs_path' ;
+use Cwd qw(cwd abs_path) ;
 use File::Basename ;
+use File::Path qw(make_path) ;
 
 my $progName = "run-t1k" ;
 
@@ -326,7 +326,7 @@ if ( $prefix eq "" )
 
 if ( $outputDirectory ne "" )
 {
-	mkdir $outputDirectory if ( !-d $outputDirectory ) ;
+	make_path($outputDirectory) if ( !-d $outputDirectory ) ;
 	$prefix = "$outputDirectory/$prefix" ;
 }
 
