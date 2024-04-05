@@ -98,7 +98,8 @@ private:
 	SimpleVector<struct _pair> candidateVariants ; // a: seqidx, b: refpos
 	SimpleVector<int> candidateVariantGroupId ; // variant id to group id.
 	SimpleVector<int> seqCopy ; // 1-homozygous, 2-heterzygous
-	std::vector<struct _variant> finalVariants ; 
+	std::vector<struct _variant> finalVariants ;
+  int maxVarGroupToResolve ; // the maximal number of variants in a group to resolve. -1 for no limitation.
 	void UpdateBaseVariantFromOverlap(char *read, double weight, bool filterLowQual, struct _overlap o)
 	{
 		if (o.seqIdx == -1)
@@ -241,6 +242,7 @@ public:
 				baseVariants[i][j].candidateId = -1 ;
 			}
 		}
+    maxVarGroupToResolve = 8 ;
 	} 
 	~VariantCaller() {} 
 
@@ -261,7 +263,11 @@ public:
 		for (i = 0 ; i < seqCnt ; ++i)
 			seqCopy[i] = geneAlleleCount[ genotyper.GetAlleleGeneIdx(i)] ;
 	}
-	
+
+  void SetMaxVarGroupToResolve(int m)
+  {
+    maxVarGroupToResolve = m ;
+  }
 
 	// updateType: 0-weight, 1-alignInfo
 	void UpdateBaseVariantFromFragmentOverlap(char *read1, char *read2, int updateType, std::vector<struct _fragmentOverlap> &fragmentAssignment)
@@ -824,6 +830,9 @@ public:
 		std::map<int, int> seqIdxUsed ;	
 		bool inExon = false;
 		bool skip = false ;
+
+    if (varCnt > maxVarGroupToResolve && maxVarGroupToResolve >= 0)
+      return ;
 
 		for (i = 0 ; i < varCnt ; ++i)
 		{

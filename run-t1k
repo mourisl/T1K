@@ -9,7 +9,7 @@ use File::Path qw(make_path) ;
 
 my $progName = "run-t1k" ;
 
-die "T1K v1.0.5-r199 usage: ./$progName [OPTIONS]:\n".
+die "T1K v1.0.6-r204 usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
     #"\t[Input]:\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
@@ -51,7 +51,8 @@ die "T1K v1.0.5-r199 usage: ./$progName [OPTIONS]:\n".
     "\t\t0: start from beginning (candidate read extraction)\n".
     "\t\t1: start from genotype with candidate reads\n".
     "\t\t2: start from post analysis\n".
-    "" 
+    "\tParameters for post analysis:\n".
+    "\t\t--post-varMaxGroup INT: the maximum variant group size to call novel variant. -1 for no limitation (default: 8)\n"
 	if ( @ARGV == 0 ) ;
 
 sub system_call
@@ -96,7 +97,8 @@ my $preset = "" ;
 #my $crossGeneRate = 0.0005 ;
 my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0, "-s"=>0,
 								"--alleleDigitUnits"=>0, "--alleleDelimiter"=>0, "--alleleWhitelist"=>0) ;
-my %analyzerArgNames = ("-s"=>0, "--alleleDigitUnits"=>0, "--alleleDelimiter"=>0) ;
+my %analyzerArgNames = ("-s"=>0, "--alleleDigitUnits"=>0, "--alleleDelimiter"=>0,
+  "--post-varMaxGroup"=>8) ;
 print STDERR "[".localtime()."] $progName begins.\n" ;
 for ( $i = 0 ; $i < @ARGV ; ++$i )
 {
