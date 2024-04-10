@@ -9,7 +9,7 @@ use File::Path qw(make_path) ;
 
 my $progName = "run-t1k" ;
 
-die "T1K v1.0.6-r204 usage: ./$progName [OPTIONS]:\n".
+die "T1K v1.0.6-r205 usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
     #"\t[Input]:\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
@@ -251,6 +251,7 @@ for ( $i = 0 ; $i < @ARGV ; ++$i )
 		}
 		if ( defined( $analyzerArgNames{$ARGV[$i]} ) )
 		{
+      $ARGV[$i] =~ s/^--post-/--/ ;
 			$analyzerArgs .= " ".$ARGV[$i]." ".$ARGV[$i + 1] ;
 		}
 		++$i ;
