@@ -977,6 +977,9 @@ public:
 
 	void ComputeVariant(std::vector<char *> &read1, std::vector<char *> &read2, std::vector< std::vector<struct _fragmentOverlap> > &fragmentAssignments)
 	{
+    if (maxVarGroupToResolve == 0)
+      return ;
+
 		int fragCnt = fragmentAssignments.size() ;
 		int seqCnt = refSet.Size() ;
 		int i ;
