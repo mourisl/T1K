@@ -28,6 +28,7 @@ char usage[] = "./analyzer [OPTIONS]:\n"
 		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n"
 		"\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n"
 		"\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n"
+    "\t--varMaxGroup INT: the maximum variant group size to call novel variant. -1 for no limitation (default: 8)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -42,7 +43,8 @@ static struct option long_options[] = {
 	{"barcode", required_argument, 0, 10000},
 	{ "relaxIntronAlign", no_argument, 0, 10004 },
 	{ "alleleDigitUnits", required_argument, 0, 10005 },  
-	{ "alleleDelimiter", required_argument, 0, 10006 },  
+	{ "alleleDelimiter", required_argument, 0, 10006 }, 
+  { "varMaxGroup", required_argument, 0, 10007},
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -246,6 +248,7 @@ int main(int argc, char *argv[])
 	bool relaxIntronAlign = false ;
 	int alleleDigitUnits = -1 ;
 	char alleleDelimiter = '\0' ;
+  int varMaxGroupToResolve = 8 ;
 	
 	char refFile[1025] = "" ;
 	char alleleFile[1025] = "" ;
@@ -315,6 +318,10 @@ int main(int argc, char *argv[])
 		{
 			alleleDelimiter = optarg[0] ;
 		}
+    else if ( c == 10007)
+    {
+      varMaxGroupToResolve = atoi(optarg) ;
+    }
 		else
 		{
 			fprintf( stderr, "%s", usage ) ;
@@ -665,6 +672,7 @@ int main(int argc, char *argv[])
 	sprintf(buffer, "%s_allele.vcf", outputPrefix) ;
 	VariantCaller variantCaller(refSet) ;
 	variantCaller.SetSeqAbundance(genotyper) ;
+  variantCaller.SetMaxVarGroupToResolve(varMaxGroupToResolve) ;
 	std::vector<char *> read1seq ;
 	std::vector<char *> read2seq ;
 	for (i = 0 ; i < readCnt ; ++i)
