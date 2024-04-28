@@ -101,7 +101,7 @@ if (__name__ == "__main__"):
 	for allele in alleleInfo:
 		likelihoods = []
 		for copy in range(8):
-			likelihoods.append([copy + 1, NormalLikelihoodFactor(AbundTransform(alleleInfo[allele]["abund"]), [mean * (copy + 1), var * (copy + 1)])])
+			likelihoods.append([copy + 1, LogNormalLikelihoodFactor(AbundTransform(alleleInfo[allele]["abund"]), [mean * (copy + 1), var * (copy + 1)])])
 		sortLls = sorted(likelihoods, key=lambda x:x[1], reverse=True)
 		alleleInfo[allele]["copy"] = sortLls[0][0]
 		alleleInfo[allele]["ratio"] = sortLls[0][1] - sortLls[1][1]
