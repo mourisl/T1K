@@ -9,7 +9,7 @@ use File::Path qw(make_path) ;
 
 my $progName = "run-t1k" ;
 
-die "T1K v1.0.6-r206 usage: ./$progName [OPTIONS]:\n".
+die "T1K v1.0.6-r211 usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
     #"\t[Input]:\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
