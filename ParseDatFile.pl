@@ -4,7 +4,7 @@ use strict ;
 use warnings ;
 
 #--partialInRnaMode INT: include explicitly annotated partial alleles if its length no less than the mode length by <int> for that gene in RNA mode. [0] 
-die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|... --partialInRnaMode INT] [--ignoreParital] > yyy.fa\n" if (@ARGV == 0) ;
+die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|... --partialInRnaMode INT --partialIntronHasNoSeq --ignoreParital] > yyy.fa\n" if (@ARGV == 0) ;
 
 sub FindMode
 {
@@ -35,6 +35,7 @@ my $genePrefix = "" ;
 my $fixGeneLength = 0 ;
 my $ignorePartial = 0 ;
 my $includePartialDiffLen = 0 ;
+my $partialIntronHasNoSeq = 0 ; # the partial introns have no sequence in the .dat file. This is an issue from IPD-KIR 2.13.0.
 
 my $i ;
 for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
@@ -63,6 +64,10 @@ for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
   {
     $includePartialDiffLen = $ARGV[$i + 1] ;
     ++$i ;
+  }
+  elsif ($ARGV[$i] eq "--partialIntronHasNoSeq")
+  {
+    $partialIntronHasNoSeq = 1 ;
   }
 	else
 	{
@@ -100,11 +105,16 @@ if ($selectAlleleFile ne "" )
 
 open FP, $ARGV[0] ;
 my @exons ;
+my @introns ;
 my $seq = "" ;
 my $allele = "" ;
 my %partialAlleles ;
 my $hasIntron ;
+my $localIntronLen ;
+my $descriptionState ; # 0: exon, 1: intron
+my $partialIntronLen ;
 my $isPartial ;
+my $pseudoExonLen ;
 my %usedSeq ;
 my @alleleOrder ;
 my %alleleSeq ;
@@ -131,9 +141,11 @@ while (<FP>)
 	{
 			undef @exons ;
 			$hasIntron = 0 ;
+      $partialIntronLen = 0 ;
 			$isPartial = 0 ;
 			$seq = "" ;
 			$allele = "-1" ;
+      $pseudoExonLen = 0 ;
 	}
 	elsif (/^FT/)
 	{
@@ -152,21 +164,47 @@ while (<FP>)
 			chomp ;
 			my @cols = split /\s+/, $_ ;
 			my ($start, $end) = ($cols[2] =~ /(\d+)\.\.(\d+)/) ;
-			push @exons, ($start - 1 ,$end - 1) ;
+			push @exons, ($start - 1 - $partialIntronLen, $end - 1 - $partialIntronLen) ;
+      $descriptionState = 0 ;
+      $pseudoExonLen = 0 ;
 		}
 		elsif (/pseudo$/)
 		{
-			pop @exons ; # psuedo exon
-			pop @exons ;
+			my $end = pop @exons ; # psuedo exon
+			my $start = pop @exons ;
+      $pseudoExonLen = $end - $start + 1 ;
 		}
 		elsif (/\sintron\s/)
 		{
-			$hasIntron = 1 ;
+      if ($partialIntronHasNoSeq == 1)
+      {
+        chomp ;
+        my @cols = split /\s+/, $_ ;
+        my ($start, $end) = ($cols[2] =~ /(\d+)\.\.(\d+)/) ;
+        $localIntronLen = $end - $start + 1 ;
+      }
+
+			++$hasIntron ;
+      $descriptionState = 1 ;
 		}
 		elsif (/partial$/)
 		{
 			#$partialAlleles{$allele} = 1 ;
-			$isPartial = 1 ;
+      if ($descriptionState == 0 
+        || $partialIntronHasNoSeq == 0)
+      {
+			  $isPartial = 1 ;
+      }
+      else
+      {
+        $partialIntronLen += $localIntronLen ;
+        --$hasIntron ;
+      }
+
+      if ($pseudoExonLen > 0 && $partialIntronHasNoSeq == 1) # Assume partial comes after pseudo
+      {
+        $partialIntronLen += $pseudoExonLen ;
+      }
 		}
 	}
 	elsif (/^SQ/)
@@ -270,7 +308,7 @@ while (<FP>)
 							}
 						}
 						
-						$outputSeq .= substr($seq, $start, $end - $start + 1) ;
+						$outputSeq .= substr($seq, $start, $end - $start + 1) ; 
 						$exonOffset += ($exons[$i + 1] - $exons[$k] + 1) ;
 						$exonOffset += $intronPaddingLength ;
 					}
