@@ -23,7 +23,7 @@ T1K (The ONE genotyper for Kir and HLA) is a computational tool to infer the all
 3. Generate the allele reference sequences of IPD-IMGT/HLA and IPD-KIR datbases. You can also find pre-built indices in the release page.
 ```
 	perl t1k-build.pl -o hlaidx --download IPD-IMGT/HLA
-	perl t1k-build.pl -o kiridx --download IPD-KIR
+	perl t1k-build.pl -o kiridx --download IPD-KIR --partial-intron-noseq # --partial-intron-noseq option is needed for IPD-KIR v2.13.0, which may not be useful in future version.
 ```
 You will find the executable files in the downloaded directory. If you want to run T1K without specifying the directory, you can either add the directory of T1K to the environment variable PATH or create a soft link ("ln -s") of the file "run-t1k" to a directory in PATH.
 

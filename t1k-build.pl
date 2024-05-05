@@ -23,7 +23,8 @@ die "$progName usage: ./$progName [OPTIONS]:\n".
 		"\t-g STRING: genome annotation file (default: not used)\n".
 		"\t--target STRING: gene name keyword (default: no filter)\n".
 		"\t--prefix STRING: file prefix (default: based on --target or -o)\n".
-    "\t--ignore-partial: ignore partial allele at all (default: fill in intron if exons are complete)\n"
+    "\t--ignore-partial: ignore partial allele at all (default: fill in intron if exons are complete)\n".
+    "\t--partial-intron-noseq: the partial introns and pseudo exons are not present in the sequence of the dat file, e.g. IPD-KIR_2.13.0.\n"
 		if (@ARGV == 0);
 
 
@@ -47,6 +48,7 @@ my $downloadPath = "" ;
 my $targetGene = "" ;
 my $outputPrefix = "" ;
 my $ignorePartial = 0 ;
+my $partialIntronHasNoSeq = 0 ;
 
 for ($i = 0 ; $i < @ARGV ; ++$i) 
 {
@@ -85,10 +87,14 @@ for ($i = 0 ; $i < @ARGV ; ++$i)
 		$outputPrefix = $ARGV[$i + 1] ;
 		++$i ;
 	}
-  elsif ( $ARGV[$i] eq "--ignorePartial")
+  elsif ( $ARGV[$i] eq "--ignore-partial")
   {
     $ignorePartial = 1 ;
     ++$i ;
+  }
+  elsif ( $ARGV[$i] eq "--partial-intron-noseq")
+  {
+    $partialIntronHasNoSeq = 1 ;
   }
 	else
 	{
@@ -148,8 +154,9 @@ if ($ipdDat ne "")
 {
 	my $options = "" ;
 	$options .= " --gene $targetGene" if ($targetGene ne "") ;
-  $options .= "--ignorePartial" if ($ignorePartial == 1) ;
-	system_call("perl $WD/ParseDatFile.pl $ipdDat --mode dna $options > $dnaSeqFile") ;
+  $options .= " --ignorePartial" if ($ignorePartial == 1) ;
+	$options .= " --partialIntronHasNoSeq" if ($partialIntronHasNoSeq == 1) ;
+  system_call("perl $WD/ParseDatFile.pl $ipdDat --mode dna $options > $dnaSeqFile") ;
 	system_call("perl $WD/ParseDatFile.pl $ipdDat --mode rna $options > $rnaSeqFile") ;
 }
 else
