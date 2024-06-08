@@ -18,6 +18,10 @@ sub FindMode
 			$max = $dist{$k} ;
 			$ret = $k ;
 		}
+		elsif ($dist{$k} == $max && $k ge $ret)
+		{
+			$ret = $k ;
+		}
 	}
 	return $ret ;
 }
