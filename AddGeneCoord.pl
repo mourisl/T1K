@@ -3,12 +3,37 @@
 use strict ;
 use warnings ;
 
-die "usage: a.pl ipdkir_seq.fa gencode.gtf > gene_coord.fa\n" if (@ARGV == 0) ;
+die "usage: a.pl ipdkir_seq.fa gencode.gtf [OPTIONS] > gene_coord.fa\n".
+	"\tOPTIONS:\n".
+	"\t--gtf-gene-name-mapping STRING: a comma-separated string for how to translate a gene name in GTF to IPD gene name. Each string is like \"HFE:HLA-HFE\". (default: HFE:HLA-HFE)\n" 
+if (@ARGV == 0) ;
 
+my $i ;
 my %geneCoord ;
 my $hasChrPrefix = 1 ; # whether the output include chr prefix
 my $defaultChr = "chr19" ;
 $defaultChr = "19" if ($hasChrPrefix == 0) ;
+my $geneNameMappingString = "HFE:HLA-HFE" ;
+my %geneNameMapping ;
+for ($i = 2 ; $i < scalar(@ARGV) ; ++$i)
+{
+	if ($ARGV[$i] eq "--gtf-gene-name-mapping")
+	{
+		$geneNameMappingString = $ARGV[$i + 1] ;
+		++$i ;
+	}
+	else
+	{
+		die "Unknown options ".$ARGV[$i]."\n" ;
+	}
+}
+
+my @cols = split /,/,$geneNameMappingString ;
+for my $c (@cols)
+{
+	my @subCols = split /:/,$c ;
+	$geneNameMapping{$subCols[0]} = $subCols[1] ;
+}
 
 open FP, $ARGV[0] ;
 while (<FP>) 
@@ -34,12 +59,15 @@ while (<FP>)
 	{
 		#print $1, "\n" ; 
 		$gname = $1 ;
+		if (defined $geneNameMapping{$gname})
+		{
+			$gname = $geneNameMapping{$gname} ;
+		}
 	}
 	else
 	{
 		die "No gene_name", $_, "\n" ;
 	}
-
 	
 	if ( $hasChrPrefix == 1 && !( $cols[0] =~ /^c/) )
 	{
