@@ -95,7 +95,7 @@ T1K outputs several files. t1k_genotype.tsv is the main output file holding the 
 
 	gene_name num_diff_alleles allele_1 abundance_1 quality_1 allele_2 abundance_2 quality_2 secondary_alleles
 
-In the case of missing alleles or homozygous alleles, the triple (allele, abundance, quality) will be ". 0 -1" as place holders. **We recommend to ignore alleles with quality less or equal to 0**. The last column is the secondary alleles, that meet the abundance filtering critera but filtered by tie breaking procedure. The secondary alleles is "|" separated fields, and each field is separated to three subfields by ";" for allele, abundance and quality.  
+In the case of missing alleles or homozygous alleles, the triple (allele, abundance, quality) will be ". 0 -1" as place holders. **We recommend to ignore alleles with quality less or equal to 0**. The last column is the secondary alleles, that meet the abundance filtering critera but filtered by the tie breaking procedure. The secondary alleles is "|" separated fields, and each field is separated to three subfields by ";" for allele, abundance and quality.  
 
 The other outputs files are: 
 
