@@ -74,8 +74,8 @@ T1K is also available from [Bioconda](https://bioconda.github.io/recipes/t1k/REA
 			0: start from beginning (candidate read extraction)
 			1: start from genotype with candidate reads
 			2: start from post analysis
-    Parameters for post analysis:
-      --post-varMaxGroup INT: the maximum variant group size to call novel variant. -1 for no limitation (default: 8)
+		Parameters for post analysis:
+			--post-varMaxGroup INT: the maximum variant group size to call novel variant. -1 for no limitation (default: 8)
 
 * ##### User cases 
 ```	
