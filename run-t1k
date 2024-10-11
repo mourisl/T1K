@@ -28,7 +28,7 @@ die "T1K v1.0.6-r216 usage: ./$progName [OPTIONS]:\n".
 		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.04)\n".
 		"\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n".
 		"\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n".
-		"\t--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)".
+		"\t--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)\n".
     "\t--barcode STRING: if -b, BAM field for barcode; if -1 -2/-u, file containing barcodes (default: not used)\n".
     "\t--barcodeRange INT INT CHAR: start, end(-1 for length-1), strand in a barcode is the true barcode (default: 0 -1 +)\n".
     "\t--barcodeWhitelist STRING: path to the barcode whitelist (default: not used)\n".
