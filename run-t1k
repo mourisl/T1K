@@ -8,8 +8,9 @@ use File::Basename ;
 use File::Path qw(make_path) ;
 
 my $progName = "run-t1k" ;
+my $version = "v1.1.6-r218" ;
 
-die "T1K v1.0.6-r216 usage: ./$progName [OPTIONS]:\n".
+die "T1K $version usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
     #"\t[Input]:\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
@@ -99,7 +100,7 @@ my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0, "-s"=>0,
 								"--alleleDigitUnits"=>0, "--alleleDelimiter"=>0, "--alleleWhitelist"=>0) ;
 my %analyzerArgNames = ("-s"=>0, "--alleleDigitUnits"=>0, "--alleleDelimiter"=>0,
   "--post-varMaxGroup"=>8) ;
-print STDERR "[".localtime()."] $progName begins.\n" ;
+print STDERR "[".localtime()."] $progName $version begins.\n" ;
 for ( $i = 0 ; $i < @ARGV ; ++$i )
 {
 	if ( $ARGV[$i] eq "-1" )
