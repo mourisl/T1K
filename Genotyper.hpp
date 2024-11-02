@@ -1536,7 +1536,8 @@ public:
 					continue ;*/
 
 				// geneMaxAllele is at allele level, ecAbundance is at equivalent class level
-				if (alleleInfo[alleleIdx].ecAbundance < filterFrac * geneMaxMajorAlleleAbundance[geneIdx]
+				//if (alleleInfo[alleleIdx].ecAbundance < filterFrac * geneMaxMajorAlleleAbundance[geneIdx]
+				if (majorAlleleAbundance[ alleleInfo[alleleIdx].majorAlleleIdx] < filterFrac * geneMaxMajorAlleleAbundance[geneIdx]
 						/*&& (totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] / alleleInfo[alleleIdx].ecAbundance / filterFrac
 							|| totalAssignedWeight - covered < geneMaxMajorAlleleAbundance[geneIdx] * filterFrac)*/)				
 				  filter = true ;
@@ -1622,7 +1623,7 @@ public:
 				alleleInfo[alleleIdx].genotypeQuality = quality ;
 				alleleInfo[alleleIdx].alleleRank = alleleRank ;
 				//printf("%s %lf %d\n", refSet.GetSeqName(alleleIdx), alleleRank, alleleInfo[alleleIdx].ecAbundance ) ;
-				if (alleleInfo[alleleIdx].ecAbundance < filterFrac * geneMaxMajorAlleleAbundance[geneIdx])
+				if ( majorAlleleAbundance[ alleleInfo[alleleIdx].majorAlleleIdx]< filterFrac * geneMaxMajorAlleleAbundance[geneIdx])
 					alleleInfo[alleleIdx].genotypeQuality = 0 ; 
 
 				struct _pair np ;
