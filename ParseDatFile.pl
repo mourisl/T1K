@@ -137,6 +137,7 @@ my %alleleEffectiveLength ; # exon length + 2 * utrLength
 
 my $utrLength = 50 ;
 my %alleleExonRegions ; # the actuall exon regions in the output sequence
+my %alleleTrueExonRegions ; # the true exon regions in the underlying genome
 my %geneLastExonLengthDist ;
 
 if ($mode eq "genome")
@@ -296,13 +297,13 @@ while (<FP>)
 
 						push @exonActualRegion, $exonOffset ; 
 						push @exonActualRegion, $exonOffset + $exons[$i + 1] - $exons[$i] ; 
-						
+
 						my $k = $i ;
 						while ($i + 2 < scalar(@exons))
 						{
 							$end = $exons[$i + 1] + $intronPaddingLength ;
 							$end = length($seq) - 1 if ($end >= length($seq)) ;
-							
+
 							if ($end >= $exons[$i + 2] - $intronPaddingLength)
 							{
 								# short intron.
@@ -316,11 +317,12 @@ while (<FP>)
 								last ;
 							}
 						}
-						
+
 						$outputSeq .= substr($seq, $start, $end - $start + 1) ; 
 						$exonOffset += ($exons[$i + 1] - $exons[$k] + 1) ;
 						$exonOffset += $intronPaddingLength ;
 					}
+					@{$alleleTrueExonRegions{$allele}} = @exons ;
 				}
 				elsif ($mode eq "genome") 
 				{
@@ -388,15 +390,15 @@ while (<FP>)
 }
 close FP ;
 
-# Fix issues for exonized introns that may cause extra intron anchor in long intron region 
+# Get statstiscs for exon count, exon length, and true (with respect to the underlying true genome)intron length 
 my %geneEffectiveSeqLengthDist ;
 my %geneLengthMode ;
 my %geneExonCnt ;
 my %geneExonCntMode ;
 my %geneExonLengthDist ;
 my %geneExonLengthMode ;
-my %geneIntronLengthDist ;
-my %geneIntronLengthMode ; # including the 'N' case
+my %geneTrueIntronLengthDist ;
+my %geneTrueIntronLengthMode ;
 if ($mode eq "dna")
 {
 	foreach my $allele (@alleleOrder)
@@ -425,11 +427,16 @@ if ($mode eq "dna")
 		++${$geneEffectiveSeqLengthDist{$gene}}{$alleleEffectiveLength{$allele}} ;
 
 		my @exons = @{$alleleExonRegions{$allele}} ;
+		my @trueExons = @{$alleleTrueExonRegions{$allele}} ;
 		my $exonCnt = scalar(@exons) / 2 ;
 		next if ($exonCnt != $geneExonCntMode{$gene}) ;
-		for (my $i = 0 ; $i < $exonCnt - 1 ; ++$i) # last exon has some special treatment
+		for (my $i = 0 ; $i < $exonCnt ; ++$i) 
 		{
-			++${${$geneExonLengthDist{$gene}}{$i}}{$exons[2 * $i + 1] - $exons[2 * $i] + 1} ;
+			++${${$geneExonLengthDist{$gene}}{$i}}{$exons[2*$i+1] - $exons[2*$i] + 1} ;
+			if ($i < $exonCnt - 1)
+			{
+				++${${$geneTrueIntronLengthDist{$gene}}{$i}}{$trueExons[2*$i+2] - $trueExons[2*$i+1] - 1} ;
+			}
 		}
 	}
 	foreach my $gene (keys %geneExonLengthDist)
@@ -438,8 +445,11 @@ if ($mode eq "dna")
 		{
 			${$geneExonLengthMode{$gene}}{$i} = FindMode(\%{${$geneExonLengthDist{$gene}}{$i}}) ;
 		}
+		for my $i (keys %{$geneTrueIntronLengthDist{$gene}})
+		{
+			${$geneTrueIntronLengthMode{$gene}}{$i} = FindMode(\%{${$geneTrueIntronLengthDist{$gene}}{$i}}) ;
+		}
 	}
-
 }
 
 # Rescue partial alleles
@@ -611,7 +621,8 @@ if ($mode eq "dna")
 		my @exons = @{$alleleExonRegions{$allele}} ;
 		my $exonCnt = scalar(@exons) / 2 ;
 		next if ($exonCnt != $geneExonCntMode{$gene}) ;
-		
+		next if (!defined $alleleTrueExonRegions{$allele}) ;
+
 		my $updated = 0 ;
 		for (my $i = 0 ; $i < $exonCnt - 1 ; ++$i) # last exon has some special treatment
 		{
@@ -627,22 +638,53 @@ if ($mode eq "dna")
 					print $alleleSeq{$allele}, "\n" ;
 				}
 			}
-			# Just handle the issue of insert/exonization of the last exon before the break point
-			if ($exonLength > ${$geneExonLengthMode{$gene}}{$i}
-				&& $exons[2*$i + 1] + 1 + $intronPaddingLength < length($alleleSeq{$allele})
-				&& substr($alleleSeq{$allele}, $exons[2*$i + 1] + 1 + $intronPaddingLength, 1) eq "N") 
+			# Handle the issue of exonization 
+			if ($exonLength > ${$geneExonLengthMode{$gene}}{$i})
 			{
 				my $trim = $exonLength - ${$geneExonLengthMode{$gene}}{$i} ;
-				my $posN = $exons[2*$i + 1] + 1 + $intronPaddingLength ;
-
-				my $newSeq = substr($alleleSeq{$allele}, 0, $posN - $trim)
-									.substr($alleleSeq{$allele}, $posN) ; #'N' is included in this portion
-				$alleleSeq{$allele} = $newSeq ;
-				#$alleleSeq{$allele} = substr($alleleSeq{$allele}, $posN-$trim, $trim, "") ;
-				if ($trim > $intronPaddingLength) # the exon itself should be trimmed
+				my $trimSide = 0 ;
+				my @trueExons = @{$alleleTrueExonRegions{$allele}} ;
+				my $posN = 0 ;
+				my $newSeq = "" ;
+				if ($trueExons[2 * $i + 2] - $trueExons[2 * $i + 1] - 1 + $trim == ${$geneTrueIntronLengthMode{$gene}}{$i} 
+					&& $exons[2*$i + 1] + 1 + $intronPaddingLength < length($alleleSeq{$allele})
+					&& substr($alleleSeq{$allele}, $exons[2*$i + 1] + 1 + $intronPaddingLength, 1) eq "N") 
 				{
-					$exons[2*$i + 1] = $posN - $trim ;
+					#print("Right exonization! $allele\n") ;
+					$trimSide = 1 ; 
+					$posN = $exons[2*$i + 1] + 1 + $intronPaddingLength ;
+					$newSeq = substr($alleleSeq{$allele}, 0, $posN - $trim)
+							.substr($alleleSeq{$allele}, $posN) ; #'N' is included in this portion
 				}
+				elsif ($i > 0 
+					&& $trueExons[2 * $i] - $trueExons[2 * $i - 1] - 1 + $trim == ${$geneTrueIntronLengthMode{$gene}}{$i - 1} 
+					&& $exons[2*$i] - 1 - $intronPaddingLength >= 0
+					&& substr($alleleSeq{$allele}, $exons[2*$i - 1] - 1 - $intronPaddingLength, 1) eq "N") 
+				{
+					#print("Left exonization! $allele\n") ;
+					$trimSide = -1 ;
+					$posN = $exons[2*$i] - 1 - $intronPaddingLength ;
+					$newSeq = substr($alleleSeq{$allele}, 0, $posN + 1) # 'N' is included in this portion
+								.substr($alleleSeq{$allele}, $posN + $trim + 1) ;
+				}
+				
+				next if ($trimSide == 0) ;
+
+				$alleleSeq{$allele} = $newSeq ;
+				
+				#$alleleSeq{$allele} = substr($alleleSeq{$allele}, $posN-$trim, $trim, "") ;
+				if ($trim > $intronPaddingLength) # the exon itself should be shrinked/trimmed
+				{
+					$exons[2*$i + 1] -= ($trim - $intronPaddingLength) if ($trimSide == 1) ;
+					$exons[2*$i] += ($trim + $intronPaddingLength) if ($trimSide == -1) ;
+				}
+
+				if ($trimSide == -1)
+				{
+					$exons[2*$i] -= $trim ;
+					$exons[2*$i+1] -= $trim ;
+				}
+
 				# Shift the reamining exons
 				for (my $j = $i + 1 ; $j < $exonCnt ; ++$j)
 				{
