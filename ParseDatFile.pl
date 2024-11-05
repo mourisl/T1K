@@ -4,7 +4,7 @@ use strict ;
 use warnings ;
 
 #--partialInRnaMode INT: include explicitly annotated partial alleles if its length no less than the mode length by <int> for that gene in RNA mode. [0] 
-die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|... --partialInRnaMode INT --partialIntronHasNoSeq --ignoreParital] > yyy.fa\n" if (@ARGV == 0) ;
+die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|... --partialInRnaMode INT --partialIntronHasNoSeq --ignoreParital --intronPadding INT(200)] > yyy.fa\n" if (@ARGV == 0) ;
 
 sub FindMode
 {
@@ -40,6 +40,7 @@ my $fixGeneLength = 0 ;
 my $ignorePartial = 0 ;
 my $includePartialDiffLen = 0 ;
 my $partialIntronHasNoSeq = 0 ; # the partial introns have no sequence in the .dat file. This is an issue from IPD-KIR 2.13.0.
+my $intronPaddingLength = 200 ;
 
 my $i ;
 for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
@@ -73,6 +74,11 @@ for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
   {
     $partialIntronHasNoSeq = 1 ;
   }
+	elsif ($ARGV[$i] eq "--intronPadding")
+	{
+		$intronPaddingLength = $ARGV[$i + 1] ;
+		++$i ;
+	}
 	else
 	{
 		die "Unknown option ".$ARGV[$i]."\n" ;
@@ -130,8 +136,8 @@ my %allelePaddingLength ;
 my %alleleEffectiveLength ; # exon length + 2 * utrLength 
 
 my $utrLength = 50 ;
-my $intronPaddingLength = 200 ;
 my %alleleExonRegions ; # the actuall exon regions in the output sequence
+my %alleleTrueExonRegions ; # the true exon regions in the underlying genome
 my %geneLastExonLengthDist ;
 
 if ($mode eq "genome")
@@ -291,13 +297,13 @@ while (<FP>)
 
 						push @exonActualRegion, $exonOffset ; 
 						push @exonActualRegion, $exonOffset + $exons[$i + 1] - $exons[$i] ; 
-						
+
 						my $k = $i ;
 						while ($i + 2 < scalar(@exons))
 						{
 							$end = $exons[$i + 1] + $intronPaddingLength ;
 							$end = length($seq) - 1 if ($end >= length($seq)) ;
-							
+
 							if ($end >= $exons[$i + 2] - $intronPaddingLength)
 							{
 								# short intron.
@@ -311,11 +317,12 @@ while (<FP>)
 								last ;
 							}
 						}
-						
+
 						$outputSeq .= substr($seq, $start, $end - $start + 1) ; 
 						$exonOffset += ($exons[$i + 1] - $exons[$k] + 1) ;
 						$exonOffset += $intronPaddingLength ;
 					}
+					@{$alleleTrueExonRegions{$allele}} = @exons ;
 				}
 				elsif ($mode eq "genome") 
 				{
@@ -383,21 +390,84 @@ while (<FP>)
 }
 close FP ;
 
+# Get statstiscs for exon count, exon length, and true (with respect to the underlying true genome)intron length 
+my %geneEffectiveSeqLengthDist ;
+my %geneLengthMode ;
+my %geneExonCnt ;
+my %geneExonCntMode ;
+my %geneExonLengthDist ;
+my %geneExonLengthMode ;
+my %geneTrueIntronLengthDist ;
+my %geneTrueIntronLengthMode ;
+if ($mode eq "dna")
+{
+	foreach my $allele (@alleleOrder)
+	{
+		my $gene = (split /\*/, $allele)[0] ;
+		++${$geneEffectiveSeqLengthDist{$gene}}{$alleleEffectiveLength{$allele}} ;
+
+		my $exonCnt = scalar(@{$alleleExonRegions{$allele}}) / 2 ;
+		++${$geneExonCnt{$gene}}{$exonCnt} ;
+	}
+
+	foreach my $gene (keys %geneEffectiveSeqLengthDist)
+	{
+		$geneLengthMode{$gene} = FindMode(\%{$geneEffectiveSeqLengthDist{$gene}}) ; 
+	}
+
+	foreach my $gene (keys %geneExonCnt)
+	{
+		$geneExonCntMode{$gene} = FindMode(\%{$geneExonCnt{$gene}}) ; 
+	}
+
+	# Get the representative exon length
+	foreach my $allele (@alleleOrder)
+	{
+		my $gene = (split /\*/, $allele)[0] ;
+		++${$geneEffectiveSeqLengthDist{$gene}}{$alleleEffectiveLength{$allele}} ;
+
+		my @exons = @{$alleleExonRegions{$allele}} ;
+		my @trueExons = @{$alleleTrueExonRegions{$allele}} ;
+		my $exonCnt = scalar(@exons) / 2 ;
+		next if ($exonCnt != $geneExonCntMode{$gene}) ;
+		for (my $i = 0 ; $i < $exonCnt ; ++$i) 
+		{
+			++${${$geneExonLengthDist{$gene}}{$i}}{$exons[2*$i+1] - $exons[2*$i] + 1} ;
+			if ($i < $exonCnt - 1)
+			{
+				++${${$geneTrueIntronLengthDist{$gene}}{$i}}{$trueExons[2*$i+2] - $trueExons[2*$i+1] - 1} ;
+			}
+		}
+	}
+	foreach my $gene (keys %geneExonLengthDist)
+	{
+		for my $i (keys %{$geneExonLengthDist{$gene}})
+		{
+			${$geneExonLengthMode{$gene}}{$i} = FindMode(\%{${$geneExonLengthDist{$gene}}{$i}}) ;
+		}
+		for my $i (keys %{$geneTrueIntronLengthDist{$gene}})
+		{
+			${$geneTrueIntronLengthMode{$gene}}{$i} = FindMode(\%{${$geneTrueIntronLengthDist{$gene}}{$i}}) ;
+		}
+	}
+}
+
 # Rescue partial alleles
 if ($includePartialDiffLen >= 0 && $ignorePartial == 0)
 {
-  my %geneEffectiveSeqLengthDist ;
-  foreach my $allele (@alleleOrder)
-  {
-    my $gene = (split /\*/, $allele)[0] ;
-    ++${$geneEffectiveSeqLengthDist{$gene}}{$alleleEffectiveLength{$allele}} ;
-  }
-  
-  my %geneLengthMode ;
-  foreach my $gene (keys %geneEffectiveSeqLengthDist)
-  {
-    $geneLengthMode{$gene} = FindMode(\%{$geneEffectiveSeqLengthDist{$gene}}) ; 
-  }
+	if (scalar(keys %geneLengthMode) == 0)
+	{
+		foreach my $allele (@alleleOrder)
+		{
+			my $gene = (split /\*/, $allele)[0] ;
+			++${$geneEffectiveSeqLengthDist{$gene}}{$alleleEffectiveLength{$allele}} ;
+		}
+
+		foreach my $gene (keys %geneEffectiveSeqLengthDist)
+		{
+			$geneLengthMode{$gene} = FindMode(\%{$geneEffectiveSeqLengthDist{$gene}}) ; 
+		}
+	}
 
   # rna-mode rescue is easy, we just make sure the length is about right. 
   my @rescuedAlleles ;
@@ -418,20 +488,7 @@ if ($includePartialDiffLen >= 0 && $ignorePartial == 0)
   {
     # DNA mode we need to get the intronic anchor sequences 
     # The introns should be from the alleles with common exon count
-    my %geneExonCnt ;
-    my %geneExonCntMode ;
-    foreach my $allele (@alleleOrder)
-    {
-      my $gene = (split /\*/, $allele)[0] ;
-      my $exonCnt = scalar(@{$alleleExonRegions{$allele}}) / 2 ;
-      ++${$geneExonCnt{$gene}}{$exonCnt} ;
-    }
-    
-    foreach my $gene (keys %geneExonCnt)
-    {
-      $geneExonCntMode{$gene} = FindMode(\%{$geneExonCnt{$gene}}) ; 
-    }
-    
+        
     # Collect the consensus of introns
     my %geneIntronSeq ;
     my %geneIntronSeqMode ;
@@ -539,7 +596,6 @@ foreach my $allele (@alleleOrder)
 	}
 }
 
-my %geneSeqLengthDist ;
 foreach my $allele (@alleleOrder)
 {
 	my $outputSeq = $alleleSeq{$allele} ;
@@ -553,7 +609,100 @@ foreach my $allele (@alleleOrder)
 		$outputSeq = $outputSeq.substr($gene3UTRPadding{$gene}, -$allelePaddingLength{$allele}[1]) ;
 	}
 	$alleleSeq{$allele} = $outputSeq;
-	++${$geneSeqLengthDist{$gene}}{length($outputSeq)} ;
+}
+
+# Fix the exonization that may affect the anchor intron sequence
+# Should be put after UTR padding so the exon regions matches
+if ($mode eq "dna")
+{
+	foreach my $allele (@alleleOrder)
+	{
+		my $gene = (split /\*/, $allele)[0] ;
+		my @exons = @{$alleleExonRegions{$allele}} ;
+		my $exonCnt = scalar(@exons) / 2 ;
+		next if ($exonCnt != $geneExonCntMode{$gene}) ;
+		next if (!defined $alleleTrueExonRegions{$allele}) ;
+
+		my $updated = 0 ;
+		for (my $i = 0 ; $i < $exonCnt - 1 ; ++$i) # last exon has some special treatment
+		{
+			my $exonLength = $exons[2*$i+1] - $exons[2*$i] + 1 ;
+			if (0)#$allele eq "HLA-C*07:02:01:17N")
+			{
+				print "$i ", $exons[2*$i]," ", $exons[2*$i + 1],
+					" $exonLength ", ${$geneExonLengthMode{$gene}}{$i}, " ",
+					$exons[2*$i + 1] + 1 + $intronPaddingLength, " ",
+					substr($alleleSeq{$allele}, $exons[2*$i + 1] + 1 + $intronPaddingLength, 1), "\n" ;
+				if ($i == 0)
+				{
+					print $alleleSeq{$allele}, "\n" ;
+				}
+			}
+			# Handle the issue of exonization 
+			if ($exonLength > ${$geneExonLengthMode{$gene}}{$i})
+			{
+				my $trim = $exonLength - ${$geneExonLengthMode{$gene}}{$i} ;
+				my $trimSide = 0 ;
+				my @trueExons = @{$alleleTrueExonRegions{$allele}} ;
+				my $posN = 0 ;
+				my $newSeq = "" ;
+				if ($trueExons[2 * $i + 2] - $trueExons[2 * $i + 1] - 1 + $trim == ${$geneTrueIntronLengthMode{$gene}}{$i} 
+					&& $exons[2*$i + 1] + 1 + $intronPaddingLength < length($alleleSeq{$allele})
+					&& substr($alleleSeq{$allele}, $exons[2*$i + 1] + 1 + $intronPaddingLength, 1) eq "N") 
+				{
+					#print("Right exonization! $allele\n") ;
+					$trimSide = 1 ; 
+					$posN = $exons[2*$i + 1] + 1 + $intronPaddingLength ;
+					$newSeq = substr($alleleSeq{$allele}, 0, $posN - $trim)
+							.substr($alleleSeq{$allele}, $posN) ; #'N' is included in this portion
+				}
+				elsif ($i > 0 
+					&& $trueExons[2 * $i] - $trueExons[2 * $i - 1] - 1 + $trim == ${$geneTrueIntronLengthMode{$gene}}{$i - 1} 
+					&& $exons[2*$i] - 1 - $intronPaddingLength >= 0
+					&& substr($alleleSeq{$allele}, $exons[2*$i - 1] - 1 - $intronPaddingLength, 1) eq "N") 
+				{
+					#print("Left exonization! $allele\n") ;
+					$trimSide = -1 ;
+					$posN = $exons[2*$i] - 1 - $intronPaddingLength ;
+					$newSeq = substr($alleleSeq{$allele}, 0, $posN + 1) # 'N' is included in this portion
+								.substr($alleleSeq{$allele}, $posN + $trim + 1) ;
+				}
+				
+				next if ($trimSide == 0) ;
+
+				$alleleSeq{$allele} = $newSeq ;
+				
+				#$alleleSeq{$allele} = substr($alleleSeq{$allele}, $posN-$trim, $trim, "") ;
+				if ($trim > $intronPaddingLength) # the exon itself should be shrinked/trimmed
+				{
+					$exons[2*$i + 1] -= ($trim - $intronPaddingLength) if ($trimSide == 1) ;
+					$exons[2*$i] += ($trim + $intronPaddingLength) if ($trimSide == -1) ;
+				}
+
+				if ($trimSide == -1)
+				{
+					$exons[2*$i] -= $trim ;
+					$exons[2*$i+1] -= $trim ;
+				}
+
+				# Shift the reamining exons
+				for (my $j = $i + 1 ; $j < $exonCnt ; ++$j)
+				{
+					$exons[2*$j] -= $trim ;
+					$exons[2*$j+1] -= $trim ;
+				}
+				$updated = 1 ;
+			}
+		}
+		@{$alleleExonRegions{$allele}} = @exons if ($updated == 1);
+	}
+}
+
+my %geneSeqLengthDist ;
+foreach my $allele (@alleleOrder)
+{
+	my $gene = (split /\*/, $allele)[0] ; 
+	++${$geneSeqLengthDist{$gene}}{length($alleleSeq{$allele})} ;
 }
 
 my %geneSeqLength ;
