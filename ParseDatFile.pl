@@ -468,7 +468,7 @@ if ($includePartialDiffLen >= 0 && $ignorePartial == 0)
 			$geneLengthMode{$gene} = FindMode(\%{$geneEffectiveSeqLengthDist{$gene}}) ; 
 		}
 	}
-
+  
   # rna-mode rescue is easy, we just make sure the length is about right. 
   my @rescuedAlleles ;
   if ($mode eq "rna")
