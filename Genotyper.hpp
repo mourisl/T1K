@@ -229,6 +229,21 @@ private:
 		return ret ;
 	}
 
+  std::string GetEquivalentClassGeneNames(const std::vector<int> &ec)
+  {
+    int i ;
+    int ecCnt = ec.size() ;
+    std::string ret("") ;
+    
+    for (i = 0 ; i < ecCnt ; ++i)
+    {
+      if (i != 0)
+        ret += std::string(",") ;
+      ret += std::string(refSet.GetSeqName(ec[i])) ;
+    }
+    return ret ;
+  }
+
 	int Rand()
 	{
 		return randomSeed = (48271 * randomSeed) & 0x7fffffff ;
@@ -1253,7 +1268,7 @@ public:
 				diffSum += ABS(ecAbundance1[i] - ecAbundance0[i]) ;
 				ecAbundance0[i] = ecAbundance1[i] ;
 #ifdef DEBUG
-				printf("%d %s %d: %lf %lf. %lf\n", i, refSet.GetSeqName(equivalentClassToAlleles[i][0]), equivalentClassToAlleles[i].size(), ecReadCount[i], ecInfo[i].length, ecAbundance0[i]) ;
+				printf("%d %s %d: %lf %lf. %lf\n", i, GetEquivalentClassGeneNames(equivalentClassToAlleles[i]).c_str(), equivalentClassToAlleles[i].size(), ecReadCount[i], ecInfo[i].length, ecAbundance0[i]) ;
 #endif
 			}
 
