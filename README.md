@@ -101,8 +101,8 @@ The other outputs files are:
 
 * t1k_candidate{_1/_2}.fq: the candidate reads extracted from raw data for genotyping
 * t1k_aligned{_1/_2}.fq: the reads can be aligned to some alleles during genotyping 
-* t1k_allele.tsv: the representative alleles with all digits and its quality score
 * t1k_allele.vcf: the novel SNPs. Quality value "FAIL" represents ambiguous SNPs. The coordinates are with respected to the mRNA sequence (concatenation of the exons), even when genotyping WES/WGS data. 
+* t1k_allele.tsv: the representative alleles with all fields and its quality score. Note that this file is to be used with t1k_allele.vcf. The fields corresponding to intronic variations might be wrong. The genotyping result should be read from t1k_genotype.tsv file.
 
 ### Practical notes
 
