@@ -8,6 +8,7 @@ use Cwd 'cwd' ;
 use Cwd 'abs_path' ;
 use File::Basename ;
 use File::Path 'make_path' ;
+use IO::Uncompress::Unzip qw(unzip $UnzipError) ;
 
 my $progName = "t1k-build.pl" ;
 
@@ -116,18 +117,20 @@ if ($ipdDat eq "" and $downloadPath ne "")
 {
 	if (uc($downloadPath) eq "IPD-IMGT/HLA")	
 	{
-		system_call("curl -o $outputDirectory/hla.dat http://ftp.ebi.ac.uk/pub/databases/ipd/imgt/hla/hla.dat") ;
 		$ipdDat = "$outputDirectory/hla.dat" ;
+		system_call("curl -o $ipdDat.zip https://ftp.ebi.ac.uk/pub/databases/ipd/imgt/hla/hla.dat.zip") ;
+		unzip "$ipdDat.zip" => $ipdDat
+			or die "unzip failed: $UnzipError\n";
 	}
 	elsif (uc($downloadPath) eq "IPD-KIR")
 	{
-		system_call("curl -o $outputDirectory/kir.dat https://ftp.ebi.ac.uk/pub/databases/ipd/kir/kir.dat") ;
-		$ipdDat = "$outputDirectory/kir.dat"
+		$ipdDat = "$outputDirectory/kir.dat" ;
+		system_call("curl -o $ipdDat https://ftp.ebi.ac.uk/pub/databases/ipd/kir/kir.dat") ;
 	}
 	else
 	{
-		system_call("curl -o $outputDirectory/t1k_ref.dat $downloadPath") ;
 		$ipdDat = "$outputDirectory/t1k_ref.dat" ;
+		system_call("curl -o $ipdDat $downloadPath") ;
 	}
 }
 
