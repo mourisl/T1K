@@ -8,7 +8,7 @@ use File::Basename ;
 use File::Path qw(make_path) ;
 
 my $progName = "run-t1k" ;
-my $version = "v1.1.8-r231" ;
+my $version = "v1.1.8-r232" ;
 
 die "T1K $version usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
