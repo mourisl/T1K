@@ -4,7 +4,7 @@ use strict ;
 use warnings ;
 
 #--partialInRnaMode INT: include explicitly annotated partial alleles if its length no less than the mode length by <int> for that gene in RNA mode. [0] 
-die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|... --partialInRnaMode INT --partialIntronHasNoSeq --ignoreParital --intronPadding INT(200)] > yyy.fa\n" if (@ARGV == 0) ;
+die "usage: a.pl xxx.dat [-f xxx_gene.fa --mode rna|dna|genome --gene KIR|HLA|... --partialInRnaMode INT --partialIntronHasNoSeq --ignoreParital --intronPadding INT(200) --dedup] > yyy.fa\n" if (@ARGV == 0) ;
 
 sub FindMode
 {
@@ -41,6 +41,7 @@ my $ignorePartial = 0 ;
 my $includePartialDiffLen = 0 ;
 my $partialIntronHasNoSeq = 0 ; # the partial introns have no sequence in the .dat file. This is an issue from IPD-KIR 2.13.0.
 my $intronPaddingLength = 200 ;
+my $dedup = 0 ;
 
 my $i ;
 for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
@@ -79,6 +80,10 @@ for ($i = 1 ; $i < scalar(@ARGV) ; ++$i)
 		$intronPaddingLength = $ARGV[$i + 1] ;
 		++$i ;
 	}
+  elsif ($ARGV[$i] eq "--dedup")
+  {
+    $dedup = 1 ;
+  }
 	else
 	{
 		die "Unknown option ".$ARGV[$i]."\n" ;
@@ -737,7 +742,7 @@ foreach my $allele (@alleleOrder)
 {
 	my $outputSeq = $alleleSeq{$allele} ;
 	next if ($outputSeq eq "") ;
-	#next if (defined $usedSeq{$outputSeq}) ;
+	next if ($dedup == 1 && defined $usedSeq{$outputSeq}) ;
 	next if (!($allele =~ /^$genePrefix/)) ;
 	$usedSeq{$outputSeq} = 1 ;
 	print(">$allele ".scalar(@{$alleleExonRegions{$allele}}) / 2 .
