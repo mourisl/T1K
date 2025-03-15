@@ -749,7 +749,7 @@ public:
 
 	void InitReadAssignments(int totalReadCnt, int maxAssignCnt)
 	{
-		maxAssignCnt = maxAssignCnt ;
+		this->maxAssignCnt = maxAssignCnt ;
 		readCnt = 0 ;
 
 		allReadAssignments.resize(totalReadCnt) ;
