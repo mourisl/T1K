@@ -15,21 +15,22 @@ die "T1K $version usage: ./$progName [OPTIONS]:\n".
     #"\t[Input]:\n".
     "\t-1 STRING -2 STRING: path to paired-end read files\n".
     "\t-u STRING: path to single-end read file\n".
-		"\t-i STRING: path to interleaved read file\n".
+    "\t-i STRING: path to interleaved read file\n".
     "\t-b STRING: path to BAM file\n".
     "\t-f STRING: path to the reference sequence file\n".
     "Optional:\n".
-		"\t-c STRING: path to the gene coordinate file (required when -b input)\n".
+    "\t-c STRING: path to the gene coordinate file (required when -b input)\n".
     "\t-o STRING: prefix of output files. (default: inferred from file prefix)\n".
     "\t--od STRING: the directory for output files. (default: ./)\n".
     "\t-t INT: number of threads (default: 1)\n".
-		"\t-s FLOAT: minimum alignment similarity (default: 0.8)\n".
-		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n".
-		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n".
-		"\t--crossGeneRate FLOAT: the effect from other gene's expression (0.04)\n".
-		"\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n".
-		"\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n".
-		"\t--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)\n".
+    "\t-s FLOAT: minimum alignment similarity (default: 0.8)\n".
+    "\t-n INT: maximal number of alleles per read (default: 2000)\n".
+    "\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n".
+    "\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n".
+    "\t--crossGeneRate FLOAT: the effect from other gene's expression (0.04)\n".
+    "\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n".
+    "\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n".
+    "\t--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)\n".
     "\t--barcode STRING: if -b, BAM field for barcode; if -1 -2/-u, file containing barcodes (default: not used)\n".
     "\t--barcodeRange INT INT CHAR: start, end(-1 for length-1), strand in a barcode is the true barcode (default: 0 -1 +)\n".
     "\t--barcodeWhitelist STRING: path to the barcode whitelist (default: not used)\n".
@@ -39,14 +40,14 @@ die "T1K $version usage: ./$progName [OPTIONS]:\n".
     #"\t--umiRange INT INT CHAR: start, end(-1 for lenght-1), strand in a umi is the true umi (default: 0 -1 +)\n".
     "\t--mateIdSuffixLen INT: the suffix length in read id for mate. (default: not used)\n".
     "\t--abnormalUnmapFlag: the flag in BAM for the unmapped read-pair is nonconcordant (default: not set)\n".
-		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n".
-		"\t--preset STRING: preset parameters for cases requiring non-default settings:\n".
-		"\t\thla: HLA genotyping in general\n".
-		"\t\thla-wgs: HLA genotyping on WGS data\n".
-		"\t\tkir-wgs: KIR genotyping on WGS data\n".
-		"\t\tkir-wes: KIR genotyping on WES data\n".
+    "\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n".
+    "\t--preset STRING: preset parameters for cases requiring non-default settings:\n".
+    "\t\thla: HLA genotyping in general\n".
+    "\t\thla-wgs: HLA genotyping on WGS data\n".
+    "\t\tkir-wgs: KIR genotyping on WGS data\n".
+    "\t\tkir-wes: KIR genotyping on WES data\n".
     "\t--noExtraction: directly use the files from provided -1 -2/-u for genotyping (default: extraction first)\n".
-		"\t--skipPostAnalysis: only conduct genotyping. (default: conduct the post analysis)\n".
+    "\t--skipPostAnalysis: only conduct genotyping. (default: conduct the post analysis)\n".
     "\t--outputReadAssignment: output the allele assignment for each read to prefix_assign.tsv file (default: not used)\n".
     "\t--stage INT: start genotyping on specified stage (default: 0):\n".
     "\t\t0: start from beginning (candidate read extraction)\n".
@@ -54,14 +55,14 @@ die "T1K $version usage: ./$progName [OPTIONS]:\n".
     "\t\t2: start from post analysis\n".
     "\tParameters for post analysis:\n".
     "\t\t--post-varMaxGroup INT: the maximum variant group size to call novel variant. -1 for no limitation (default: 8)\n"
-	if ( @ARGV == 0 ) ;
+    if ( @ARGV == 0 ) ;
 
 sub system_call
 {
-	print STDERR "[".localtime()."] SYSTEM CALL: ".join(" ",@_)."\n";
-	system(@_) == 0
-		or die "system @_ failed: $?";
-	#print STDERR " finished\n";
+  print STDERR "[".localtime()."] SYSTEM CALL: ".join(" ",@_)."\n";
+  system(@_) == 0
+    or die "system @_ failed: $?";
+  #print STDERR " finished\n";
 } 
 
 my $WD = dirname( abs_path( $0 ) ) ;
@@ -96,7 +97,7 @@ my $preset = "" ;
 #my $filterFrac = 0.15 ;
 #my $filterCov = 1.0 ;
 #my $crossGeneRate = 0.0005 ;
-my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0, "-s"=>0,
+my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0, "-s"=>0, "-n"=>2000,
 								"--alleleDigitUnits"=>0, "--alleleDelimiter"=>0, "--alleleWhitelist"=>0) ;
 my %analyzerArgNames = ("-s"=>0, "--alleleDigitUnits"=>0, "--alleleDelimiter"=>0,
   "--post-varMaxGroup"=>8) ;
