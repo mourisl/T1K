@@ -28,7 +28,7 @@ die "T1K $version usage: ./$progName [OPTIONS]:\n".
     "\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n".
     "\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n".
     "\t--crossGeneRate FLOAT: the effect from other gene's expression (0.04)\n".
-    "\t--squaremMinAlpha FLOAT: minimum value (should be negative) for the alpha (step length) in the SQUAREM algorithm (default: not set)".
+    "\t--squaremMinAlpha FLOAT: minimum value (should be negative) for the alpha (step length) in the SQUAREM algorithm (default: not set)\n".
     "\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n".
     "\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n".
     "\t--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)\n".
