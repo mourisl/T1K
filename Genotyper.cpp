@@ -31,7 +31,7 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n"
 		"\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n"
 		"\t--outputReadAssignment: output the allele assignment for each read to prefix_assign.tsv file (default: not used)\n"
-		"\t--squaremMinAlpha FLOAT: minimum value, should be negative, for the alpha (step length) in the SQUAREM algorithm (default: not set.)"
+		"\t--squaremMinAlpha FLOAT: minimum value, should be negative, for the alpha (step length) in the SQUAREM algorithm (default: not set.)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
