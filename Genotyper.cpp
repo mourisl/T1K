@@ -22,7 +22,7 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t-o STRING: output prefix (defult: t1k)\n"
 		"\t-n INT: maximal number of alleles per read (default: 2000)\n"
 		"\t-s FLOAT: filter alignments with alignment similarity less than specified value (defalut: 0.8)\n"
-		"\t--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)"
+		"\t--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)\n"
 		"\t--barcode STRING: path to the barcode file\n"
 		"\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n"
 		"\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n"
@@ -30,7 +30,8 @@ char usage[] = "./genotyper [OPTIONS]:\n"
 		"\t--relaxIntronAlign: allow one more mismatch in intronic alignment (default: false)\n"
 		"\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n"
 		"\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n"
-    "\t--outputReadAssignment: output the allele assignment for each read to prefix_assign.tsv file (default: not used)\n"
+		"\t--outputReadAssignment: output the allele assignment for each read to prefix_assign.tsv file (default: not used)\n"
+		"\t--squaremMinAlpha FLOAT: minimum value, should be negative, for the alpha (step length) in the SQUAREM algorithm (default: not set.)\n"
 		;
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
@@ -51,6 +52,7 @@ static struct option long_options[] = {
 	{ "alleleDelimiter", required_argument, 0, 10006 },  
 	{ "alleleWhitelist", required_argument, 0, 10007 },  
 	{ "outputReadAssignment", no_argument, 0, 10008 },  
+	{ "squaremMinAlpha", required_argument, 0, 10009}, 
 	{(char *)0, 0, 0, 0}
 } ;
 
@@ -311,6 +313,10 @@ int main(int argc, char *argv[])
     else if ( c == 10008 ) 
     {
       outputReadAssignment = true ;
+    }
+    else if (c ==  10009) // --squaremMinAlpha
+    {
+      genotyper.SetMinSquaremAlpha( atof(optarg) )  ;
     }
 		else
 		{

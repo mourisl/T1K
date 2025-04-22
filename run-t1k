@@ -8,7 +8,7 @@ use File::Basename ;
 use File::Path qw(make_path) ;
 
 my $progName = "run-t1k" ;
-my $version = "v1.0.8-r237" ;
+my $version = "v1.0.9-r239" ;
 
 die "T1K $version usage: ./$progName [OPTIONS]:\n".
     "Required:\n".
@@ -28,6 +28,7 @@ die "T1K $version usage: ./$progName [OPTIONS]:\n".
     "\t--frac FLOAT: filter if abundance is less than the frac of dominant allele (default: 0.15)\n".
     "\t--cov FLOAT: filter genes with average coverage less than the specified value (default: 1.0)\n".
     "\t--crossGeneRate FLOAT: the effect from other gene's expression (0.04)\n".
+    "\t--squaremMinAlpha FLOAT: minimum value (should be negative) for the alpha (step length) in the SQUAREM algorithm (default: not set)".
     "\t--alleleDigitUnits INT: the number of units in genotyping result (default: automatic)\n".
     "\t--alleleDelimiter CHR: the delimiter character for digit unit (default: automatic)\n".
     "\t--alleleWhitelist STRING: only consider read aligned to the listed allele sereies. (default: not used)\n".
@@ -98,7 +99,8 @@ my $preset = "" ;
 #my $filterCov = 1.0 ;
 #my $crossGeneRate = 0.0005 ;
 my %genotyperArgNames = ("--frac"=>0, "--cov"=>0, "--crossGeneRate"=>0, "-s"=>0, "-n"=>2000,
-								"--alleleDigitUnits"=>0, "--alleleDelimiter"=>0, "--alleleWhitelist"=>0) ;
+								"--alleleDigitUnits"=>0, "--alleleDelimiter"=>0, "--alleleWhitelist"=>0,
+                "--squaremMinAlpha"=>0) ;
 my %analyzerArgNames = ("-s"=>0, "--alleleDigitUnits"=>0, "--alleleDelimiter"=>0,
   "--post-varMaxGroup"=>8) ;
 print STDERR "[".localtime()."] $progName $version begins.\n" ;
