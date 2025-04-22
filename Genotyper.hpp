@@ -470,6 +470,8 @@ private:
 	int geneType ;  // not used actually
 	bool pairedEndData ; 
 
+  double minSquaremAlpha ;
+
 	// variables for filter
 	double filterFrac ;
 	double filterCov ;
@@ -503,6 +505,8 @@ public:
 
 		alleleDigitUnits = -1 ;
 		alleleDelimiter = '\0' ;
+
+    minSquaremAlpha = 0 ; 
 	}
 
 	~Genotyper() 
@@ -546,7 +550,12 @@ public:
 		alleleDigitUnits = n ;
 		alleleDelimiter = d ;
 	}
-		
+	
+  void SetMinSquaremAlpha(double a)
+  {
+    minSquaremAlpha = a ;
+  }
+
 	void InitAlleleInfo()
 	{
 		int i, j, k ;
@@ -1231,6 +1240,8 @@ public:
 					readGroupToAlleleEc, readGroupInfo, ecInfo) ;
 
 			double alpha = SQUAREMalpha(ecAbundance0, ecAbundance1, ecAbundance2, ecCnt) ;
+      if (minSquaremAlpha < 0 && alpha < minSquaremAlpha)
+        alpha = minSquaremAlpha ;
 			//memcpy(ecAbundance0, ecAbundance1, sizeof(double) * ecCnt) ;
 			double minAbund3 = 0  ;
 			double maxAbund3 = 0 ;
@@ -1243,6 +1254,9 @@ public:
 					minAbund3 = ecAbundance3[i] ;
 				if (ecAbundance3[i] > maxAbund3)
 					maxAbund3 = ecAbundance3[i] ;
+        //if (i == 1440)
+        //  printf("1440 debug: %lf<=%lf %lf %lf %lf %lf\n", ecAbundance3[i],
+        //      ecAbundance0[i], ecAbundance1[i], ecAbundance2[i], alpha) ;
 					//ecAbundance3[i] = 0 ;
 			}
 			/*if (minAbund3 < 0)
@@ -1268,7 +1282,7 @@ public:
 				diffSum += ABS(ecAbundance1[i] - ecAbundance0[i]) ;
 				ecAbundance0[i] = ecAbundance1[i] ;
 #ifdef DEBUG
-				printf("%d %s %d: %lf %lf. %lf\n", i, GetEquivalentClassGeneNames(equivalentClassToAlleles[i]).c_str(), equivalentClassToAlleles[i].size(), ecReadCount[i], ecInfo[i].length, ecAbundance0[i]) ;
+				printf("%d %s %d: %lf %d. %lf\n", i, GetEquivalentClassGeneNames(equivalentClassToAlleles[i]).c_str(), equivalentClassToAlleles[i].size(), ecReadCount[i], ecInfo[i].length, ecAbundance0[i]) ;
 #endif
 			}
 
@@ -1279,7 +1293,7 @@ public:
 			{
 				// Filter the low abundant ones
 				SetAlleleAbundance(ecReadCount, ecInfo) ;
-
+        //printf("Filter %d: %lf\n", t, geneMaxMajorAlleleAbundance[alleleInfo[i].geneIdx]) ;
 				for (i = 0 ; i < alleleCnt ; ++i)			
 				{
 					if (majorAlleleAbundance[alleleInfo[i].majorAlleleIdx] 
