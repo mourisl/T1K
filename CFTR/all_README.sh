@@ -89,10 +89,10 @@
 #     - Run the T1K pipeline to genotype CFTR2 using paired-end FASTQ files:
 #
 #       For RNA-seq data:
-#           ./run-t1k -1 read_1.fq -2 read_2.fq -f CFTR2_rna.fa
+#           ./run-t1k -1 read_1.fq -2 read_2.fq --alleleDelimiter : --alleleDigitUnits 1 -n 0 --squaremMinAlpha 10 -f CFTR2_rna.fa
 #
 #       For whole genome or exome sequencing data:
-#           ./run-t1k -1 read_1.fq -2 read_2.fq -f CFTR2_dna.fa
+#           ./run-t1k -1 read_1.fq -2 read_2.fq --alleleDelimiter : --alleleDigitUnits 1 -n 0 --squaremMinAlpha 10 -f CFTR2_dna.fa
 #
 # Each module generates output files that serve as input for the subsequent steps.
 #

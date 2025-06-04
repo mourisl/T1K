@@ -25,10 +25,10 @@
 # allele sequence.
 #
 # To genotype CFTR2 on RNA-seq data
-#   ./run-t1k -1 read_1.fq -2 read_2.fq -f CFTR2_rna.fa 
+#   ./run-t1k -1 read_1.fq -2 read_2.fq -alleleDelimiter : --alleleDigitUnits 1 -n 0 --squaremMinAlpha 10 -f CFTR2_rna.fa 
 #
 # To genotype CFTR2 on whole genome sequencing data
-#   ./run-t1k -1 read_1.fq -2 read_2.fq -f CFTR2_dna.fa 
+#   ./run-t1k -1 read_1.fq -2 read_2.fq -alleleDelimiter : --alleleDigitUnits 1 -n 0 --squaremMinAlpha 10 -f CFTR2_dna.fa 
 #
 # Ensure the appropriate reference file (CFTR2_rna.fa or CFTR2_dna.fa) is available
 # in the working directory before running T1K.
