@@ -1533,6 +1533,7 @@ public:
 				no.seqEnd = finalHits[ lisSize - 1 ].indexHit.offset + kmerLength - 1 ;
 				no.matchCnt = 2 * hitLen ;
 				no.similarity = 0 ;
+				no.inIntron = false ; // This will be actually set later
 
 				if ( !seqs[ no.seqIdx ].isRef && hitLen * 2 < no.seqEnd - no.seqStart + 1 )
 				{
