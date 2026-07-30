@@ -2073,6 +2073,7 @@ public:
 		extendedOverlap.leftClip = leftClip ;
 		extendedOverlap.rightClip = rightClip ;
 		extendedOverlap.align = NULL ;	
+		extendedOverlap.inIntron = false ; // This will be set later by examine all overlaps for this read.
 		//printf("%d %d %d %d. %d\n", extendedOverlap.readStart, extendedOverlap.readEnd, extendedOverlap.seqStart, extendedOverlap.seqEnd,
 		//		extendedOverlap.matchCnt);		
 		if (extendedOverlap.similarity < refSeqSimilarity)
