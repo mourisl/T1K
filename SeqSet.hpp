@@ -97,6 +97,8 @@ struct _overlap
 	double similarity ;
 	int leftClip, rightClip ;
 	int relaxedMatchCnt ; // the number of matches regarding the intronic mismatch as all match
+
+	bool inIntron ; // If the alignment is contained in the intronic
 	
 	signed char *align ;
 	
@@ -160,6 +162,7 @@ struct _fragmentOverlap
 
 	double qual ; // qulaity of this assignment
 	bool hasN ; 
+	bool inIntron ;
 
 	bool operator<( const struct _fragmentOverlap &b ) const
 	{
@@ -1530,6 +1533,7 @@ public:
 				no.seqEnd = finalHits[ lisSize - 1 ].indexHit.offset + kmerLength - 1 ;
 				no.matchCnt = 2 * hitLen ;
 				no.similarity = 0 ;
+				no.inIntron = false ; // This will be actually set later
 
 				if ( !seqs[ no.seqIdx ].isRef && hitLen * 2 < no.seqEnd - no.seqStart + 1 )
 				{
@@ -2069,6 +2073,7 @@ public:
 		extendedOverlap.leftClip = leftClip ;
 		extendedOverlap.rightClip = rightClip ;
 		extendedOverlap.align = NULL ;	
+		extendedOverlap.inIntron = false ; // This will be set later by examine all overlaps for this read.
 		//printf("%d %d %d %d. %d\n", extendedOverlap.readStart, extendedOverlap.readEnd, extendedOverlap.seqStart, extendedOverlap.seqEnd,
 		//		extendedOverlap.matchCnt);		
 		if (extendedOverlap.similarity < refSeqSimilarity)
@@ -2184,7 +2189,26 @@ public:
 			else
 				onlyConsiderClip = true ;
 		}
-		
+
+		// Test whether the alignment is fully contained in the intron region and set the inIntron flag
+		// Only set when all the assignments are in the intron region.
+		if (extendedOverlaps.size() > 0 && !rnaData)
+		{
+			int size = extendedOverlaps.size() ;
+			bool flag = true ;
+			for (i = 0 ; i < size ; ++i)
+			{
+				if (GetOverlapExonLength(extendedOverlaps[i]) > 0)
+				{
+					flag = false ;
+					break ;
+				}
+			}
+
+			for (i = 0 ; i < size ; ++i)
+				extendedOverlaps[i].inIntron = flag ;
+		}
+
 		if (extendedOverlaps.size() > 0 && weight >= 0)
 		{
 			// Adding the exonic and base support for good overlaps
@@ -2402,6 +2426,7 @@ public:
 				fragmentOverlap.o1FromR2 = false ;
 				fragmentOverlap.overlap1 = o ;
 				fragmentOverlap.relaxedMatchCnt = o.relaxedMatchCnt ;
+				fragmentOverlap.inIntron = o.inIntron ;
 
 				if (fragments[i].b >= 0)
 				{
@@ -2420,6 +2445,7 @@ public:
 						 + 2 * o.leftClip + 2 * o.rightClip + 2 * o2.leftClip + 2 * o2.rightClip) ;
 					//printf("%s: %d %d\n", seqs[fragmentOverlap.seqIdx].name, fragments[i].a, fragments[i].b) ;	
 					fragmentOverlap.hasMatePair = true ;
+					fragmentOverlap.inIntron = (o.inIntron && o2.inIntron) ;
 					fragmentOverlap.overlap2 = o2 ;
 				}
 			}	
@@ -2436,6 +2462,7 @@ public:
 				fragmentOverlap.hasN = hasN ;
 				fragmentOverlap.o1FromR2 = true ;
 				fragmentOverlap.relaxedMatchCnt = o.relaxedMatchCnt ;
+				fragmentOverlap.inIntron = o.inIntron ;
 				fragmentOverlap.overlap1 = o ;
 			}
 

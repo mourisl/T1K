@@ -226,6 +226,9 @@ private:
 		if (o.hasN)
 			ret /= 10.0 ;
 
+		if (o.inIntron)
+			ret /= 2.0 ;
+
 		return ret ;
 	}
 
