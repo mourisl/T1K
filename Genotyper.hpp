@@ -2134,7 +2134,8 @@ public:
 				buffer = secondaryAlleles ;
 				sep = ';' ;
 			}
-			buffer[0] = '\0' ;
+			if (type <= 1)
+				buffer[0] = '\0' ;
 
 			int size = selectedAlleles[geneIdx].size() ;
 			selectedMajorAlleles.Clear() ;
