@@ -2134,7 +2134,7 @@ public:
 				buffer = secondaryAlleles ;
 				sep = ';' ;
 			}
-			if (type <= 1)
+			if (type <= 2)
 				buffer[0] = '\0' ;
 
 			int size = selectedAlleles[geneIdx].size() ;
